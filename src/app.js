@@ -10,9 +10,13 @@ import { renderMedia } from './views/media.js';
 import * as gate from './views/gate.js';
 import { mountAdmin, hasUnsavedWork } from './views/admin.js';
 import { startUpdater, appVersion } from './updater.js';
+import { LiveSession } from './live/sync.js';
+import * as LM from './live/model.js';
+import { mountLive, openMatchSheet } from './views/live.js';
 
 const ROUTES = [
   { hash: '#/',      label: 'בית',    render: renderHome,  wire: (root) => startCountdown(root) },
+  { hash: '#/live',  label: 'לייב',   live: true },
   { hash: '#/stats', label: 'נתונים', render: renderStats, wire: (root, s) => wireStats(root, s) },
   { hash: '#/media', label: 'מדיה',   render: renderMedia },
 ];
@@ -32,6 +36,13 @@ const state = {
 };
 
 const isAdmin = () => !!store.getAdminCode();
+
+// One live session for the whole app: it polls slowly everywhere (so the home
+// banner and the tab's dot appear when a match starts) and fast on the live
+// screen, which raises the rate while it is open.
+const session = new LiveSession({ asAdmin: isAdmin });
+let sessionStarted = false;
+const liveActive = () => { const st = session.state; return !!st && st.status !== 'ended'; };
 const onAdminRoute = () => location.hash === ADMIN_HASH;
 
 // Resolved against the app root as this module sees it, never the document,
@@ -51,6 +62,7 @@ function accept(payload) {
   state.access = 'approved';
   state.stale = false;
   store.setCachedSeason(payload);
+  if (!sessionStarted) { sessionStarted = true; session.start(); }
 }
 
 /* ---------- talking to the bridge ---------- */
@@ -126,7 +138,7 @@ function chrome(team) {
   const name = team?.name || 'מכבי גבעתיים';
   const nav = state.access === 'approved' && state.season
     ? `<nav class="nav" id="nav">
-        ${ROUTES.map((r) => `<a href="${r.hash}">${esc(r.label)}</a>`).join('')}
+        ${ROUTES.map((r) => `<a href="${r.hash}">${esc(r.label)}${r.live && liveActive() ? '<i class="live-dot" aria-label="משחק חי"></i>' : ''}</a>`).join('')}
         ${isAdmin() ? `<a href="${ADMIN_HASH}">ניהול</a>` : ''}
       </nav>`
     : '';
@@ -215,7 +227,7 @@ function render() {
       return;
     case 'rejected':
     case 'revoked':
-      view.innerHTML = gate.deniedScreen(state.access, state.name);
+      view.innerHTML = gate.deniedScreen(state.access);
       view.querySelector('#re-request').addEventListener('click', () => { state.access = 'none'; render(); });
       return;
   }
@@ -224,12 +236,69 @@ function render() {
 
   const route = ROUTES.find((r) => r.hash === location.hash) || ROUTES[0];
   const s = state.season;
-  view.innerHTML = route.render(s)
+  markNav(route.hash);
+  if (route.live) {
+    teardown = mountLive(view, {
+      session,
+      team: s.team,
+      nextMatch: s.nextMatch,
+      isAdmin,
+      players: () => s.players.map((p) => ({ id: p.id, name: p.name, number: p.number ?? null, pos: p.pos || '', pos2: p.pos2 || '' })),
+      format: () => LM.cleanFormat(s.settings?.format),
+    });
+    return;
+  }
+  view.innerHTML = (route.hash === '#/' ? liveBanner() : '') + route.render(s)
     + (state.stale ? '<p class="note stale">מוצגים הנתונים האחרונים שנשמרו במכשיר — אין כרגע חיבור לשרת.</p>' : '')
     + `<p class="foot">${esc(s.team.name)}${s.team.season ? ' · ' + esc(s.team.season) : ''}${isAdmin() ? '' : ' · <a href="#/admin">כניסת מנהל</a>'}</p>`;
-  markNav(route.hash);
   teardown = route.wire ? route.wire(view, s) || (() => {}) : () => {};
 }
+
+function liveBanner() {
+  const st = session.state;
+  if (!st || st.status === 'ended' || st.status === 'setup') return '';
+  const sc = LM.score(st);
+  const where = st.status === 'running' ? LM.periodName(st.format, st.period) : st.status === 'break' ? 'הפסקה' : 'הזמן נגמר';
+  return `<a class="live-banner" href="#/live">
+      <i class="live-dot"></i>
+      <span class="lb-text"><b>משחק חי מול ${esc(st.opponent || 'היריבה')}</b><small>${esc(where)} · לצפייה בזמן אמת</small></span>
+      <span class="lb-score num"><span class="ours">${sc.us}</span><span class="sep">:</span><span>${sc.them}</span></span>
+    </a>`;
+}
+
+// Re-render the ordinary screens only when something they show changed —
+// the banner, the tab's dot — never on the live or manager screens, which
+// manage themselves, and never on a poll that brought nothing new.
+let lastLiveKey = '';
+let lastLiveStatus = null;
+session.subscribe(() => {
+  const st = session.state;
+  const key = st ? `${st.id}|${st.status}|${st.period}|${LM.score(st).us}:${LM.score(st).them}` : 'none';
+  // A match that just ended is now a row in the season's results: fetch it,
+  // so the history and the players' totals include it straight away. Keyed
+  // on what the *server* has confirmed, not on this phone's optimistic view —
+  // otherwise the phone that pressed "finish" re-reads the season before
+  // the result has reached it.
+  const confirmed = session.confirmed?.status ?? null;
+  if (confirmed === 'ended' && lastLiveStatus && lastLiveStatus !== 'ended') refresh();
+  lastLiveStatus = confirmed;
+  if (key === lastLiveKey) return;
+  lastLiveKey = key;
+  const onPlain = !onAdminRoute() && location.hash !== '#/live' && state.access === 'approved' && state.season;
+  if (onPlain) render();
+  else document.querySelectorAll('#nav a[href="#/live"]').forEach((a) => {
+    a.querySelector('.live-dot')?.remove();
+    if (liveActive()) a.insertAdjacentHTML('beforeend', '<i class="live-dot" aria-label="משחק חי"></i>');
+  });
+});
+
+// History rows open the match: score, scorers, assists, subs.
+document.addEventListener('click', (e) => {
+  const row = e.target.closest('[data-match]');
+  if (!row || !state.season) return;
+  const m = state.season.recent[Number(row.dataset.match)];
+  if (m) openMatchSheet(m);
+});
 
 /* ---------- start ---------- */
 
@@ -243,6 +312,7 @@ function start() {
     state.payload = cached;
     state.season = prepare(cached);
     state.access = 'approved';
+    if (!sessionStarted) { sessionStarted = true; session.start(); }
     render();
     refresh();
   } else if (isAdmin()) {

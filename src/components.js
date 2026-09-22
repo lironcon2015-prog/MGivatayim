@@ -2,6 +2,9 @@ import { outcomeOf, OUTCOMES } from './season.js';
 import { shortDate, esc, safeUrl } from './format.js';
 import { icon } from './icons.js';
 
+// "מחזור 7", or nothing — never "מחזור null" for a match entered without one.
+export const roundText = (r) => (r != null && r !== '' ? `מחזור ${r}` : '');
+
 export const CLASS_OF = { win: 'is-win', draw: 'is-draw', loss: 'is-loss' };
 
 // The club's own crest, used wherever the UI means "us". It is deliberately
@@ -32,14 +35,15 @@ export function formPill(match) {
     <b class="num">${match.gf}:${match.ga}</b>${esc(OUTCOMES[o])}</div>`;
 }
 
-export function matchRow(match) {
+export function matchRow(match, i) {
   const o = outcomeOf(match);
-  return `<div class="match">
+  const tag = Number.isInteger(i) ? 'button' : 'div';
+  return `<${tag} class="match"${tag === 'button' ? ` type="button" data-match="${i}"` : ''}>
     <span class="when"><b class="num">${shortDate(match.date)}</b></span>
-    <span class="who"><b>${esc(match.opponent)}</b><span>${match.home ? 'בית' : 'חוץ'} · מחזור ${match.round}</span></span>
+    <span class="who"><b>${esc(match.opponent)}</b><span>${[match.home ? 'בית' : 'חוץ', roundText(match.round)].filter(Boolean).map(esc).join(' · ')}</span></span>
     ${scoreEl(match)}
     <span class="tag ${CLASS_OF[o]}">${esc(OUTCOMES[o])}</span>
-  </div>`;
+  </${tag}>`;
 }
 
 export function leaderRow(player, rank, figures) {
@@ -48,7 +52,8 @@ export function leaderRow(player, rank, figures) {
     .join('');
   return `<div class="leader">
     <span class="rank num">${rank}</span>
-    <span class="who"><b>${esc(player.name)}</b><span>${esc(player.position)} · מספר ${player.number}</span></span>
+    <span class="who"><b>${esc(player.name)}</b><span>${[player.posText, player.number != null ? `מספר ${player.number}` : '']
+      .filter(Boolean).map(esc).join(' · ')}</span></span>
     <span class="figs">${figs}</span>
   </div>`;
 }
@@ -92,7 +97,7 @@ export function videoCard(v) {
       <span class="play">${icon('play')}</span>
       <span class="dur num">${esc(v.duration)}</span>
     </div>
-    <div class="cap"><b>${esc(v.title)}</b><span>מחזור ${v.round}</span></div>`;
+    <div class="cap"><b>${esc(v.title)}</b><span>${esc(roundText(v.round))}</span></div>`;
   return href
     ? `<a class="video" href="${esc(href)}" target="_blank" rel="noopener noreferrer">${inner}</a>`
     : `<div class="video" aria-disabled="true">${inner}</div>`;

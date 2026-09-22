@@ -1,5 +1,5 @@
 import { esc } from '../format.js';
-import { sectionHead, videoCard } from '../components.js';
+import { sectionHead, videoCard, roundText } from '../components.js';
 import { safeUrl } from '../format.js';
 
 export function renderMedia(s) {
@@ -14,7 +14,7 @@ export function renderMedia(s) {
 
   return `
   <section>
-    ${sectionHead('הסרטון הנבחר', `מחזור ${featured.round}`)}
+    ${sectionHead('הסרטון הנבחר', esc(roundText(featured.round)))}
     ${videoCard(featured)}
   </section>
 

@@ -39,7 +39,7 @@ export function pendingScreen(name) {
      ${adminLink}`);
 }
 
-export function deniedScreen(status, name) {
+export function deniedScreen(status) {
   const title = status === 'revoked' ? 'הגישה בוטלה' : 'הבקשה לא אושרה';
   return card(title,
     `<p class="gate-lead">${status === 'revoked'

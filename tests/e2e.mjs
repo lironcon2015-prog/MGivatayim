@@ -46,7 +46,7 @@ const expect = (cond, msg) => { if (!cond) throw new Error(msg); };
 // Each role is its own browser context: separate storage, so separate device.
 async function device(label) {
   const ctx = await browser.newContext({ viewport: { width: 400, height: 860 } });
-  await ctx.addInitScript((url) => { try { localStorage.setItem('mg:bridge', url); } catch {} }, BRIDGE);
+  await ctx.addInitScript((url) => { try { localStorage.setItem('mg:bridge', url); localStorage.setItem('mg:pollMs', '500'); } catch {} }, BRIDGE);
   // Google Fonts is outside the test; failing it fast keeps runs offline-safe.
   await ctx.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
   const page = await ctx.newPage();
@@ -207,7 +207,115 @@ await step('"the match was played" turns the fixture into a result row', async (
   expect(s.nextMatch === null && s.matches.length === 2, 'fixture not moved');
 });
 
+// ---- live match ----
+const liveFile = () => JSON.parse(bridge.driveFile('live.json') || '{}').state;
+const seasonFile = () => JSON.parse(bridge.driveFile('season.json')).season;
+
+await step('players are imported by pasting cells from a spreadsheet', async () => {
+  await admin.click('[data-tab="season"]');
+  await admin.click('[data-import="paste"]');
+  await admin.fill('[data-paste]', 'מספר\tשם\tעמדה\n1\tנועם\tשוער\n9\tגיא פרץ\tחלוץ\n10\tדניאל לוי\tקשר קדמי\n14\tתומר עזרא\tבלם\n');
+  await admin.click('[data-go]');
+  await admin.locator('[data-apply]').click();
+  await admin.click('#save');
+  await waitText(admin, 'נשמר');
+  const names = seasonFile().players.map((p) => p.name);
+  expect(['גיא פרץ', 'דניאל לוי', 'תומר עזרא', 'נועם'].every((n) => names.includes(n)), 'imported: ' + names.join(','));
+  expect(seasonFile().players.find((p) => p.name === 'גיא פרץ').pos === 'ST', 'position not read');
+});
+
+await step('the manager opens a live match and picks a lineup', async () => {
+  await admin.goto(APP + '#/live');
+  await admin.click('[data-act="new"]');
+  await waitText(admin, 'הרכב פותח');
+  await admin.click('[data-act="start"]');
+  await admin.locator('.toast', { hasText: 'חסר שם היריבה' }).waitFor();
+  await admin.fill('[data-meta="opponent"]', 'מכבי נחלים');
+  await admin.locator('[data-meta="opponent"]').blur();
+  for (const n of ['1', '9', '10', 'איתי']) {
+    await admin.locator('.lu-row', { hasText: n }).first().locator('.lu-toggle').click();
+  }
+  await admin.waitForFunction(() => document.querySelectorAll('.lu-row.on').length === 4);
+  await admin.click('[data-act="start"]');
+  await admin.locator('.ctl-goal').first().waitFor();
+});
+
+await step('a goal with scorer and assist is recorded exactly once', async () => {
+  await admin.click('[data-act="goal-us"]');
+  await admin.locator('.pick', { hasText: 'גיא פרץ' }).click();
+  await admin.locator('.pick', { hasText: 'דניאל לוי' }).click();
+  await waitText(admin, 'כולם רואים');
+  const goals = liveFile().events.filter((e) => e.type === 'goal');
+  expect(goals.length === 1, `${goals.length} goals recorded for one tap`);
+  const byName = Object.fromEntries(liveFile().players.map((p) => [p.name, p.id]));
+  expect(goals[0].scorer === byName['גיא פרץ'] && goals[0].assist === byName['דניאל לוי'], 'wrong scorer/assist');
+});
+
+await step('a watching parent sees the goal, with the scorer, without reloading', async () => {
+  await parent.goto(APP + '#/live');
+  await parent.locator('.sc-score .ours', { hasText: '1' }).waitFor({ timeout: 8000 });
+  await waitText(parent, 'גיא פרץ');
+  expect(await parent.locator('.ctl-goal').count() === 0, 'a watching parent sees controls');
+});
+
+await step('tapping a player on the pitch substitutes them', async () => {
+  await admin.locator('button.pl', { hasText: 'איתי' }).click();
+  await admin.locator('.pick', { hasText: 'תומר עזרא' }).click();
+  await waitText(admin, 'כולם רואים');
+  const sub = liveFile().events.find((e) => e.type === 'sub');
+  expect(!!sub, 'no sub recorded');
+  await parent.locator('.pl', { hasText: 'תומר' }).waitFor({ timeout: 8000 });
+});
+
+await step('a wrong live code is refused; the right one hands the parent control', async () => {
+  await admin.click('[data-act="more"]');
+  await admin.fill('[data-code-form] input', '4821');
+  await admin.locator('[data-code-form] button').click();
+  await admin.locator('.toast', { hasText: '4821' }).waitFor();
+  await parent.click('[data-act="claim"]');
+  await parent.fill('[data-claim] input', '0000');
+  await parent.locator('[data-claim] button').click();
+  await parent.locator('[data-msg]', { hasText: 'נותרו' }).waitFor();
+  await parent.fill('[data-claim] input', '4821');
+  await parent.locator('[data-claim] button').click();
+  await parent.locator('.ctl-goal').first().waitFor({ timeout: 8000 });
+});
+
+await step('the parent in control records a goal against; the manager sees it', async () => {
+  await parent.click('[data-act="goal-them"]');
+  await admin.locator('.sc-score [data-them]', { hasText: '1' }).waitFor({ timeout: 8000 });
+});
+
+await step('finishing saves the result and the scorers into the season', async () => {
+  await parent.click('[data-act="end"]');
+  await parent.click('[data-ok]');
+  await parent.locator('[data-act="finish"]').first().click();
+  await parent.click('[data-ok]');
+  await waitText(parent, 'נשמר בתוצאות');
+  await parent.waitForFunction(() => true);
+  await new Promise((r) => setTimeout(r, 800));
+  const m = seasonFile().matches.find((x) => x.liveId);
+  expect(m && m.gf === 1 && m.ga === 1, 'result: ' + JSON.stringify(m && [m.gf, m.ga]));
+  expect(m.opponent === 'מכבי נחלים', 'opponent: ' + m.opponent);
+  expect(m.events.some((e) => e.type === 'sub'), 'events not saved with the match');
+});
+
+await step('the scorer\'s total comes from the match events', async () => {
+  await parent.goto(APP + '#/stats');
+  await parent.locator('#board .leader', { hasText: 'גיא פרץ' }).waitFor({ timeout: 8000 });
+  const row = await parent.locator('#board .leader', { hasText: 'גיא פרץ' }).innerText();
+  expect(/\b1\b/.test(row), 'leader row: ' + row);
+});
+
+await step('a history row opens the match with its goals and subs', async () => {
+  await parent.goto(APP + '#/');
+  await parent.locator('button.match', { hasText: 'מכבי נחלים' }).first().click();
+  await parent.locator('.sheet .tl', { hasText: 'גיא פרץ' }).waitFor();
+  await parent.locator('.sheet-x').click();
+});
+
 await step('revoking locks the parent out and drops their cached copy', async () => {
+  await admin.goto(APP + '#/admin');
   await admin.click('[data-tab="access"]');
   await waitText(admin, 'אבא של איתי');
   await admin.locator('[data-set="revoked"]').first().click();

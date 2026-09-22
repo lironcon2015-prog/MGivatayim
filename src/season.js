@@ -3,6 +3,9 @@
 // totals drift from the fixtures they summarise, and the mockups this app was
 // built from already disagreed with themselves that way.
 
+import { minutesPlayed } from './live/model.js';
+import { primaryPos, posLabel } from './positions.js';
+
 export const OUTCOMES = { win: 'ניצחון', draw: 'תיקו', loss: 'הפסד' };
 
 export function outcomeOf(match) {
@@ -60,7 +63,36 @@ export function buildSeason(input) {
   const home = tally(chronological.filter((m) => m.home));
   const away = tally(chronological.filter((m) => !m.home));
 
-  const players = [...raw.players].map((p) => ({ ...p, points: p.goals + p.assists }));
+  // A player's totals are the manager's baseline (matches played before live
+  // tracking, entered by hand) plus everything recorded in live matches. The
+  // live part is never stored as a number anywhere — it is recounted from the
+  // events every time, so deleting a mistaken goal fixes the table with it.
+  const fromLive = { goals: {}, assists: {}, minutes: {} };
+  const bump = (bag, id, n = 1) => { if (id) bag[id] = (bag[id] || 0) + n; };
+  for (const m of chronological) {
+    if (!Array.isArray(m.events)) continue;
+    for (const e of m.events) {
+      if (e.type !== 'goal' || e.side === 'them') continue;
+      bump(fromLive.goals, e.scorer);
+      bump(fromLive.assists, e.assist);
+    }
+    if (Array.isArray(m.lineup) && Array.isArray(m.format)) {
+      const mins = minutesPlayed({ format: m.format, events: m.events, lineup: m.lineup, status: 'ended' });
+      for (const [id, n] of Object.entries(mins)) bump(fromLive.minutes, id, n);
+    }
+  }
+  const players = [...raw.players].map((p) => {
+    const key = p.id || 'n:' + String(p.name || '').trim();
+    const goals = (Number(p.goals) || 0) + (fromLive.goals[key] || 0);
+    const assists = (Number(p.assists) || 0) + (fromLive.assists[key] || 0);
+    const minutes = (Number(p.minutes) || 0) + (fromLive.minutes[key] || 0);
+    const pos = primaryPos(p);
+    // Players saved before ids existed get a stable one from their name — the
+    // same rule the manager's editor uses when it next saves them — so a live
+    // match started before that save still credits the right child.
+    const id = p.id || 'n:' + String(p.name || '').trim();
+    return { ...p, id, pos, goals, assists, minutes, points: goals + assists, posText: posLabel(pos) || p.position || '' };
+  });
   const squadGoals = players.reduce((sum, p) => sum + p.goals, 0);
 
   return {

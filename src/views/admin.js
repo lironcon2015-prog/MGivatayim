@@ -1,5 +1,11 @@
 import { call } from '../bridge.js';
 import { esc, safeUrl, israelIso, splitKickoff, stamp } from '../format.js';
+import { POSITIONS, primaryPos, posLabel } from '../positions.js';
+import { readRows, parseDelimited, detectColumns, rowsToPlayers, planImport, applyImport, FIELDS } from '../importer.js';
+import { DEFAULT_FORMAT, cleanFormat } from '../live/model.js';
+import { formatEditorHtml, wireFormatEditor } from './live.js';
+import { openSheet, toast } from '../ui/sheet.js';
+import { icon } from '../icons.js';
 
 /* ── What the manager edits ───────────────────────────────────────────────
    One table drives every list editor: the form, the "add" template and the
@@ -9,6 +15,8 @@ import { esc, safeUrl, israelIso, splitKickoff, stamp } from '../format.js';
 
 const HOME_OPTS = [['true', 'בית'], ['false', 'חוץ']];
 const ICON_OPTS = [['chat', 'צ׳אט'], ['table', 'טבלה'], ['calendar', 'לוח'], ['photo', 'תמונות']];
+const POS_OPTS = [['', '—'], ...POSITIONS.map((p) => [p.id, p.label])];
+const newId = () => 'p' + Math.random().toString(36).slice(2, 9);
 const today = () => new Date().toISOString().slice(0, 10);
 
 const TEAM_FIELDS = [
@@ -45,15 +53,17 @@ const LISTS = [
   },
   {
     path: 'players', title: 'שחקנים', add: 'הוספת שחקן',
-    blank: () => ({ name: '', number: null, position: '', goals: 0, assists: 0, minutes: 0 }),
-    label: (p) => p.name || 'שחקן חדש',
+    note: 'שערים, בישולים ודקות ממשחקים שתועדו בלייב נספרים לבד. בשדות "לפני הלייב" מזינים רק משחקים שלא תועדו.',
+    blank: () => ({ id: newId(), name: '', number: null, pos: '', pos2: '', goals: 0, assists: 0, minutes: 0 }),
+    label: (p) => [p.number != null && p.number !== '' ? p.number : null, p.name || 'שחקן חדש', posLabel(p.pos)].filter((x) => x != null && x !== '').join(' · '),
     fields: [
       { key: 'name', label: 'שם', required: true },
       { key: 'number', label: 'מספר', type: 'number' },
-      { key: 'position', label: 'עמדה' },
-      { key: 'goals', label: 'שערים', type: 'number' },
-      { key: 'assists', label: 'בישולים', type: 'number' },
-      { key: 'minutes', label: 'דקות', type: 'number' },
+      { key: 'pos', label: 'עמדה', type: 'select', options: POS_OPTS },
+      { key: 'pos2', label: 'עמדה נוספת', type: 'select', options: POS_OPTS },
+      { key: 'goals', label: 'שערים לפני הלייב', type: 'number' },
+      { key: 'assists', label: 'בישולים לפני הלייב', type: 'number' },
+      { key: 'minutes', label: 'דקות לפני הלייב', type: 'number' },
     ],
   },
   {
@@ -194,6 +204,7 @@ let tab = 'season';
 
 const blankSeason = () => ({
   team: { name: 'מכבי גבעתיים', league: '', season: '' },
+  settings: { format: [...DEFAULT_FORMAT] },
   nextMatch: null, matches: [], players: [], videos: [], links: [],
   analysis: { items: [], note: '' },
 });
@@ -202,6 +213,13 @@ function adopt(payload) {
   draft = clone(payload?.season) || blankSeason();
   draft.analysis ??= { items: [], note: '' };
   draft.analysis.items ??= [];
+  draft.settings ??= { format: [...DEFAULT_FORMAT] };
+  // Players saved before ids and positions existed: the id follows the same
+  // name rule season.js reads with, so live history still credits them.
+  for (const p of draft.players || []) {
+    p.id ||= 'n:' + String(p.name || '').trim();
+    if (!p.pos && p.position) p.pos = primaryPos(p);
+  }
   baseVersion = payload?.version || 0;
   dirty = false;
 }
@@ -238,6 +256,100 @@ export function mountAdmin(view, ctx) {
       </section>
       ${tab === 'access' ? accessHtml() : seasonHtml()}`;
     window.scrollTo(0, scroll);
+    const fmt = view.querySelector('[data-format-editor]');
+    if (fmt) {
+      wireFormatEditor(fmt, () => cleanFormat(draft.settings?.format), (f) => {
+        draft.settings = { ...(draft.settings || {}), format: f };
+        touch();
+      });
+    }
+    view.querySelector('[data-import-file]')?.addEventListener('change', async (e) => {
+      const file = e.target.files?.[0];
+      e.target.value = '';
+      if (!file) return;
+      try { importPreview(await readRows(file), file.name); }
+      catch (err) { toast(esc(err.message), { kind: 'err', ms: 7000 }); }
+    });
+  }
+
+  /* ---- import ---- */
+
+  function pasteSheet() {
+    const sh = openSheet({
+      title: 'הדבקה מאקסל',
+      body: `<p class="sheet-text">מסמנים באקסל או ב-Google Sheets את העמודות של השם והמספר (אפשר גם עמדה), מעתיקים, ומדביקים כאן.</p>
+        <textarea class="paste-box" rows="8" placeholder="7	איתי כהן	כנף שמאל&#10;10	דניאל לוי	קשר קדמי" dir="auto" data-paste></textarea>
+        <div class="sheet-actions"><button type="button" class="btn" data-go>המשך</button></div>`,
+      onMount: ({ el }) => {
+        el.querySelector('[data-go]').addEventListener('click', () => {
+          const rows = parseDelimited(el.querySelector('[data-paste]').value);
+          if (!rows.length) { toast('לא הודבק כלום', { kind: 'err' }); return; }
+          sh.close('next');
+          importPreview(rows, 'הדבקה');
+        });
+      },
+    });
+  }
+
+  // Shows what will happen before anything happens: which rows are new,
+  // which update an existing player, which are unchanged, and which current
+  // players are not in the file (kept unless the manager says otherwise).
+  function importPreview(rows, source) {
+    let cols = detectColumns(rows);
+    const width = cols.map.length;
+    const existing = draft.players || [];
+    let players, plan, include, removeMissing = false;
+
+    const compute = () => {
+      players = rowsToPlayers(rows, cols);
+      plan = planImport(existing, players);
+      include = plan.rows.map((r) => r.kind === 'new' || r.kind === 'update');
+    };
+    compute();
+
+    const KIND = { new: ['חדש', 'k-new'], update: ['עדכון', 'k-upd'], same: ['קיים', 'k-same'], duplicate: ['כפול בקובץ', 'k-dup'] };
+    const body = () => {
+      const n = include.filter(Boolean).length;
+      return `<p class="sheet-text">${esc(source)} · ${rows.length - (cols.headerRow ? 1 : 0)} שורות${cols.headerRow ? ' · זוהתה שורת כותרות' : ''}</p>
+        <div class="imp-cols">${Array.from({ length: width }, (_, i) => `<label class="field"><span>עמודה ${i + 1}${rows[0]?.[i] && cols.headerRow ? ` · ${esc(String(rows[0][i]).slice(0, 14))}` : ''}</span>
+          <select data-col="${i}">${FIELDS.map((f) => `<option value="${f.key}"${cols.map[i] === f.key ? ' selected' : ''}>${f.label}</option>`).join('')}</select></label>`).join('')}</div>
+        ${players.length ? `<div class="imp-list">${plan.rows.map((r, i) => `<label class="imp-row${include[i] ? '' : ' off'}">
+            <input type="checkbox" data-inc="${i}"${include[i] ? ' checked' : ''}${r.kind === 'same' || r.kind === 'duplicate' ? ' disabled' : ''} />
+            <span class="pick-num num">${r.inc.number ?? '·'}</span>
+            <span class="imp-name"><b>${esc(r.inc.name)}</b><small>${esc([posLabel(r.inc.pos), posLabel(r.inc.pos2)].filter(Boolean).join(' / ') || (r.match && r.kind === 'update' ? `היה: ${r.match.number ?? '—'} · ${r.match.name}` : ''))}</small></span>
+            <span class="imp-kind ${KIND[r.kind][1]}">${KIND[r.kind][0]}</span></label>`).join('')}</div>`
+          : '<div class="empty">לא נמצאו שמות. בדקו איזו עמודה מסומנת כ"שם".</div>'}
+        ${plan.missing.length ? `<label class="field check imp-missing"><input type="checkbox" data-remove${removeMissing ? ' checked' : ''} />
+          <span>להסיר ${plan.missing.length} שחקנים שלא מופיעים ${source === 'הדבקה' ? 'בהדבקה' : 'בקובץ'} (${plan.missing.slice(0, 3).map((p) => esc(p.name)).join(', ')}${plan.missing.length > 3 ? '…' : ''})</span></label>` : ''}
+        <div class="sheet-actions"><button type="button" class="btn" data-apply${n || removeMissing ? '' : ' disabled'}>${n ? `ייבוא ${n} שחקנים` : removeMissing ? 'עדכון הרשימה' : 'אין מה לייבא'}</button></div>`;
+    };
+
+    const sh = openSheet({ title: 'ייבוא שחקנים', tall: true, body: body(), onMount: ({ el }) => wireImp(el) });
+
+    function wireImp(el) {
+      el.querySelectorAll('[data-col]').forEach((s) => s.addEventListener('change', () => {
+        const map = [...cols.map];
+        const key = s.value;
+        if (key) map.forEach((k, i) => { if (k === key) map[i] = ''; });
+        map[Number(s.dataset.col)] = key;
+        cols = { ...cols, map };
+        compute();
+        sh.setBody(body()); wireImp(sh.body);
+      }));
+      el.querySelectorAll('[data-inc]').forEach((c) => c.addEventListener('change', () => {
+        include[Number(c.dataset.inc)] = c.checked;
+        sh.setBody(body()); wireImp(sh.body);
+      }));
+      el.querySelector('[data-remove]')?.addEventListener('change', (e) => { removeMissing = e.target.checked; sh.setBody(body()); wireImp(sh.body); });
+      el.querySelector('[data-apply]')?.addEventListener('click', () => {
+        const before = (draft.players || []).length;
+        draft.players = applyImport(existing, plan, { include, removeMissing, newId });
+        sh.close('done');
+        touch(); paint();
+        const added = draft.players.length - before + (removeMissing ? plan.missing.length : 0);
+        toast(`הרשימה עודכנה${added > 0 ? ` · ${added} חדשים` : ''}. לחצו "שמירה" כדי שכולם יראו.`, { ms: 6000 });
+      });
+    }
   }
 
   /* ---- access ---- */
@@ -281,7 +393,13 @@ export function mountAdmin(view, ctx) {
     const items = getPath(draft, list.path) || [];
     return `<section>
       <div class="sec-head"><h2>${esc(list.title)}</h2><span class="aside">${items.length}</span></div>
-      <button type="button" class="btn secondary small add" data-add="${list.path}">+ ${esc(list.add)}</button>
+      ${list.note ? `<p class="note list-note">${esc(list.note)}</p>` : ''}
+      <div class="add-row">
+        <button type="button" class="btn secondary small add" data-add="${list.path}">+ ${esc(list.add)}</button>
+        ${list.path === 'players' ? `<button type="button" class="btn secondary small add" data-import="file">${icon('upload')} ייבוא מקובץ</button>
+          <button type="button" class="btn secondary small add" data-import="paste">${icon('clipboard')} הדבקה מאקסל</button>
+          <input type="file" data-import-file accept=".xlsx,.csv,.tsv,.txt,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" hidden />` : ''}
+      </div>
       ${items.map((item, i) => `<details class="card edit-item"${item.__open ? ' open' : ''} data-item="${list.path}.${i}">
           <summary><b>${esc(list.label(item))}</b></summary>
           ${grid(list.fields, `${list.path}.${i}.`, item)}
@@ -296,6 +414,11 @@ export function mountAdmin(view, ctx) {
       <section>
         <div class="sec-head"><h2>הקבוצה</h2></div>
         <div class="card">${grid(TEAM_FIELDS, 'team.', draft.team)}</div>
+      </section>
+      <section>
+        <div class="sec-head"><h2>מבנה משחק</h2></div>
+        <div class="card" data-format-editor>${formatEditorHtml(cleanFormat(draft.settings?.format))}
+          <p class="note">ברירת המחדל לכל משחק חי. אפשר לשנות גם בפתיחת משחק מסוים.</p></div>
       </section>
       <section>
         <div class="sec-head"><h2>המשחק הבא</h2></div>
@@ -411,6 +534,8 @@ export function mountAdmin(view, ctx) {
       return;
     }
     if (t.dataset.set) { t.disabled = true; setStatus(t.dataset.user, t.dataset.set); return; }
+    if (t.dataset.import === 'file') { view.querySelector('[data-import-file]')?.click(); return; }
+    if (t.dataset.import === 'paste') { pasteSheet(); return; }
     if (t.dataset.add) {
       const list = LISTS.find((l) => l.path === t.dataset.add);
       const arr = getPath(draft, list.path) || [];

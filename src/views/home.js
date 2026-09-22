@@ -28,7 +28,7 @@ function nextMatchCard(s) {
 
   return `<div class="card hero">
     <div class="hero-top">
-      <span class="badge">מחזור ${nm.round}</span>
+      ${nm.round != null && nm.round !== '' ? `<span class="badge">מחזור ${esc(nm.round)}</span>` : ''}
       <span class="badge ghost">${nm.home ? 'משחק בית' : 'משחק חוץ'}</span>
     </div>
     <div class="fixture">
@@ -38,8 +38,8 @@ function nextMatchCard(s) {
     </div>
     <div id="countdown" data-kickoff="${kick.toISOString()}"></div>
     <div class="meta-row">${icon('pin')}
-      <span><b>${esc(nm.venue?.name || 'מגרש טרם נקבע')}</b>
-      ${nm.venue?.address ? `<div class="sub">${esc(nm.venue.address)}</div>` : ''}</span>
+      <span><b>${esc(nm.venue?.name || nm.venue?.address || 'מגרש טרם נקבע')}</b>
+      ${nm.venue?.name && nm.venue?.address ? `<div class="sub">${esc(nm.venue.address)}</div>` : ''}</span>
     </div>
     <div class="meta-row">${icon('clock')}
       <span>${esc(longDate(kick))} · שריקה ב-${clock(kick)}

@@ -8,7 +8,9 @@
  * שפותח את האתר מקבל. לכן שום דבר לא מוגן על ידי הכתובת, והכל נבדק כאן:
  *
  *   מכשיר לא מוכר   → יכול רק לבקש גישה ולשאול מה מצב הבקשה שלו.
- *   מכשיר מאושר     → יכול לקרוא את נתוני העונה. לא לכתוב.
+ *   מכשיר מאושר     → יכול לקרוא את נתוני העונה ולצפות במשחק החי. לא לכתוב.
+ *   מכשיר שולט      → מכשיר מאושר שמימש קוד חד-פעמי מהמנהל: מעדכן את
+ *                      המשחק החי הנוכחי בלבד, ורק עד שהוא מסתיים.
  *   קוד מנהל        → קורא, כותב, ומאשר / דוחה / מבטל גישה.
  *
  * מכשיר מזוהה במפתח אקראי שנוצר בדפדפן ונשמר בו. הגשר לא שומר את המפתח
@@ -39,6 +41,7 @@ const ROOT_NAME = 'MGivatayim';
 const MARKER = 'mgivatayim-root';
 const SEASON_FILE = 'season.json';
 const ACCESS_FILE = 'access.json';
+const LIVE_FILE = 'live.json';
 
 const MIN_ADMIN_CODE = 12;
 const MIN_DEVICE_KEY = 32;
@@ -51,6 +54,13 @@ const MAX_SEASON_BYTES = 400 * 1024;
    לכתיבה לדרייב בכל פתיחה של האפליקציה. */
 const SEEN_EVERY_MS = 24 * 60 * 60 * 1000;
 const CACHE_TTL_S = 6 * 60 * 60;
+const MAX_LIVE_BYTES = 200 * 1024;
+/* קוד השליטה נבחר על ידי המנהל במקום, ולכן הוא יכול להיות קצר. מה שמגן
+   עליו הוא התקרה: אחרי חמישה ניסיונות שגויים הוא נמחק, ומי שמנחש מקבל
+   חמש הזדמנויות ולא מיליון. */
+const MIN_LIVE_CODE = 4;
+const MAX_LIVE_CODE = 24;
+const MAX_CODE_ATTEMPTS = 5;
 
 /* ---------- הכניסה ---------- */
 
@@ -74,12 +84,21 @@ function handle_(req) {
     case 'hello':         return hello_(req);
     case 'requestAccess': return requestAccess_(req);
     case 'getSeason':     return getSeason_(req);
+    case 'getLive':       return getLive_(req);
+    case 'claimLive':     return claimLive_(req);
+    // שולט במשחק (מנהל או מכשיר שמימש קוד)
+    case 'putLive':       return putLive_(req);
+    case 'finishLive':    return finishLive_(req);
     // מנהל
     case 'adminPing':     return adminPing_(req);
     case 'listUsers':     return listUsers_(req);
     case 'setStatus':     return setStatus_(req);
     case 'removeUser':    return removeUser_(req);
     case 'putSeason':     return putSeason_(req);
+    case 'startLive':     return startLive_(req);
+    case 'setLiveCode':   return setLiveCode_(req);
+    case 'clearLiveControl': return clearLiveControl_(req);
+    case 'clearLive':     return clearLive_(req);
     default: throw fail_('פעולה לא מוכרת: ' + req.action, 'bad_action');
   }
 }
@@ -126,11 +145,24 @@ function requireAdmin_(req) {
   if (!isAdmin_(req)) throw fail_('קוד מנהל שגוי', 'bad_code');
 }
 
+function hash_(text) {
+  const digest = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, String(text), Utilities.Charset.UTF_8);
+  return digest.map((b) => ('0' + (b & 0xff).toString(16)).slice(-2)).join('').slice(0, 32);
+}
+
 function deviceId_(req) {
   const key = String(req.deviceKey || '');
   if (key.length < MIN_DEVICE_KEY) throw fail_('מזהה מכשיר לא תקין', 'bad_device');
-  const digest = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, key, Utilities.Charset.UTF_8);
-  return digest.map((b) => ('0' + (b & 0xff).toString(16)).slice(-2)).join('').slice(0, 32);
+  return hash_(key);
+}
+
+/* מי פונה: מנהל, או מכשיר מאושר. כל השאר נעצרים כאן. */
+function viewer_(req) {
+  if (isAdmin_(req)) return { admin: true, id: null, name: 'המנהל' };
+  const id = deviceId_(req);
+  const u = access_().users[id];
+  if (!u || u.status !== 'approved') throw fail_('אין גישה', 'not_approved');
+  return { admin: false, id: id, name: u.name, user: u };
 }
 
 /* ---------- התיקייה ----------
@@ -221,13 +253,10 @@ function requestAccess_(req) {
 }
 
 function getSeason_(req) {
-  if (!isAdmin_(req)) {
-    const id = deviceId_(req);
-    const a = access_();
-    const u = a.users[id];
-    if (!u || u.status !== 'approved') {
-      throw fail_('אין גישה', 'not_approved');
-    }
+  const who = viewer_(req);
+  if (!who.admin) {
+    const id = who.id;
+    const u = who.user;
     const now = Date.now();
     if (!u.lastSeen || now - Date.parse(u.lastSeen) > SEEN_EVERY_MS) {
       try {
@@ -243,6 +272,187 @@ function getSeason_(req) {
   }
   const s = readJson_(SEASON_FILE, null);
   return s || { version: 0, updatedAt: null, season: null };
+}
+
+/* ---------- משחק חי ----------
+   live.json: { version, updatedAt, state, meta }. `state` הוא מה שהאפליקציה
+   בונה ומציגה (ראו src/live/model.js); הגשר לא מפרש אותו מעבר לבדיקות גודל
+   וזהות. `meta` הוא של הגשר בלבד — מי רשאי לשלוט, והקוד החד-פעמי — ושום
+   כתיבה של לקוח לא נוגעת בו, אחרת מכשיר שולט היה יכול להוסיף לעצמו חברים.
+
+   הגרסה עולה רק כש-state משתנה. צופים שואלים "יש משהו חדש מאז גרסה N?"
+   כל כמה שניות, ותשובה "אין" היא בלי גוף — זה מה שמחזיק את הגשר קל גם
+   כשחצי מההורים צופים. */
+
+function live_() {
+  const l = readJson_(LIVE_FILE, null);
+  return l && typeof l === 'object' ? Object.assign({ version: 0, state: null, meta: {} }, l) : { version: 0, state: null, meta: {} };
+}
+
+/* מכשיר שמימש קוד שולט רק עד שהמשחק מסתיים. `allowEnded` קיים בשביל
+   finishLive בלבד: סיום שנשלח שוב אחרי ניתוק — כשהראשון דווקא הגיע —
+   חייב להצליח, ולא ליפול על "המשחק כבר הסתיים". עריכה של משחק שהסתיים
+   נשארת בידי המנהל. */
+function canControl_(who, l, allowEnded) {
+  if (who.admin) return true;
+  if (!l.state || (l.state.status === 'ended' && !allowEnded)) return false;
+  return (l.meta.controllers || []).indexOf(who.id) >= 0;
+}
+
+function requireControl_(req, l, allowEnded) {
+  const who = viewer_(req);
+  if (!canControl_(who, l, allowEnded)) throw fail_('אין הרשאה לעדכן את המשחק', 'not_controller');
+  return who;
+}
+
+function checkLiveState_(state) {
+  if (!state || typeof state !== 'object' || Array.isArray(state) || !state.id) {
+    throw fail_('נתוני משחק לא תקינים', 'bad_live');
+  }
+  if (JSON.stringify(state).length > MAX_LIVE_BYTES) throw fail_('נתוני המשחק גדולים מדי', 'too_big');
+}
+
+function getLive_(req) {
+  const who = viewer_(req);
+  const l = live_();
+  const out = {
+    version: l.version, updatedAt: l.updatedAt || null, serverNow: Date.now(),
+    canControl: canControl_(who, l), isAdmin: who.admin,
+  };
+  if (who.admin) {
+    const users = access_().users;
+    out.control = {
+      codeActive: !!(l.meta.code && l.meta.code.hash),
+      attemptsLeft: l.meta.code ? MAX_CODE_ATTEMPTS - (l.meta.code.attempts || 0) : 0,
+      controllers: (l.meta.controllers || []).map((id) => (users[id] ? users[id].name : 'מכשיר שהוסר')),
+    };
+  }
+  if (req.since != null && Number(req.since) === Number(l.version)) out.unchanged = true;
+  else out.state = l.state;
+  return out;
+}
+
+function startLive_(req) {
+  requireAdmin_(req);
+  checkLiveState_(req.state);
+  return withLock_(() => {
+    const l = live_();
+    if (l.state && l.state.status !== 'ended' && l.state.id !== req.state.id && !req.replace) {
+      throw fail_('כבר יש משחק חי פתוח. סיימו או בטלו אותו קודם.', 'live_exists');
+    }
+    const next = { version: l.version + 1, updatedAt: new Date().toISOString(), state: req.state, meta: { controllers: [], code: null } };
+    writeJson_(LIVE_FILE, next);
+    return { version: next.version, serverNow: Date.now() };
+  });
+}
+
+function putLive_(req) {
+  checkLiveState_(req.state);
+  return withLock_(() => {
+    const l = live_();
+    requireControl_(req, l);
+    if (!l.state) throw fail_('אין משחק חי', 'no_live');
+    if (l.state.id !== req.state.id) throw fail_('המשחק הוחלף בינתיים', 'conflict');
+    if (Number(req.baseVersion) !== Number(l.version)) throw fail_('המשחק עודכן ממכשיר אחר', 'conflict');
+    const next = { version: l.version + 1, updatedAt: new Date().toISOString(), state: req.state, meta: l.meta };
+    writeJson_(LIVE_FILE, next);
+    return { version: next.version, serverNow: Date.now() };
+  });
+}
+
+/* סיום: המשחק נכנס לתוצאות העונה כאן, בגשר, כדי שגם הורה ששלט במשחק
+   יוכל לסיים אותו — להורה אין הרשאת כתיבה לעונה, ואסור שתהיה לו.
+   התוצאה נספרת מהאירועים ולא נלקחת מהלקוח. שורה קיימת עם אותו liveId
+   מוחלפת, כך שסיום חוזר אחרי תיקון לא יוצר משחק כפול. */
+function finishLive_(req) {
+  checkLiveState_(req.state);
+  if (req.state.status !== 'ended') throw fail_('המשחק עוד לא הסתיים', 'bad_live');
+  return withLock_(() => {
+    const l = live_();
+    requireControl_(req, l, true);
+    if (!l.state || l.state.id !== req.state.id) throw fail_('המשחק הוחלף בינתיים', 'conflict');
+    if (Number(req.baseVersion) !== Number(l.version)) throw fail_('המשחק עודכן ממכשיר אחר', 'conflict');
+
+    const st = req.state;
+    let gf = 0, ga = 0;
+    (st.events || []).forEach((e) => { if (e.type === 'goal') { if (e.side === 'them') ga++; else gf++; } });
+    const match = {
+      liveId: st.id, date: String(st.date || new Date().toISOString().slice(0, 10)), opponent: String(st.opponent || ''),
+      home: st.home !== false, round: st.round == null ? null : st.round, gf: gf, ga: ga,
+      format: st.format, lineup: st.lineup, events: st.events, players: st.players,
+    };
+
+    const s = readJson_(SEASON_FILE, null) || { version: 0, season: { team: { name: 'מכבי גבעתיים' } } };
+    const season = s.season || { team: { name: 'מכבי גבעתיים' } };
+    season.matches = (season.matches || []).filter((m) => m.liveId !== st.id).concat([match]);
+    if (season.nextMatch && season.nextMatch.opponent && season.nextMatch.opponent === match.opponent) season.nextMatch = null;
+    const nextSeason = { version: Number(s.version || 0) + 1, updatedAt: new Date().toISOString(), season: season };
+    writeJson_(SEASON_FILE, nextSeason);
+
+    const next = { version: l.version + 1, updatedAt: new Date().toISOString(), state: st, meta: l.meta };
+    writeJson_(LIVE_FILE, next);
+    return { version: next.version, seasonVersion: nextSeason.version, gf: gf, ga: ga, serverNow: Date.now() };
+  });
+}
+
+function setLiveCode_(req) {
+  requireAdmin_(req);
+  const code = String(req.code || '').trim();
+  if (code.length < MIN_LIVE_CODE || code.length > MAX_LIVE_CODE) {
+    throw fail_('קוד שליטה צריך להיות באורך ' + MIN_LIVE_CODE + '–' + MAX_LIVE_CODE + ' תווים', 'bad_code_format');
+  }
+  return withLock_(() => {
+    const l = live_();
+    if (!l.state || l.state.status === 'ended') throw fail_('אין משחק חי פתוח', 'no_live');
+    l.meta.code = { hash: hash_(l.state.id + '|' + code), attempts: 0 };
+    writeJson_(LIVE_FILE, l);
+    return { codeActive: true };
+  });
+}
+
+function claimLive_(req) {
+  const who = viewer_(req);
+  const code = String(req.code || '').trim();
+  return withLock_(() => {
+    const l = live_();
+    if (!l.state || l.state.status === 'ended') throw fail_('אין משחק חי פתוח', 'no_live');
+    if (canControl_(who, l)) return { canControl: true };
+    const c = l.meta.code;
+    if (!c || !c.hash) throw fail_('אין קוד שליטה פעיל למשחק הזה. בקשו מהמנהל.', 'no_code');
+    if (hash_(l.state.id + '|' + code) !== c.hash) {
+      c.attempts = (c.attempts || 0) + 1;
+      const left = MAX_CODE_ATTEMPTS - c.attempts;
+      if (left <= 0) l.meta.code = null;
+      writeJson_(LIVE_FILE, l);
+      if (left <= 0) throw fail_('הקוד ננעל אחרי ' + MAX_CODE_ATTEMPTS + ' ניסיונות שגויים. בקשו מהמנהל קוד חדש.', 'code_locked');
+      throw fail_('קוד שגוי. נותרו ' + left + ' ניסיונות.', 'bad_live_code');
+    }
+    // חד-פעמי: הקוד נמחק ברגע שמומש, והשליטה עוברת למכשיר עצמו.
+    l.meta.controllers = (l.meta.controllers || []).concat([who.id]);
+    l.meta.code = null;
+    writeJson_(LIVE_FILE, l);
+    return { canControl: true };
+  });
+}
+
+function clearLiveControl_(req) {
+  requireAdmin_(req);
+  return withLock_(() => {
+    const l = live_();
+    l.meta = { controllers: [], code: null };
+    writeJson_(LIVE_FILE, l);
+    return { ok: true };
+  });
+}
+
+function clearLive_(req) {
+  requireAdmin_(req);
+  return withLock_(() => {
+    const l = live_();
+    const next = { version: l.version + 1, updatedAt: new Date().toISOString(), state: null, meta: { controllers: [], code: null } };
+    writeJson_(LIVE_FILE, next);
+    return { version: next.version };
+  });
 }
 
 /* ---------- מנהל ---------- */

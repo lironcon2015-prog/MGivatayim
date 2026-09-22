@@ -2,7 +2,7 @@
    CACHE_VERSION must equal version.json and window._BUNDLE_VERSION in
    index.html. `node tools/bump.mjs` writes all three; tests/pwa.mjs fails if
    they drift apart. */
-const CACHE_VERSION = '1.0.0';
+const CACHE_VERSION = '1.1.0';
 const CACHE_NAME = 'mgivatayim-' + CACHE_VERSION;
 
 /* Everything the shell needs to open with no network. tests/pwa.mjs fails if
@@ -13,9 +13,11 @@ const CORE = [
   './assets/crest.png',
   './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png', './icons/favicon-32.png',
   './src/app.js', './src/bridge.js', './src/components.js', './src/config.js',
-  './src/format.js', './src/icons.js', './src/season.js', './src/store.js', './src/updater.js',
+  './src/format.js', './src/icons.js', './src/importer.js', './src/positions.js',
+  './src/season.js', './src/store.js', './src/updater.js',
+  './src/live/model.js', './src/live/sync.js', './src/ui/sheet.js',
   './src/views/admin.js', './src/views/gate.js', './src/views/home.js',
-  './src/views/media.js', './src/views/stats.js',
+  './src/views/live.js', './src/views/media.js', './src/views/stats.js',
 ];
 
 /* How long a request may wait for the network before a cached copy is used.

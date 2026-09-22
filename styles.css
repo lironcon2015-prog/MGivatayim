@@ -5,13 +5,12 @@
    result pills stopped standing out from the furniture.
 
    Blue is the second series colour (assists, away games), never a state.
-   The ground is deep navy lit by soft blue and teal glows that drift as the
-   page scrolls; cards are tinted glass over it, so each one picks up the
+   The ground is deep navy lit by soft blue and green glows pinned to the
+   screen; cards are tinted glass over it, so each one picks up the
    colour of the light behind it. Only the lead card and the primary action
    glow gold — if everything glowed, nothing would. */
 :root {
   --bg: #0A1321;
-  --bg-deep: #070D17;
   --surface: rgba(17, 27, 41, .62);        /* glass: cards over the glows */
   --surface-solid: #111B2A;                /* where glass has nothing behind it: sheets, sticky rows */
   --surface-2: rgba(255, 255, 255, .06);   /* a step up inside a card: chips, discs */
@@ -35,8 +34,8 @@
 
   --blue: #6DB3F5;
   --blue-lo: #4A8FE8;
-  --glow-blue: rgba(70, 138, 236, .30);
-  --glow-teal: rgba(28, 176, 166, .20);
+  --glow-blue: rgba(70, 138, 236, .36);
+  --glow-green: rgba(36, 158, 112, .34);   /* ambient only: dim, never on a UI element */
 
   --win: #3FD173;
   --win-soft: rgba(47, 191, 98, .13);
@@ -68,26 +67,32 @@
 
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; }
-html { background: var(--bg-deep); }
 
-/* The glows are positioned in percent of the page's own height, so a long
-   page passes from blue to teal and back as it scrolls, and a short one just
-   gets the blue at the top. */
+/* The glows are pinned to the screen, not the page: a fixed layer behind
+   everything, blue at the top, green-teal through the middle on the left,
+   blue again low on the right. Cards scroll over it, so the same gap
+   between two cards reads blue near the top of the screen and green as it
+   passes the middle. A fixed pseudo-element and not background-attachment:
+   fixed, which iOS Safari ignores. The body's own background stays
+   transparent so the layer (z-index -1) is not painted over. */
+html { background: var(--bg); }
 body {
   min-height: 100vh;
-  background:
-    radial-gradient(560px 460px at 88% 0%, var(--glow-blue), transparent 70%),
-    radial-gradient(480px 560px at -6% 24%, var(--glow-teal), transparent 70%),
-    radial-gradient(540px 520px at 106% 46%, rgba(70, 138, 236, .22), transparent 70%),
-    radial-gradient(500px 560px at -6% 70%, rgba(28, 176, 166, .17), transparent 70%),
-    radial-gradient(560px 520px at 104% 94%, rgba(70, 138, 236, .2), transparent 70%),
-    var(--bg);
+  background: transparent;
   color: var(--text);
   font-family: Assistant, Heebo, "Segoe UI", system-ui, -apple-system, sans-serif;
   font-size: 15px;
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
   padding-bottom: env(safe-area-inset-bottom);
+}
+body::before {
+  content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background:
+    radial-gradient(150% 48% at 80% 0%, var(--glow-blue), transparent 75%),
+    radial-gradient(140% 50% at 5% 58%, var(--glow-green), transparent 75%),
+    radial-gradient(150% 46% at 95% 100%, rgba(70, 138, 236, .32), transparent 75%),
+    var(--bg);
 }
 body.with-nav { padding-bottom: calc(var(--nav-space) + .5rem); }
 /* Anything scrolled into view (a focused field, a test's click) stops short
@@ -654,6 +659,26 @@ body.with-nav .toast { bottom: calc(var(--nav-space) + 10px); }
 .sc-score .sep { color: var(--faint); font-weight: 600; font-size: 2rem; transform: translateY(-.1em); }
 .sc-score.bump { animation: bump .9s cubic-bezier(.2, .9, .3, 1.2); }
 @keyframes bump { 0% { transform: scale(1); } 22% { transform: scale(1.2); } 100% { transform: scale(1); } }
+/* Scorers: two columns under the two teams, ours on the right (RTL, like the
+   score). A ball glyph opens each line; names cut with an ellipsis and the
+   minutes wrap under them, so a long name or a hat-trick never pushes the
+   other side. */
+.sc-scorers {
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1.4rem;
+  margin: .85rem 0 0; padding-top: .7rem; border-top: 1px solid var(--line);
+}
+.sc-scorers ul { list-style: none; margin: 0; padding: 0; display: grid; gap: .3rem; align-content: start; text-align: center; }
+.sc-scorers li { font-size: .8rem; line-height: 1.35; color: #C3CCDA; min-width: 0; }
+.sc-scorers li::before {
+  content: ""; display: inline-block; width: 6px; height: 6px; margin-inline-end: .4rem; vertical-align: .12em;
+  border-radius: 50%; background: var(--gold); box-shadow: 0 0 8px var(--gold);
+}
+.sc-scorers .them li::before { background: var(--faint); box-shadow: none; }
+.scr-name { font-weight: 700; }
+.scr-min { color: var(--muted); font-size: .76rem; white-space: nowrap; }
+.sc-scorers .them li { color: var(--muted); }
+.scr-more { color: var(--faint); font-size: .74rem; }
+.sc-scorers li.scr-more::before { display: none; }
 .sc-clock { display: flex; justify-content: center; align-items: baseline; gap: .5rem; margin-top: .85rem; min-height: 2.1rem; }
 .sc-clock [data-clock] { font-size: 1.8rem; font-weight: 600; letter-spacing: .02em; transition: opacity .2s; }
 .sc-clock [data-clock].paused { opacity: .4; }

@@ -129,6 +129,37 @@ export function mountLive(view, ctx) {
 
   /* ---- views ---- */
 
+  // Scorers under each side of the score. Ours are grouped by player — a
+  // hat-trick is one line with three minutes, not three lines — and the
+  // opponent's goals, which carry no names, share one line of minutes. Past
+  // MAX_SCORER_LINES a side folds the rest into "ועוד N", so a big win never
+  // stretches the scoreboard.
+  function scorersHtml(st) {
+    const MAX_SCORER_LINES = 4;
+    const goals = st.events.filter((e) => e.type === 'goal')
+      .sort((a, b) => a.period - b.period || a.atMs - b.atMs);
+    if (!goals.length) return '';
+    const minute = (e) => M.minuteLabel(st.format, e.period, e.atMs);
+    const ours = new Map();
+    for (const e of goals.filter((g) => g.side !== 'them')) {
+      const key = e.scorer || '?';
+      if (!ours.has(key)) ours.set(key, []);
+      ours.get(key).push(minute(e));
+    }
+    const line = (name, mins) => `<li><span class="scr-name">${esc(name)}</span> <span class="scr-min num">${mins.map(esc).join(', ')}</span></li>`;
+    const list = (lines) => {
+      const shown = lines.slice(0, MAX_SCORER_LINES);
+      const rest = lines.length - shown.length;
+      return shown.join('') + (rest ? `<li class="scr-more">ועוד ${rest}</li>` : '');
+    };
+    const usLines = [...ours].map(([pid, mins]) => line(pid === '?' ? 'לא ידוע' : who(st, pid).name, mins));
+    const them = goals.filter((g) => g.side === 'them').map(minute);
+    return `<div class="sc-scorers">
+      <ul class="us">${list(usLines)}</ul>
+      <ul class="them">${them.length ? line('שערים', them) : ''}</ul>
+    </div>`;
+  }
+
   function scoreboard(st) {
     const sc = M.score(st);
     const crest = crestImg(ctx.team);
@@ -139,6 +170,7 @@ export function mountLive(view, ctx) {
         <div class="sc-score num" aria-label="${sc.us} : ${sc.them}"><span class="ours" data-us>${sc.us}</span><span class="sep">:</span><span data-them>${sc.them}</span></div>
         <div class="sc-team"><span class="sc-disc">${esc((st.opponent || '?').slice(0, 2))}</span><b>${esc(st.opponent || 'יריבה')}</b><small>${st.home ? 'חוץ' : 'בית'}</small></div>
       </div>
+      ${scorersHtml(st)}
       <div class="sc-clock"><span class="num" data-clock></span><span class="sc-extra num" data-extra></span></div>
     </div></section>`;
   }

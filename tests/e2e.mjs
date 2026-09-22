@@ -255,6 +255,7 @@ await step('a watching parent sees the goal, with the scorer, without reloading'
   await parent.goto(APP + '#/live');
   await parent.locator('.sc-score .ours', { hasText: '1' }).waitFor({ timeout: 8000 });
   await waitText(parent, 'גיא פרץ');
+  await parent.locator('.sc-scorers .us', { hasText: 'גיא פרץ' }).waitFor();
   expect(await parent.locator('.ctl-goal').count() === 0, 'a watching parent sees controls');
 });
 

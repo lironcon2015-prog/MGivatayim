@@ -337,6 +337,24 @@ await step('the next live match opens with the last starting lineup, capped at t
   expect(text.includes('תשיעיות'), 'size not shown in the format line');
 });
 
+await step('a video link gets a poster in Drive, and the parent sees it', async () => {
+  bridge.web('https://clips.example.com/goal', 'text/html', '<meta property="og:image" content="https://clips.example.com/goal.jpg">');
+  // A real 1×1 PNG: the card drops an image the browser cannot decode.
+  const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64');
+  bridge.web('https://clips.example.com/goal.jpg', 'image/png', [...PNG]);
+  await admin.goto(APP + '#/admin');
+  await admin.click('[data-add="videos"]');
+  await admin.fill('[data-path="videos.0.title"]', 'השער מול נחלים');
+  await admin.fill('[data-path="videos.0.url"]', 'https://clips.example.com/goal');
+  await admin.click('#save');
+  await waitText(admin, 'נשמר');
+  const v = JSON.parse(bridge.driveFile('season.json')).season.videos[0];
+  expect(v.poster && v.posterFor === 'https://clips.example.com/goal', 'no poster made: ' + JSON.stringify(v));
+  await parent.goto(APP + '#/media');
+  await parent.reload();
+  await parent.locator('.thumb-img[src^="blob:"]').first().waitFor({ timeout: 10000 });
+});
+
 await step('revoking locks the parent out and drops their cached copy', async () => {
   await admin.goto(APP + '#/admin');
   await admin.click('[data-tab="access"]');

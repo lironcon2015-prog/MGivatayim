@@ -89,6 +89,36 @@ test('player minutes and past lineups reach the manager only', () => {
   assert.equal(r.version, cur.version + 1);
 });
 
+test('video posters: made by the manager, read by approved devices only', () => {
+  const JPG = [0xff, 0xd8, 0xff, 0xe0, 1, 2, 3];
+  b.web('https://i.ytimg.com/vi/abcDEF12345/hqdefault.jpg', 'image/jpeg', JPG);
+  b.web('https://example.com/clip', 'text/html', '<html><head><meta property="og:image" content="https://cdn.example.com/p.jpg?a=1&amp;b=2"></head></html>');
+  b.web('https://cdn.example.com/p.jpg?a=1&b=2', 'image/png', [0x89, 0x50]);
+  b.drivePicture('1AbCdEfGhIjKlMn', [9, 9, 9]);
+
+  assert.equal(err(b.post({ action: 'makePoster', deviceKey: devA, url: 'https://youtu.be/abcDEF12345' })), 'bad_code');
+  const yt = b.post({ action: 'makePoster', adminCode: ADMIN, url: 'https://www.youtube.com/watch?v=abcDEF12345' }).result.ref;
+  const got = b.post({ action: 'getPoster', deviceKey: devA, ref: yt }).result;
+  assert.equal(got.mime, 'image/jpeg');
+  assert.deepEqual([...Buffer.from(got.data, 'base64')], JPG);
+
+  const og = b.post({ action: 'makePoster', adminCode: ADMIN, url: 'https://example.com/clip' }).result.ref;
+  assert.equal(b.post({ action: 'getPoster', deviceKey: devA, ref: og }).result.mime, 'image/png', 'og:image, &amp; decoded');
+  const dr = b.post({ action: 'makePoster', adminCode: ADMIN, url: 'https://drive.google.com/file/d/1AbCdEfGhIjKlMn/view' }).result.ref;
+  assert.deepEqual([...Buffer.from(b.post({ action: 'getPoster', deviceKey: devA, ref: dr }).result.data, 'base64')], [9, 9, 9]);
+
+  assert.equal(err(b.post({ action: 'makePoster', adminCode: ADMIN, url: 'https://nothing.example.com/x' })), 'no_poster');
+  const again = b.post({ action: 'makePoster', adminCode: ADMIN, url: 'https://www.youtube.com/watch?v=abcDEF12345' }).result.ref;
+  assert.equal(b.fileById(yt).isTrashed(), true, 'the same link replaces its old image instead of piling up');
+  assert.notEqual(again, yt);
+
+  assert.equal(err(b.post({ action: 'getPoster', deviceKey: devB, ref: again })), 'not_approved');
+  const season = b.driveFileId('season.json');
+  assert.ok(season);
+  assert.equal(err(b.post({ action: 'getPoster', deviceKey: devA, ref: season })), 'not_found', 'getPoster must not read files outside posters/');
+  assert.equal(err(b.post({ action: 'getPoster', deviceKey: devA, ref: yt })), 'not_found', 'a trashed image is gone');
+});
+
 test('a save over a stale version is rejected, not silently overwritten', () => {
   assert.equal(err(b.post({ action: 'putSeason', adminCode: ADMIN, baseVersion: 0, season: { x: 1 } })), 'conflict');
   const s = b.post({ action: 'getSeason', adminCode: ADMIN }).result;

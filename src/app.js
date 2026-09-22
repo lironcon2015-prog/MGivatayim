@@ -11,6 +11,7 @@ import { renderMedia } from './views/media.js';
 import * as gate from './views/gate.js';
 import { mountAdmin, hasUnsavedWork } from './views/admin.js';
 import { startUpdater, appVersion } from './updater.js';
+import { hydratePosters } from './posters.js';
 import { LiveSession } from './live/sync.js';
 import * as LM from './live/model.js';
 import { mountLive, openMatchSheet } from './views/live.js';
@@ -263,6 +264,7 @@ function render() {
     + (state.stale ? '<p class="note stale">מוצגים הנתונים האחרונים שנשמרו במכשיר — אין כרגע חיבור לשרת.</p>' : '')
     + `<p class="foot">${esc(s.team.name)} · ${esc(seasonLabel(s.team))}${isAdmin() ? '' : ' · <a href="#/admin">כניסת מנהל</a>'}</p>`;
   teardown = route.wire ? route.wire(view, s) || (() => {}) : () => {};
+  hydratePosters(view);
 }
 
 function liveBanner() {

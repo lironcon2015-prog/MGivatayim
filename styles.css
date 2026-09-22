@@ -350,6 +350,12 @@ section { margin-top: 1.9rem; }
     linear-gradient(160deg, #22324A, #121C2B);
   display: grid; place-items: center;
 }
+/* The poster fills the frame under the play button; with none, the gradient
+   behind it is the card. */
+.thumb { overflow: hidden; }
+.thumb-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.thumb-img:not([src]) { display: none; }
+.thumb .play, .thumb .dur { position: relative; z-index: 1; }
 .thumb .play {
   width: 58px; height: 58px; border-radius: 50%; background: var(--gold-fill);
   display: grid; place-items: center; color: var(--on-gold); box-shadow: 0 0 30px rgba(232, 185, 49, .55);

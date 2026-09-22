@@ -24,33 +24,63 @@ export function createBridge({ adminCode = 'test-admin-code-1234' } = {}) {
   const props = new Map([['ADMIN_CODE', adminCode]]);
   let writes = 0;
 
-  const makeFolder = (name) => {
+  // Files and folders get ids like Drive's, so getFileById and getParents
+  // behave: the poster check depends on a file knowing which folder it is in.
+  const byId = new Map();
+  let nextId = 1;
+  const newId = (kind) => `${kind}${String(nextId++).padStart(12, '0')}`;
+  const makeBlob = (bytes, type, name = '') => {
+    const b = {
+      name, getBytes: () => [...bytes], getContentType: () => type,
+      getDataAsString: () => Buffer.from(bytes).toString('utf8'),
+      setName: (n) => { b.name = n; return b; }, getName: () => b.name,
+    };
+    return b;
+  };
+
+  const makeFolder = (name, parent = null) => {
     const files = [];
+    const subs = [];
+    const id = newId('fold');
     const folder = {
-      name, description: '', files,
+      name, description: '', files, id,
+      getId: () => id,
       getName: () => name,
       getDescription: () => folder.description,
       setDescription: (d) => { folder.description = d; },
       isTrashed: () => false,
-      getFilesByName: (n) => iterator(files.filter((f) => f.name === n)),
-      createFile: (n, text) => {
+      getFilesByName: (n) => iterator(files.filter((f) => f.name === n && !f.trashed)),
+      getFoldersByName: (n) => iterator(subs.filter((f) => f.name === n)),
+      createFolder: (n) => { const f = makeFolder(n, folder); subs.push(f); return f; },
+      // createFile(name, text) for JSON, createFile(blob) for images — as in Apps Script.
+      createFile: (a, text) => {
+        const blob = typeof a === 'string' ? null : a;
+        const fid = newId('file');
         const f = {
-          name: n, text,
-          isTrashed: () => false,
-          getBlob: () => ({ getDataAsString: () => f.text }),
+          name: blob ? blob.getName() : a, text, trashed: false, blob,
+          getId: () => fid,
+          isTrashed: () => f.trashed,
+          setTrashed: (t) => { f.trashed = t; },
+          getParents: () => iterator([folder]),
+          getBlob: () => f.blob || { getDataAsString: () => f.text },
           setContent: (t) => { f.text = t; writes++; },
         };
-        files.push(f); writes++;
+        files.push(f); byId.set(fid, f); writes++;
         return f;
       },
     };
-    folders.push(folder);
+    if (!parent) folders.push(folder);
     return folder;
   };
 
+  // The web as the bridge sees it through UrlFetchApp: tests register pages
+  // and images by URL; anything else is a 404.
+  const web = new Map();
+  const drivePics = new Map();
+
   const sandbox = {
     console,
-    JSON, Date, Math, Object, String, Number, Array, Error,
+    JSON, Date, Math, Object, String, Number, Array, Error, RegExp,
     PropertiesService: { getScriptProperties: () => ({ getProperty: (k) => props.get(k) ?? null }) },
     CacheService: {
       getScriptCache: () => ({
@@ -66,10 +96,29 @@ export function createBridge({ adminCode = 'test-admin-code-1234' } = {}) {
       // Apps Script hands back *signed* bytes; the bridge masks them with
       // & 0xff, and an unsigned shim would hide a missing mask.
       computeDigest: (alg, str) => [...createHash(alg).update(str, 'utf8').digest()].map((b) => (b > 127 ? b - 256 : b)),
+      base64Encode: (bytes) => Buffer.from(bytes.map((b) => b & 0xff)).toString('base64'),
     },
     DriveApp: {
       getFoldersByName: (n) => iterator(folders.filter((f) => f.name === n)),
       createFolder: (n) => makeFolder(n),
+      getFileById: (id) => {
+        if (byId.has(id)) return byId.get(id);
+        // A video file of the manager's elsewhere in Drive: only its thumbnail matters.
+        if (drivePics.has(id)) return { getThumbnail: () => makeBlob(drivePics.get(id), 'image/jpeg') };
+        throw new Error('No item with the given ID could be found');
+      },
+    },
+    UrlFetchApp: {
+      fetch: (url) => {
+        const hit = web.get(url);
+        const code = hit ? 200 : 404;
+        const body = hit ? Buffer.from(hit.body) : Buffer.from('not found');
+        return {
+          getResponseCode: () => code,
+          getContentText: () => body.toString('utf8'),
+          getBlob: () => makeBlob([...body], hit ? hit.type : 'text/html'),
+        };
+      },
     },
     ContentService: {
       MimeType: { JSON: 'application/json' },
@@ -88,6 +137,10 @@ export function createBridge({ adminCode = 'test-admin-code-1234' } = {}) {
     // test can prove a value came from the file and not from memory.
     driveFile: (name) => folders[0]?.files.find((f) => f.name === name)?.text ?? null,
     clearCache: () => cache.clear(),
+    web: (url, type, body) => web.set(url, { type, body }),
+    drivePicture: (id, bytes) => drivePics.set(id, bytes),
+    fileById: (id) => byId.get(id) ?? null,
+    driveFileId: (name) => folders[0]?.files.find((f) => f.name === name)?.getId() ?? null,
     setProp: (k, v) => props.set(k, v),
     get writes() { return writes; },
   };

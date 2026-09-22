@@ -6,6 +6,7 @@ import { DEFAULT_FORMAT, DEFAULT_SIZE, cleanFormat, cleanSize } from '../live/mo
 import { formatEditorHtml, wireFormatEditor } from './live.js';
 import { openSheet, toast } from '../ui/sheet.js';
 import { icon } from '../icons.js';
+import { preparePosters } from '../posters.js';
 
 /* ── What the manager edits ───────────────────────────────────────────────
    One table drives every list editor: the form, the "add" template and the
@@ -471,6 +472,12 @@ export function mountAdmin(view, ctx) {
       return;
     }
     saving = true; paint();
+    // Posters first: a link added or changed since the last save gets its
+    // image made in Drive, so parents see it with the save that adds it.
+    await preparePosters(draft.videos, (i, n) => {
+      const msg = view.querySelector('.save-msg');
+      if (msg) msg.textContent = `מכין תמונה לסרטון ${i} מתוך ${n}…`;
+    });
     const clean = JSON.parse(JSON.stringify(draft, (k, v) => (k === '__open' ? undefined : v)));
     try {
       const r = await call('putSeason', { season: clean, baseVersion }, { asAdmin: true });

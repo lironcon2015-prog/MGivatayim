@@ -1,6 +1,7 @@
 import { outcomeOf, OUTCOMES } from './season.js';
 import { shortDate, esc, safeUrl } from './format.js';
 import { icon } from './icons.js';
+import { youtubeThumb } from './posters.js';
 
 // "מחזור 7", or nothing — never "מחזור null" for a match entered without one.
 export const roundText = (r) => (r != null && r !== '' ? `מחזור ${r}` : '');
@@ -98,7 +99,13 @@ export function linkRow({ title, desc, url, icon: name }) {
 
 export function videoCard(v) {
   const href = safeUrl(v.url);
+  // YouTube's thumbnail is a public address; anything else has a poster the
+  // bridge made, filled in after render by hydratePosters.
+  const yt = youtubeThumb(v.url);
+  const img = yt ? `<img class="thumb-img" src="${esc(yt)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.remove()" />`
+    : v.poster ? `<img class="thumb-img" data-poster="${esc(v.poster)}" alt="" decoding="async" onerror="this.remove()" />` : '';
   const inner = `<div class="thumb">
+      ${img}
       <span class="play">${icon('play')}</span>
       <span class="dur num">${esc(v.duration)}</span>
     </div>

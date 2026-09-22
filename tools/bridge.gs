@@ -55,6 +55,10 @@ const MAX_SEASON_BYTES = 400 * 1024;
 const SEEN_EVERY_MS = 24 * 60 * 60 * 1000;
 const CACHE_TTL_S = 6 * 60 * 60;
 const MAX_LIVE_BYTES = 200 * 1024;
+const POSTER_DIR = 'posters';
+const MAX_POSTER_BYTES = 1500 * 1024;
+/* בלי User-Agent של דפדפן, פייסבוק ואינסטגרם מחזירות דף בלי תגיות og. */
+const FETCH_OPTS = { muteHttpExceptions: true, followRedirects: true, headers: { 'User-Agent': 'Mozilla/5.0 (compatible; WhatsApp/2.0)' } };
 /* קוד השליטה נבחר על ידי המנהל במקום, ולכן הוא יכול להיות קצר. מה שמגן
    עליו הוא התקרה: אחרי חמישה ניסיונות שגויים הוא נמחק, ומי שמנחש מקבל
    חמש הזדמנויות ולא מיליון. */
@@ -85,6 +89,7 @@ function handle_(req) {
     case 'requestAccess': return requestAccess_(req);
     case 'getSeason':     return getSeason_(req);
     case 'getLive':       return getLive_(req);
+    case 'getPoster':     return getPoster_(req);
     case 'claimLive':     return claimLive_(req);
     // שולט במשחק (מנהל או מכשיר שמימש קוד)
     case 'putLive':       return putLive_(req);
@@ -95,6 +100,7 @@ function handle_(req) {
     case 'setStatus':     return setStatus_(req);
     case 'removeUser':    return removeUser_(req);
     case 'putSeason':     return putSeason_(req);
+    case 'makePoster':    return makePoster_(req);
     case 'startLive':     return startLive_(req);
     case 'setLiveCode':   return setLiveCode_(req);
     case 'clearLiveControl': return clearLiveControl_(req);
@@ -285,6 +291,103 @@ function forParents_(s) {
   (season.players || []).forEach((p) => { delete p.minutes; });
   (season.matches || []).forEach((m) => { delete m.lineup; });
   return out;
+}
+
+/* ---------- תמונות לסרטונים ----------
+   הדפוס מ-nines: הגשר מוצא תמונה לקישור ושומר אותה בתיקייה posters בדרייב,
+   וכל מכשיר מאושר מקבל אותה דרכו. השרת אינו דפדפן — UrlFetchApp אינו כפוף
+   ל-CORS, והוא הולך אחרי הפניות. הסדר: יוטיוב (התמונה הקבועה שלו), קובץ
+   בדרייב (התמונה המוקטנת שדרייב מייצר — הגשר רץ בחשבון המנהל ורואה אותו),
+   ובכל השאר og:image מהדף, כמו שוואטסאפ מציג קישור. */
+
+function posterDir_() {
+  const it = root_().getFoldersByName(POSTER_DIR);
+  while (it.hasNext()) {
+    const f = it.next();
+    if (!f.isTrashed()) return f;
+  }
+  return root_().createFolder(POSTER_DIR);
+}
+
+function youtubeId_(url) {
+  let m = url.match(/^https?:\/\/(?:www\.)?youtu\.be\/([\w-]{6,})/i);
+  if (m) return m[1];
+  if (!/^https?:\/\/(?:[\w-]+\.)?youtube(?:-nocookie)?\.com\//i.test(url)) return null;
+  m = url.match(/[?&]v=([\w-]{6,})/) || url.match(/\/(?:shorts|embed|live|v)\/([\w-]{6,})/);
+  return m ? m[1] : null;
+}
+
+function driveId_(url) {
+  if (!/^https?:\/\/drive\.google\.com\//i.test(url)) return null;
+  const m = url.match(/\/file\/d\/([\w-]{10,})/) || url.match(/[?&]id=([\w-]{10,})/);
+  return m ? m[1] : null;
+}
+
+function metaContent_(html, keys) {
+  for (let i = 0; i < keys.length; i++) {
+    const k = keys[i].replace(/:/g, '\\:');
+    const a = html.match(new RegExp('<meta[^>]+(?:property|name)=["\']' + k + '["\'][^>]+content=["\']([^"\']+)["\']', 'i'))
+      || html.match(new RegExp('<meta[^>]+content=["\']([^"\']+)["\'][^>]+(?:property|name)=["\']' + k + '["\']', 'i'));
+    if (a) return a[1].replace(/&amp;/g, '&');
+  }
+  return null;
+}
+
+function fetchImage_(src) {
+  const res = UrlFetchApp.fetch(src, FETCH_OPTS);
+  if (res.getResponseCode() >= 400) return null;
+  const blob = res.getBlob();
+  return /^image\//.test(blob.getContentType() || '') ? blob : null;
+}
+
+function findPoster_(url) {
+  const yt = youtubeId_(url);
+  if (yt) return fetchImage_('https://i.ytimg.com/vi/' + encodeURIComponent(yt) + '/hqdefault.jpg');
+  const drive = driveId_(url);
+  if (drive) {
+    try { const t = DriveApp.getFileById(drive).getThumbnail(); if (t) return t; } catch (e) { /* ננסה את הדף */ }
+  }
+  const page = UrlFetchApp.fetch(url, FETCH_OPTS);
+  if (page.getResponseCode() >= 400) return null;
+  const img = metaContent_(page.getContentText(), ['og:image:secure_url', 'og:image', 'twitter:image']);
+  return img ? fetchImage_(img) : null;
+}
+
+/* מנהל בלבד: מכין תמונה לקישור, שומר אותה, ומחזיר ref — מזהה הקובץ. השם
+   נגזר מהקישור, כך ששמירה חוזרת של אותו סרטון מחליפה ולא מכפילה. */
+function makePoster_(req) {
+  requireAdmin_(req);
+  const url = String(req.url || '').trim();
+  if (!/^https?:\/\//i.test(url)) throw fail_('קישור לא תקין', 'bad_url');
+  let blob = null;
+  try { blob = findPoster_(url); } catch (e) { blob = null; }
+  if (!blob) throw fail_('לא נמצאה תמונה לקישור הזה', 'no_poster');
+  if (blob.getBytes().length > MAX_POSTER_BYTES) throw fail_('התמונה גדולה מדי', 'too_big');
+  const name = hash_(url) + '.img';
+  const dir = posterDir_();
+  const old = dir.getFilesByName(name);
+  while (old.hasNext()) old.next().setTrashed(true);
+  const saved = dir.createFile(blob.setName(name));
+  return { ref: saved.getId() };
+}
+
+/* כל מכשיר מאושר. ref הוא מזהה קובץ בדרייב, ולכן חובה לוודא שהקובץ יושב
+   בתיקיית התמונות — אחרת הורה עם מזהה של קובץ אחר קורא דרך הגשר כל קובץ
+   בדרייב של המנהל. */
+function getPoster_(req) {
+  viewer_(req);
+  const ref = String(req.ref || '');
+  const missing = () => fail_('התמונה לא נמצאה', 'not_found');
+  if (!/^[\w-]{10,}$/.test(ref)) throw missing();
+  let f;
+  try { f = DriveApp.getFileById(ref); } catch (e) { throw missing(); }
+  const dirId = posterDir_().getId();
+  let inside = false;
+  const parents = f.getParents();
+  while (parents.hasNext()) if (parents.next().getId() === dirId) inside = true;
+  if (!inside || f.isTrashed()) throw missing();
+  const blob = f.getBlob();
+  return { mime: blob.getContentType(), data: Utilities.base64Encode(blob.getBytes()) };
 }
 
 /* ---------- משחק חי ----------

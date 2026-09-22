@@ -69,6 +69,26 @@ test('admin saves; the approved device reads it back from Drive', () => {
   assert.equal(s.season.team.name, 'מכבי גבעתיים');
 });
 
+test('player minutes and past lineups reach the manager only', () => {
+  const cur = b.post({ action: 'getSeason', adminCode: ADMIN }).result;
+  const season = { ...cur.season,
+    players: [{ id: 'p1', name: 'איתי', goals: 2, minutes: 120 }],
+    matches: [{ date: '2026-09-19', opponent: 'בני לוד', gf: 1, ga: 0, lineup: [{ pid: 'p1', pos: 'ST' }], events: [{ id: 'g', type: 'goal', side: 'us', scorer: 'p1' }] }] };
+  const r = b.post({ action: 'putSeason', adminCode: ADMIN, baseVersion: cur.version, season }).result;
+  b.clearCache();
+  const parent = b.post({ action: 'getSeason', deviceKey: devA }).result.season;
+  assert.equal('minutes' in parent.players[0], false, 'minutes sent to a parent');
+  assert.equal(parent.players[0].goals, 2, 'the rest of the player stays');
+  assert.equal('lineup' in parent.matches[0], false, 'a past lineup lets minutes be recomputed');
+  assert.equal(parent.matches[0].events.length, 1, 'events stay: the timeline is built from them');
+  const admin = b.post({ action: 'getSeason', adminCode: ADMIN }).result.season;
+  assert.equal(admin.players[0].minutes, 120);
+  assert.equal(admin.matches[0].lineup.length, 1);
+  const again = b.post({ action: 'getSeason', adminCode: ADMIN }).result.season;
+  assert.equal(again.players[0].minutes, 120, 'stripping for a parent must not touch the stored copy');
+  assert.equal(r.version, cur.version + 1);
+});
+
 test('a save over a stale version is rejected, not silently overwritten', () => {
   assert.equal(err(b.post({ action: 'putSeason', adminCode: ADMIN, baseVersion: 0, season: { x: 1 } })), 'conflict');
   const s = b.post({ action: 'getSeason', adminCode: ADMIN }).result;

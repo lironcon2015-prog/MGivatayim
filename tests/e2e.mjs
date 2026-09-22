@@ -308,6 +308,15 @@ await step('the scorer\'s total comes from the match events', async () => {
   expect(/\b1\b/.test(row), 'leader row: ' + row);
 });
 
+await step('minutes per player are the manager\'s only', async () => {
+  expect(await parent.locator('[data-board="minutes"]').count() === 0, 'a parent sees the minutes tab');
+  const cached = await parent.evaluate(() => JSON.parse(localStorage.getItem('mg:season') || 'null'));
+  expect(cached && cached.season.players.every((p) => !('minutes' in p)), 'minutes reached the parent\'s device');
+  expect(cached.season.matches.every((m) => !('lineup' in m)), 'a past lineup reached the parent\'s device');
+  await admin.goto(APP + '#/stats');
+  await admin.locator('[data-board="minutes"]').waitFor();
+});
+
 await step('a history row opens the match with its goals and subs', async () => {
   await parent.goto(APP + '#/');
   await parent.locator('button.match', { hasText: 'מכבי נחלים' }).first().click();

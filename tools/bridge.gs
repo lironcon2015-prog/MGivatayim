@@ -271,7 +271,20 @@ function getSeason_(req) {
     }
   }
   const s = readJson_(SEASON_FILE, null);
-  return s || { version: 0, updatedAt: null, season: null };
+  if (!s) return { version: 0, updatedAt: null, season: null };
+  return who.admin ? s : forParents_(s);
+}
+
+/* דקות משחק לשחקן — למנהל בלבד. ההסתרה כאן ולא בממשק: מה שמגיע לטלפון
+   של הורה ניתן לקריאה. יורדות גם הדקות הידניות וגם ההרכבים הפותחים של
+   משחקים שהסתיימו, כי מהם (עם החילופים) הדקות מחושבות. האירועים נשארים —
+   מהם בנויים ציר הזמן והכובשים. */
+function forParents_(s) {
+  const out = JSON.parse(JSON.stringify(s));
+  const season = out.season || {};
+  (season.players || []).forEach((p) => { delete p.minutes; });
+  (season.matches || []).forEach((m) => { delete m.lineup; });
+  return out;
 }
 
 /* ---------- משחק חי ----------

@@ -54,6 +54,9 @@ function prepare(payload) {
   if (!payload?.season) return null;
   const s = buildSeason(payload.season);
   s.team.crestUrl = new URL(s.team.crest || DEFAULT_CREST, ROOT).href;
+  // Minutes are the manager's: the bridge does not send them to parents, and
+  // the stats screen drops the tab rather than show a column of zeros.
+  s.showMinutes = isAdmin();
   return s;
 }
 

@@ -48,18 +48,18 @@ export function timelineHtml(state, { interactive = false } = {}) {
     const tag = interactive && (e.type === 'goal' || e.type === 'sub') ? 'button' : 'div';
     const attrs = tag === 'button' ? ` type="button" data-event="${esc(e.id)}"` : '';
     if (e.type === 'goal' && e.side !== 'them') {
-      return `<li><${tag} class="tl-item tl-goal us"${attrs}>
+      return `<li data-ev="${esc(e.id)}"><${tag} class="tl-item tl-goal us"${attrs}>
         <span class="tl-min num">${esc(minute)}</span><span class="tl-ico">${icon('ball')}</span>
         <span class="tl-txt"><b>שער! ${esc(e.scorer ? whoText(state, e.scorer) : 'מבקיע לא ידוע')}</b>
           <small>${e.assist ? `בישול: ${esc(whoText(state, e.assist))} · ` : ''}<span class="num tl-score">${after.get(e.id)}</span>${atStart}</small></span></${tag}></li>`;
     }
     if (e.type === 'goal') {
-      return `<li><${tag} class="tl-item tl-goal them"${attrs}>
+      return `<li data-ev="${esc(e.id)}"><${tag} class="tl-item tl-goal them"${attrs}>
         <span class="tl-min num">${esc(minute)}</span><span class="tl-ico">${icon('ball')}</span>
         <span class="tl-txt"><b>שער ל${esc(state.opponent || 'יריבה')}</b><small><span class="num tl-score">${after.get(e.id)}</span>${atStart}</small></span></${tag}></li>`;
     }
     if (e.type === 'sub') {
-      return `<li><${tag} class="tl-item tl-sub"${attrs}>
+      return `<li data-ev="${esc(e.id)}"><${tag} class="tl-item tl-sub"${attrs}>
         <span class="tl-min num">${esc(minute)}</span><span class="tl-ico">${icon('swap')}</span>
         <span class="tl-txt"><b><i class="in">${icon('arrowIn')}</i>${esc(whoText(state, e.in))}</b>
           <small><i class="out">${icon('arrowOut')}</i>${esc(whoText(state, e.out))}${e.pos ? ` · ${esc(posLabel(e.pos))}` : ''}${atStart}</small></span></${tag}></li>`;
@@ -129,34 +129,54 @@ export function mountLive(view, ctx) {
   /* ---- views ---- */
 
   // Scorers under each side of the score. Ours are grouped by player — a
-  // hat-trick is one line with three minutes, not three lines — and the
-  // opponent's goals, which carry no names, share one line of minutes. Past
-  // MAX_SCORER_LINES a side folds the rest into "ועוד N", so a big win never
-  // stretches the scoreboard.
+  // hat-trick is one line with three minutes, not three lines — up to
+  // MAX_SCORER_LINES, then "ועוד N". The opponent's goals carry no names:
+  // their minutes sit in rows of MINUTES_PER_ROW, so the ninth goal starts a
+  // second row instead of running out of the card, and past MAX_SCORER_LINES
+  // rows they fold the same way. "ועוד N" is a button to the timeline, at the
+  // first goal the scoreboard does not name.
   function scorersHtml(st) {
     const MAX_SCORER_LINES = 4;
+    const MINUTES_PER_ROW = 8;
     const goals = st.events.filter((e) => e.type === 'goal')
       .sort((a, b) => a.period - b.period || a.atMs - b.atMs);
     if (!goals.length) return '';
     const minute = (e) => M.minuteLabel(st.format, e.period, e.atMs);
+    const more = (n, goalId) => `<li class="scr-more"><button type="button" data-goto="${esc(goalId)}">ועוד ${n}</button></li>`;
+
     const ours = new Map();
     for (const e of goals.filter((g) => g.side !== 'them')) {
       const key = e.scorer || '?';
       if (!ours.has(key)) ours.set(key, []);
-      ours.get(key).push(minute(e));
+      ours.get(key).push(e);
     }
-    const line = (name, mins) => `<li><span class="scr-name">${esc(name)}</span> <span class="scr-min num">${mins.map(esc).join(', ')}</span></li>`;
-    const list = (lines) => {
-      const shown = lines.slice(0, MAX_SCORER_LINES);
-      const rest = lines.length - shown.length;
-      return shown.join('') + (rest ? `<li class="scr-more">ועוד ${rest}</li>` : '');
-    };
-    const usLines = [...ours].map(([pid, mins]) => line(pid === '?' ? 'לא ידוע' : who(st, pid).name, mins));
-    const them = goals.filter((g) => g.side === 'them').map(minute);
+    const groups = [...ours];
+    const usHtml = groups.slice(0, MAX_SCORER_LINES).map(([pid, evs]) =>
+      `<li><span class="scr-name">${esc(pid === '?' ? 'לא ידוע' : who(st, pid).name)}</span> <span class="scr-min num">${evs.map((e) => esc(minute(e))).join(', ')}</span></li>`).join('')
+      + (groups.length > MAX_SCORER_LINES ? more(groups.length - MAX_SCORER_LINES, groups[MAX_SCORER_LINES][1][0].id) : '');
+
+    const them = goals.filter((g) => g.side === 'them');
+    const rows = [];
+    for (let k = 0; k < them.length; k += MINUTES_PER_ROW) rows.push(them.slice(k, k + MINUTES_PER_ROW));
+    const themHtml = rows.slice(0, MAX_SCORER_LINES).map((row) =>
+      `<li class="scr-row">${row.map((e) => `<span class="num">${esc(minute(e))}</span>`).join('')}</li>`).join('')
+      + (rows.length > MAX_SCORER_LINES ? more(them.length - MAX_SCORER_LINES * MINUTES_PER_ROW, them[MAX_SCORER_LINES * MINUTES_PER_ROW].id) : '');
+
     return `<div class="sc-scorers">
-      <ul class="us">${list(usLines)}</ul>
-      <ul class="them">${them.length ? line('שערים', them) : ''}</ul>
+      <ul class="us">${usHtml}</ul>
+      <ul class="them">${themHtml}</ul>
     </div>`;
+  }
+
+  // "ועוד N" → the goal in the timeline, scrolled to the middle of the screen
+  // and lit for a moment so the eye lands on it.
+  function goToEvent(id) {
+    const li = view.querySelector(`.tl li[data-ev="${CSS.escape(id)}"]`);
+    if (!li) return;
+    li.scrollIntoView({ block: 'center', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+    li.classList.remove('flash');
+    void li.offsetWidth;
+    li.classList.add('flash');
   }
 
   function scoreboard(st) {
@@ -725,6 +745,7 @@ export function mountLive(view, ctx) {
     if (!t) return;
     const st = state();
     const a = t.dataset.act;
+    if (t.dataset.goto) { goToEvent(t.dataset.goto); return; }
     if (a === 'new') { t.disabled = true; newMatch(); return; }
     if (a === 'claim') { claimSheet(); return; }
     if (!st) return;

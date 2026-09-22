@@ -675,10 +675,30 @@ body.with-nav .toast { bottom: calc(var(--nav-space) + 10px); }
 }
 .sc-scorers .them li::before { background: var(--faint); box-shadow: none; }
 .scr-name { font-weight: 700; }
-.scr-min { color: var(--muted); font-size: .76rem; white-space: nowrap; }
-.sc-scorers .them li { color: var(--muted); }
-.scr-more { color: var(--faint); font-size: .74rem; }
+.scr-min { color: var(--muted); font-size: .76rem; }
+/* The opponent's minutes: a fixed grid of eight per row, so the ninth
+   starts a new row whatever the phone's width. The dot opens the first row
+   only. */
+.sc-scorers .them .scr-row {
+  display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 2px;
+  font-size: .68rem; color: var(--muted); white-space: nowrap;
+}
+.sc-scorers .them .scr-row::before { display: none; }
+.sc-scorers .them .scr-row span { text-align: center; }
+.scr-more { font-size: .74rem; }
 .sc-scorers li.scr-more::before { display: none; }
+.scr-more button {
+  font: inherit; font-weight: 700; color: var(--gold); cursor: pointer;
+  background: var(--gold-soft); border: 1px solid rgba(232, 185, 49, .25); border-radius: var(--r-pill);
+  padding: .15rem .65rem; min-height: 28px;
+}
+.scr-more button:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+/* The goal "ועוד N" pointed at, lit for a moment in the timeline. */
+.tl li.flash { animation: tl-flash 1.8s ease-out; border-radius: 12px; }
+@keyframes tl-flash {
+  0%, 35% { background: rgba(232, 185, 49, .16); box-shadow: 0 0 0 1px var(--gold-line), 0 0 22px rgba(232, 185, 49, .25); }
+  100% { background: transparent; box-shadow: none; }
+}
 .sc-clock { display: flex; justify-content: center; align-items: baseline; gap: .5rem; margin-top: .85rem; min-height: 2.1rem; }
 .sc-clock [data-clock] { font-size: 1.8rem; font-weight: 600; letter-spacing: .02em; transition: opacity .2s; }
 .sc-clock [data-clock].paused { opacity: .4; }

@@ -2,7 +2,7 @@ import { call } from '../bridge.js';
 import { esc, safeUrl, israelIso, splitKickoff, stamp } from '../format.js';
 import { POSITIONS, primaryPos, posLabel } from '../positions.js';
 import { readRows, parseDelimited, detectColumns, rowsToPlayers, planImport, applyImport, FIELDS } from '../importer.js';
-import { DEFAULT_FORMAT, cleanFormat } from '../live/model.js';
+import { DEFAULT_FORMAT, DEFAULT_SIZE, cleanFormat, cleanSize } from '../live/model.js';
 import { formatEditorHtml, wireFormatEditor } from './live.js';
 import { openSheet, toast } from '../ui/sheet.js';
 import { icon } from '../icons.js';
@@ -204,7 +204,7 @@ let tab = 'season';
 
 const blankSeason = () => ({
   team: { name: 'מכבי גבעתיים', league: '', season: '' },
-  settings: { format: [...DEFAULT_FORMAT] },
+  settings: { format: [...DEFAULT_FORMAT], size: DEFAULT_SIZE },
   nextMatch: null, matches: [], players: [], videos: [], links: [],
   analysis: { items: [], note: '' },
 });
@@ -261,6 +261,9 @@ export function mountAdmin(view, ctx) {
       wireFormatEditor(fmt, () => cleanFormat(draft.settings?.format), (f) => {
         draft.settings = { ...(draft.settings || {}), format: f };
         touch();
+      }, {
+        get: () => cleanSize(draft.settings?.size),
+        set: (n) => { draft.settings = { ...(draft.settings || {}), size: n }; touch(); },
       });
     }
     view.querySelector('[data-import-file]')?.addEventListener('change', async (e) => {
@@ -419,7 +422,7 @@ export function mountAdmin(view, ctx) {
       </section>
       <section>
         <div class="sec-head">${icon('clock')}<h2>מבנה משחק</h2></div>
-        <div class="card" data-format-editor>${formatEditorHtml(cleanFormat(draft.settings?.format))}
+        <div class="card" data-format-editor>${formatEditorHtml(cleanFormat(draft.settings?.format), cleanSize(draft.settings?.size))}
           <p class="note">ברירת המחדל לכל משחק חי. אפשר לשנות גם בפתיחת משחק מסוים.</p></div>
       </section>
       <section>

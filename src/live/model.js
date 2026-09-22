@@ -22,6 +22,35 @@ export function cleanFormat(f) {
   return out.length ? out : [...DEFAULT_FORMAT];
 }
 
+/* ── Players on the field ──────────────────────────────────────────────
+   Youth football here is nine-a-side until the older age groups move to
+   eleven. The season sets the default (settings.size); a single match can
+   override it before kickoff. A state from before sizes existed reads as 9. */
+
+export const SIZES = [
+  { n: 9, label: 'תשיעיות' },
+  { n: 11, label: '11 על 11' },
+];
+export const DEFAULT_SIZE = 9;
+export const cleanSize = (n) => (SIZES.some((x) => x.n === Number(n)) ? Number(n) : DEFAULT_SIZE);
+export const sizeOf = (state) => cleanSize(state?.size);
+export const describeSize = (n) => SIZES.find((x) => x.n === cleanSize(n)).label;
+
+// The starting lineup of the most recent match that recorded one, as the
+// default for the next: most weeks the same players start. Players who have
+// left the squad drop out, and a lineup bigger than this match's size is cut
+// to it. `matches` is newest first (season.recent).
+export function previousLineup(matches, players, size) {
+  const ids = new Set((players || []).map((p) => p.id));
+  const last = (matches || []).find((m) => Array.isArray(m.lineup) && m.lineup.length);
+  if (!last) return [];
+  const seen = new Set();
+  return last.lineup
+    .filter((l) => ids.has(l.pid) && !seen.has(l.pid) && seen.add(l.pid))
+    .slice(0, cleanSize(size))
+    .map((l) => ({ pid: l.pid, pos: l.pos || '' }));
+}
+
 const WORDS = { 1: 'משחק', 2: 'מחצית', 3: 'שליש', 4: 'רבע' };
 export const periodWord = (format) => WORDS[format.length] || 'חלק';
 export const periodName = (format, i) => (format.length === 1 ? 'משחק' : `${periodWord(format)} ${i + 1}`);
@@ -68,7 +97,8 @@ export const inStoppage = (state, now) =>
 
 /* ── State ─────────────────────────────────────────────────────────────── */
 
-export function newLive({ id, opponent, home = true, round = null, date, format, players }) {
+export function newLive({ id, opponent, home = true, round = null, date, format, size, lineup, players }) {
+  const squad = (players || []).map((p) => ({ id: p.id, name: p.name, number: p.number ?? null, pos: p.pos || '', pos2: p.pos2 || '' }));
   return {
     id,
     status: 'setup',          // setup · running · break · fulltime · ended
@@ -77,14 +107,15 @@ export function newLive({ id, opponent, home = true, round = null, date, format,
     round: round ?? null,
     date: date || '',
     format: cleanFormat(format),
+    size: cleanSize(size),
     period: 0,
     clock: { running: false, startedAt: null, accMs: 0 },
-    lineup: [],
+    lineup: (lineup || []).filter((l) => squad.some((p) => p.id === l.pid)).map((l) => ({ pid: l.pid, pos: l.pos || '' })),
     events: [],
     // A snapshot of the squad at kickoff: the live screen renders from this
     // alone, and a player renamed or removed later still reads correctly in
     // this match's history.
-    players: (players || []).map((p) => ({ id: p.id, name: p.name, number: p.number ?? null, pos: p.pos || '', pos2: p.pos2 || '' })),
+    players: squad,
   };
 }
 
@@ -109,6 +140,7 @@ export function reduce(state, op) {
       if (s.status !== 'setup') return state;
       for (const k of ['opponent', 'home', 'round', 'date']) if (k in op.patch) s[k] = op.patch[k];
       if ('format' in op.patch) s.format = cleanFormat(op.patch.format);
+      if ('size' in op.patch) s.size = cleanSize(op.patch.size);
       return s;
     case 'lineup':
       if (s.status !== 'setup') return state;

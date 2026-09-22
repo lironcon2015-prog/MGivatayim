@@ -215,7 +215,7 @@ section { margin-top: 1.9rem; }
 }
 .vs .date { margin-top: .35rem; font-size: .76rem; color: var(--muted); }
 
-.countdown { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 1.2rem; }
+.countdown { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 1.2rem; }
 .cd-unit { background: var(--well); border: 1px solid rgba(255, 255, 255, .1); border-radius: var(--r-tile); padding: .6rem .2rem .5rem; text-align: center; }
 .cd-unit b { display: block; font-size: 1.75rem; font-weight: 600; line-height: 1.2; }
 .cd-unit span { font-size: .72rem; color: var(--muted); }
@@ -264,8 +264,8 @@ section { margin-top: 1.9rem; }
 .is-draw { background: var(--draw-soft); color: var(--draw); border-color: var(--draw-line); }
 
 /* ── Stat tiles: label, big number, a line of context ────────────────── */
-.tiles { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--gap); }
-.tiles.three { grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--gap); }
+.tiles.three { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
 .tile {
   display: flex; flex-direction: column;
   background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-card); padding: 1rem 1.1rem .95rem;
@@ -417,14 +417,24 @@ section { margin-top: 1.9rem; }
 
 /* ── Forms ───────────────────────────────────────────────────────────── */
 .form-stack { display: grid; gap: .9rem; }
-.field { display: grid; gap: .35rem; font-size: .8rem; font-weight: 700; color: #A7B2C4; }
+/* min-width: 0 on the field and its control: a grid item's minimum is its
+   content's, and iOS gives date and time inputs a wide intrinsic width —
+   in a two-column grid the date pushed over its neighbour and the two
+   pickers overlapped. */
+.field { display: grid; gap: .35rem; min-width: 0; font-size: .8rem; font-weight: 700; color: #A7B2C4; }
 .field small { font-weight: 500; color: var(--faint); font-size: .74rem; }
 .field .req { color: var(--gold); font-style: normal; }
 .field input, .field select, .field textarea, .pair input {
-  width: 100%; font: inherit; font-size: .95rem; font-weight: 500; color: var(--text);
+  width: 100%; min-width: 0; max-width: 100%; font: inherit; font-size: .95rem; font-weight: 500; color: var(--text);
   background: var(--well); border: 1px solid rgba(255, 255, 255, .11); border-radius: var(--r-field);
   padding: .65rem .85rem; min-height: 46px; transition: border-color .15s, box-shadow .15s;
 }
+/* Safari draws date/time as a native control that ignores width and centres
+   its text; stripping its appearance makes it size and align like the rest. */
+.field input[type="date"], .field input[type="time"], .pair input[type="date"], .pair input[type="time"] {
+  -webkit-appearance: none; appearance: none; display: block; text-align: start;
+}
+.field input::-webkit-date-and-time-value, .pair input::-webkit-date-and-time-value { text-align: start; }
 .field textarea { resize: vertical; min-height: 78px; line-height: 1.5; }
 /* Focus is a gold ring with a little light, not an outline. */
 .field input:focus-visible, .field select:focus-visible, .field textarea:focus-visible, .pair input:focus-visible {
@@ -436,12 +446,12 @@ section { margin-top: 1.9rem; }
 .field input, .field select, .pair input { color-scheme: dark; }
 .field.check { grid-template-columns: auto 1fr; align-items: center; gap: .6rem; font-weight: 600; color: var(--text); }
 .field.check input { width: 20px; height: 20px; min-height: 0; accent-color: var(--gold); }
-.pair { display: grid; grid-template-columns: 1.3fr 1fr; gap: 8px; }
+.pair { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 8px; }
 /* Errors are said in gold, not red: red belongs to lost matches. The weight
    and the alert role carry the urgency. */
 .form-error { margin: 0; color: var(--gold-hi); font-size: .86rem; font-weight: 700; min-height: 1.2em; }
 
-.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: .9rem .65rem; }
+.grid-2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: .9rem .65rem; }
 .grid-2 .span-2 { grid-column: 1 / -1; }
 @media (max-width: 360px) { .grid-2 { grid-template-columns: 1fr; } }
 
@@ -624,7 +634,7 @@ body.with-nav .toast { bottom: calc(var(--nav-space) + 10px); }
   70% { box-shadow: 0 0 0 8px rgba(232, 185, 49, 0); }
   100% { box-shadow: 0 0 0 0 rgba(232, 185, 49, 0); }
 }
-.sc-row { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: .4rem; margin-top: .9rem; }
+.sc-row { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: .4rem; margin-top: .9rem; }
 .sc-team { display: grid; justify-items: center; gap: .3rem; text-align: center; min-width: 0; }
 .sc-team b { font-size: .9rem; line-height: 1.25; }
 .sc-team small { font-size: .7rem; color: var(--faint); font-weight: 600; }
@@ -655,7 +665,7 @@ body.with-nav .toast { bottom: calc(var(--nav-space) + 10px); }
 .ctl button { -webkit-tap-highlight-color: transparent; transition: transform .08s ease, filter .15s; }
 .ctl button:active { transform: scale(.965); }
 .ctl button:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
-.ctl-goals { display: grid; grid-template-columns: 1.35fr 1fr; gap: 10px; }
+.ctl-goals { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 10px; }
 .ctl-goal {
   min-height: 84px; border-radius: 26px; border: 0; cursor: pointer; font: inherit; font-weight: 800; font-size: 1.05rem;
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .3rem;
@@ -664,7 +674,7 @@ body.with-nav .toast { bottom: calc(var(--nav-space) + 10px); }
 .ctl-goal svg { width: 26px; height: 26px; }
 .ctl-goal.them { background: var(--surface); color: var(--text); border: 1px solid var(--line-strong); box-shadow: none; font-size: .95rem; }
 .ctl-goal.them svg { color: var(--muted); }
-.ctl-row { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 8px; }
+.ctl-row { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 8px; }
 .ctl-btn {
   min-height: 66px; border-radius: 20px; cursor: pointer; font: inherit; font-size: .78rem; font-weight: 700;
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .3rem;
@@ -770,6 +780,8 @@ button.tl-item:focus-visible { outline: 2px solid var(--gold); outline-offset: 2
 
 /* ═══ Format editor ════════════════════════════════════════════════════ */
 .fmt-presets { display: flex; flex-wrap: wrap; gap: 7px; }
+.fmt-label { font-size: .78rem; font-weight: 800; color: var(--muted); margin: 0 0 .5rem; }
+.fmt-sizes + .fmt-label { margin-top: 1.1rem; }
 .chip-btn {
   font: inherit; font-size: .8rem; font-weight: 700; padding: .5rem .8rem; border-radius: 999px; cursor: pointer;
   border: 1px solid var(--line-strong); background: transparent; color: var(--muted);
@@ -798,7 +810,7 @@ button.tl-item:focus-visible { outline: 2px solid var(--gold); outline-offset: 2
    the first half a line down. */
 .more-block > .btn + .btn { margin-top: .5rem; }
 .more-block > .btn.small { width: 100%; }
-.adj-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.adj-row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
 .adj-row .btn { width: 100%; margin: 0; }
 .code-row { display: flex; gap: 8px; margin: .65rem 0 .5rem; }
 .code-row input {
@@ -850,6 +862,8 @@ button.match:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px
 }
 .paste-box:focus-visible { outline: none; border-color: rgba(232, 185, 49, .7); box-shadow: 0 0 0 3px rgba(232, 185, 49, .16); }
 .imp-cols { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: .6rem; margin-bottom: .9rem; }
+/* A select sizes itself to its longest option; without this it widens its column. */
+.imp-cols > *, .imp-cols select { min-width: 0; }
 .imp-cols select {
   width: 100%; min-height: 42px; font: inherit; font-size: .88rem; color: var(--text); color-scheme: dark;
   background: var(--well); border: 1px solid rgba(255, 255, 255, .11); border-radius: 14px; padding: .4rem .55rem;

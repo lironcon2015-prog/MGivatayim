@@ -314,6 +314,19 @@ await step('a history row opens the match with its goals and subs', async () => 
   await parent.locator('.sheet-x').click();
 });
 
+await step('the next live match opens with the last starting lineup, capped at the size', async () => {
+  await admin.goto(APP + '#/live');
+  await admin.reload();
+  await admin.locator('[data-act="clear"]').click();
+  await admin.locator('[data-ok]').click();
+  await admin.locator('[data-act="new"]').click();
+  await waitText(admin, 'הרכב פותח');
+  await admin.waitForFunction(() => document.querySelectorAll('.lu-row.on').length === 4);
+  const text = await admin.locator('#view').innerText();
+  expect(text.includes('4 מתוך 9'), 'size counter missing');
+  expect(text.includes('תשיעיות'), 'size not shown in the format line');
+});
+
 await step('revoking locks the parent out and drops their cached copy', async () => {
   await admin.goto(APP + '#/admin');
   await admin.click('[data-tab="access"]');

@@ -144,6 +144,43 @@ export async function run(test) {
     assert.deepEqual(M.score(s), { us: 0, them: 0 });
   });
 
+  await test('squad size: defaults to nine, takes eleven, and a match can change it before kickoff', () => {
+    assert.equal(M.cleanSize(undefined), 9);
+    assert.equal(M.cleanSize('11'), 11);
+    assert.equal(M.cleanSize(8), 9);
+    assert.equal(M.sizeOf({}), 9, 'a state from before sizes reads as nine');
+    const s0 = M.newLive({ id: 'S', players: squad, size: 11 });
+    assert.equal(s0.size, 11);
+    const s1 = M.reduce(s0, { t: 'meta', patch: { size: 9 } });
+    assert.equal(s1.size, 9);
+    const running = M.reduce(M.reduce(s1, { t: 'lineup', lineup: [{ pid: 'g', pos: 'GK' }] }), { t: 'start', at: 1 });
+    assert.equal(M.reduce(running, { t: 'meta', patch: { size: 11 } }).size, 9, 'size is fixed once the match is on');
+  });
+
+  await test('the last starting lineup is the default for the next match', () => {
+    const matches = [
+      { date: '2026-09-19', gf: 1, ga: 0 },                                     // entered by hand: no lineup
+      { date: '2026-09-12', lineup: [{ pid: 'g', pos: 'GK' }, { pid: 'gone', pos: 'CB' }, { pid: 'a', pos: 'LB' }, { pid: 'a', pos: 'LB' }] },
+      { date: '2026-09-05', lineup: [{ pid: 'c', pos: 'ST' }] },
+    ];
+    assert.deepEqual(M.previousLineup(matches, squad, 9), [{ pid: 'g', pos: 'GK' }, { pid: 'a', pos: 'LB' }],
+      'newest recorded lineup, without players who left and without duplicates');
+    assert.deepEqual(M.previousLineup(matches, squad, 9).length, 2);
+    const big = [{ lineup: squad.map((p) => ({ pid: p.id, pos: p.pos })) }];
+    assert.equal(M.previousLineup(big, squad, 9).length, 6);
+    assert.equal(M.previousLineup([{ lineup: [...big[0].lineup, ...big[0].lineup.map((l) => ({ ...l, pid: l.pid }))] }], squad, 9).length, 6);
+    assert.deepEqual(M.previousLineup([], squad, 9), []);
+    const s = M.newLive({ id: 'N', players: squad, lineup: M.previousLineup(matches, squad, 9) });
+    assert.equal(s.lineup.length, 2, 'newLive takes the default lineup');
+  });
+
+  await test('a previous lineup longer than the size is cut to it', () => {
+    const eleven = Array.from({ length: 11 }, (_, i) => P('p' + i, i + 1, 'CM'));
+    const m = [{ lineup: eleven.map((p) => ({ pid: p.id, pos: 'CM' })) }];
+    assert.equal(M.previousLineup(m, eleven, 9).length, 9);
+    assert.equal(M.previousLineup(m, eleven, 11).length, 11);
+  });
+
   await test('format presets and cleaning', () => {
     assert.deepEqual(M.cleanFormat(['25', 25]), [25, 25]);
     assert.deepEqual(M.cleanFormat([0, -3]), M.DEFAULT_FORMAT);

@@ -251,6 +251,8 @@ function render() {
       isAdmin,
       players: () => s.players.map((p) => ({ id: p.id, name: p.name, number: p.number ?? null, pos: p.pos || '', pos2: p.pos2 || '' })),
       format: () => LM.cleanFormat(s.settings?.format),
+      size: () => LM.cleanSize(s.settings?.size),
+      matches: () => s.recent,
     });
     return;
   }

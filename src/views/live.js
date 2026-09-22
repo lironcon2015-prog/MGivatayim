@@ -219,11 +219,11 @@ export function mountLive(view, ctx) {
           <label class="field"><span>תאריך</span><input type="date" data-meta="date" value="${esc(st.date)}" /></label>
           <label class="field"><span>בית / חוץ</span><select data-meta="home"><option value="true"${st.home ? ' selected' : ''}>בית</option><option value="false"${st.home ? '' : ' selected'}>חוץ</option></select></label>
         </div>
-        <button type="button" class="format-line" data-act="format"><span>מבנה: <b>${esc(M.describeFormat(st.format))}</b></span><span class="linkish">שינוי</span></button>
+        <button type="button" class="format-line" data-act="format"><span>מבנה: <b>${esc(M.describeSize(M.sizeOf(st)))} · ${esc(M.describeFormat(st.format))}</b></span><span class="linkish">שינוי</span></button>
       </div>
     </section>
     <section>
-      <div class="sec-head">${icon('user')}<h2>הרכב פותח</h2><span class="aside num">${st.lineup.length} על המגרש</span></div>
+      <div class="sec-head">${icon('user')}<h2>הרכב פותח</h2><span class="aside num">${st.lineup.length} מתוך ${M.sizeOf(st)}</span></div>
       ${pitchHtml(st, st.lineup, { interactive: false })}
       <div class="card lu">${rows || '<div class="empty">אין שחקנים בסגל. הוסיפו שחקנים במסך הניהול.</div>'}</div>
     </section>`;
@@ -569,12 +569,19 @@ export function mountLive(view, ctx) {
   function formatSheet() {
     const st = state();
     let f = [...st.format];
+    let size = M.sizeOf(st);
     const sh = openSheet({
       title: 'מבנה המשחק', tall: false,
-      body: formatEditorHtml(f) + '<div class="sheet-actions"><button type="button" class="btn" data-save>שמירה</button></div>',
+      body: formatEditorHtml(f, size) + '<div class="sheet-actions"><button type="button" class="btn" data-save>שמירה</button></div>',
       onMount: ({ el }) => {
-        wireFormatEditor(el, () => f, (next) => { f = next; });
-        el.querySelector('[data-save]').addEventListener('click', () => { sh.close('done'); act({ t: 'meta', patch: { format: f } }); });
+        wireFormatEditor(el, () => f, (next) => { f = next; }, { get: () => size, set: (n) => { size = n; } });
+        el.querySelector('[data-save]').addEventListener('click', () => {
+          sh.close('done');
+          // A smaller game keeps the first starters picked, not a random cut.
+          const lineup = st.lineup.length > size ? st.lineup.slice(0, size) : null;
+          act({ t: 'meta', patch: { format: f, size } });
+          if (lineup) act({ t: 'lineup', lineup });
+        });
       },
     });
   }
@@ -670,7 +677,8 @@ export function mountLive(view, ctx) {
       id: 'm' + Date.now().toString(36),
       opponent: nm?.opponent || '', home: nm ? nm.home !== false : true, round: nm?.round ?? null,
       date: nm?.kickoff ? splitKickoff(nm.kickoff).date : new Date().toISOString().slice(0, 10),
-      format: ctx.format(), players,
+      format: ctx.format(), size: ctx.size(), players,
+      lineup: M.previousLineup(ctx.matches(), players, ctx.size()),
     });
     try { await S.startMatch(state0); }
     catch (e) {
@@ -732,7 +740,10 @@ export function mountLive(view, ctx) {
       const pid = t.dataset.lineup;
       const cur = st.lineup;
       const p = M.playerById(st, pid);
-      const next = cur.some((l) => l.pid === pid) ? cur.filter((l) => l.pid !== pid) : [...cur, { pid, pos: p?.pos || '' }];
+      const isOn = cur.some((l) => l.pid === pid);
+      // A full lineup takes no one more: swap by removing a starter first.
+      if (!isOn && cur.length >= M.sizeOf(st)) { toast(`ההרכב מלא — ${M.sizeOf(st)} שחקנים. הורידו שחקן כדי להכניס אחר.`, { kind: 'err' }); return; }
+      const next = isOn ? cur.filter((l) => l.pid !== pid) : [...cur, { pid, pos: p?.pos || '' }];
       act({ t: 'lineup', lineup: next });
     }
   };
@@ -768,8 +779,14 @@ export function mountLive(view, ctx) {
 
 /* ── Match format editor (live setup and the manager's settings) ───────── */
 
-export function formatEditorHtml(format) {
+// `size` is optional: the season settings and a match's setup both edit it,
+// a caller that passes none gets the periods alone.
+export function formatEditorHtml(format, size) {
   return `<div class="fmt">
+    ${size == null ? '' : `<div class="fmt-label">שחקנים על המגרש</div>
+    <div class="fmt-presets fmt-sizes">${M.SIZES.map((x) =>
+      `<button type="button" class="chip-btn${x.n === size ? ' on' : ''}" data-size="${x.n}" aria-pressed="${x.n === size}">${esc(x.label)}</button>`).join('')}</div>
+    <div class="fmt-label">חלקי המשחק</div>`}
     <div class="fmt-presets">${M.FORMAT_PRESETS.map((p) =>
       `<button type="button" class="chip-btn${p.format.join() === format.join() ? ' on' : ''}" data-preset="${p.format.join(',')}">${esc(p.label)}</button>`).join('')}</div>
     <div class="fmt-custom">
@@ -784,12 +801,13 @@ export function formatEditorHtml(format) {
   </div>`;
 }
 
-export function wireFormatEditor(el, get, set) {
+export function wireFormatEditor(el, get, set, size = null) {
   const redraw = () => {
     const f = get();
-    el.querySelector('.fmt').outerHTML = formatEditorHtml(f);
-    wireFormatEditor(el, get, set);
+    el.querySelector('.fmt').outerHTML = formatEditorHtml(f, size ? size.get() : undefined);
+    wireFormatEditor(el, get, set, size);
   };
+  if (size) el.querySelectorAll('[data-size]').forEach((b) => b.addEventListener('click', () => { size.set(Number(b.dataset.size)); redraw(); }));
   el.querySelectorAll('[data-preset]').forEach((b) => b.addEventListener('click', () => { set(b.dataset.preset.split(',').map(Number)); redraw(); }));
   el.querySelectorAll('[data-parts]').forEach((b) => b.addEventListener('click', () => {
     const f = [...get()];

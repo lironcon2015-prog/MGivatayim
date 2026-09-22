@@ -206,6 +206,8 @@ function adopt(payload) {
   dirty = false;
 }
 
+export const hasUnsavedWork = () => dirty;
+
 window.addEventListener('beforeunload', (e) => {
   if (dirty) { e.preventDefault(); e.returnValue = ''; }
 });

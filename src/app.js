@@ -8,7 +8,8 @@ import { renderHome, startCountdown } from './views/home.js';
 import { renderStats, wireStats } from './views/stats.js';
 import { renderMedia } from './views/media.js';
 import * as gate from './views/gate.js';
-import { mountAdmin } from './views/admin.js';
+import { mountAdmin, hasUnsavedWork } from './views/admin.js';
+import { startUpdater, appVersion } from './updater.js';
 
 const ROUTES = [
   { hash: '#/',      label: 'בית',    render: renderHome,  wire: (root) => startCountdown(root) },
@@ -141,7 +142,8 @@ function chrome(team) {
       </div>
       ${nav}
     </header>
-    <main class="shell" id="view" tabindex="-1"></main>`;
+    <main class="shell" id="view" tabindex="-1"></main>
+    <footer class="app-foot">גרסה <span class="num" id="app-version">${esc(appVersion() || '—')}</span></footer>`;
 }
 
 function markNav(hash) {
@@ -254,3 +256,4 @@ function start() {
 
 window.addEventListener('hashchange', () => { state.formError = ''; render(); window.scrollTo(0, 0); });
 start();
+startUpdater({ isBusy: hasUnsavedWork });

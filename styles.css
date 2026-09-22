@@ -369,3 +369,17 @@ section { margin-top: 1.6rem; }
 .save-msg { margin: 0; font-size: .82rem; color: var(--muted); }
 .save-msg.ok { color: var(--win); }
 .save-msg.err { color: var(--loss); }
+
+/* ── Version & updates ───────────────────────────────────────────────── */
+.app-foot {
+  max-width: var(--shell); margin: -1.6rem auto 0; padding: 0 var(--pad) 1.6rem;
+  text-align: center; font-size: .72rem; color: var(--faint);
+}
+.update-bar {
+  position: fixed; inset-inline: 12px; bottom: calc(12px + env(safe-area-inset-bottom)); z-index: 50;
+  max-width: calc(var(--shell) - 24px); margin: 0 auto;
+  display: flex; align-items: center; gap: .7rem; padding: .7rem .8rem .7rem 1rem;
+  background: var(--surface-2); border: 1px solid rgba(232,185,49,.4); border-radius: 14px;
+  box-shadow: 0 10px 30px rgba(0,0,0,.45); font-size: .88rem; font-weight: 700;
+}
+.update-bar span { flex: 1; }

@@ -214,6 +214,10 @@ node tests/e2e.mjs          # הורה + מנהל בדפדפן, מול הגשר 
 node tests/pwa.mjs          # גרסאות מסונכרנות, precache שלם, ועדכון שמגיע לדף פתוח
 ```
 
+בסשן מרוחק `.claude/hooks/session-start.sh` מתקין את playwright אם חסר. אותו
+הוק מפעיל בכל סשן את הסקיל `token-efficient-workflow` (`.claude/skills/`).
+`CLAUDE.md` גובר עליו.
+
 `tests/mock-bridge.mjs` מריץ את `tools/bridge.gs` עצמו ב-Node על גרסאות
 בזיכרון של DriveApp, CacheService ושות'. אין "גשר מזויף" שמחקה את המקורי —
 הבדיקות עוברות רק אם הקובץ שנפרס עובד.

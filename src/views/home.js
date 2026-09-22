@@ -1,7 +1,7 @@
 import { topBy } from '../season.js';
 import { longDate, clock, pct, dec, esc, safeUrl, splitDuration, pad2 } from '../format.js';
 import { icon } from '../icons.js';
-import { sectionHead, formPill, matchRow, leaderRow, tile, splitBar, linkRow, videoCard } from '../components.js';
+import { crestImg, sectionHead, formPill, matchRow, leaderRow, tile, splitBar, linkRow, videoCard } from '../components.js';
 
 function nextMatchCard(s) {
   const nm = s.nextMatch;
@@ -17,7 +17,7 @@ function nextMatchCard(s) {
 
   const disc = (side) =>
     `<div class="side ${side.us ? 'us' : ''}">
-      <div class="disc">${side.us ? icon('ball') : esc(side.name.slice(0, 2))}</div>
+      <div class="disc ${side.us && s.team.crestUrl ? 'has-img' : ''}">${side.us ? crestImg(s.team) : esc(side.name.slice(0, 2))}</div>
       <strong>${esc(side.name)}</strong><span>${side.role}</span>
     </div>`;
 
@@ -59,7 +59,9 @@ export function renderHome(s) {
 
   <section>
     ${sectionHead('התוצאות האחרונות', `${last5.length} אחרונות`)}
-    <div class="form">${last5.map(formPill).join('')}</div>
+    ${last5.length
+      ? `<div class="form">${last5.map(formPill).join('')}</div>`
+      : '<div class="card"><div class="empty">העונה עוד לא התחילה.</div></div>'}
   </section>
 
   <section>
@@ -91,7 +93,7 @@ export function renderHome(s) {
 
   <section>
     ${sectionHead('היסטוריית משחקים', `${s.recent.length} משחקים`)}
-    <div class="card">${s.recent.map(matchRow).join('')}</div>
+    <div class="card">${s.recent.length ? s.recent.map(matchRow).join('') : '<div class="empty">טרם נוספו משחקים.</div>'}</div>
   </section>
 
   <section>
@@ -101,7 +103,7 @@ export function renderHome(s) {
 
   <section>
     ${sectionHead('קישורים שימושיים', `${s.links.length} קישורים`)}
-    <div class="card">${s.links.map(linkRow).join('')}</div>
+    <div class="card">${s.links.length ? s.links.map(linkRow).join('') : '<div class="empty">טרם נוספו קישורים.</div>'}</div>
   </section>
 
   <section>
@@ -110,7 +112,7 @@ export function renderHome(s) {
       ${s.analysis.items.map((it) => `<div class="insight"><span class="dot"></span><span><b>${esc(it.label)}:</b> ${esc(it.text)}</span></div>`).join('')}
       <div class="insight"><span class="dot"></span><span><b>רצף נוכחי:</b> ${o.streak.current
         ? `${o.streak.current} ניצחונות ברצף` : 'אין רצף ניצחונות פתוח'} · הרצף הטוב בעונה: ${o.streak.best}.</span></div>
-      <p class="note">${esc(s.analysis.note)}</p>
+      ${s.analysis.note ? `<p class="note">${esc(s.analysis.note)}</p>` : ''}
     </div>
   </section>`;
 }

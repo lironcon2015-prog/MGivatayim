@@ -29,6 +29,6 @@ export function renderMedia(s) {
 
   <section>
     ${sectionHead('קישורים שימושיים')}
-    <div class="card">${s.links.map((l) => `<div class="insight"><span class="dot"></span><span><b>${esc(l.title)}:</b> ${esc(l.desc)}</span></div>`).join('')}</div>
+    <div class="card">${!s.links.length ? '<div class="empty">טרם נוספו קישורים.</div>' : s.links.map((l) => `<div class="insight"><span class="dot"></span><span><b>${esc(l.title)}:</b> ${esc(l.desc)}</span></div>`).join('')}</div>
   </section>`;
 }

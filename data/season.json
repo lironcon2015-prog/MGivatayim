@@ -1,6 +1,7 @@
 {
   "team": {
     "name": "מכבי גבעתיים",
+    "crest": "assets/crest.png",
     "short": "מכבי גבעתיים",
     "league": "ליגת ילדים א' מרכז",
     "season": "2025/26",

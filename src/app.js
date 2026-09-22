@@ -1,6 +1,6 @@
 import { buildSeason } from './season.js';
 import { esc } from './format.js';
-import { icon } from './icons.js';
+import { crestImg } from './components.js';
 import { renderHome, startCountdown } from './views/home.js';
 import { renderStats, wireStats } from './views/stats.js';
 import { renderMedia } from './views/media.js';
@@ -16,7 +16,7 @@ const routeFor = (hash) => ROUTES.find((r) => r.hash === hash) || ROUTES[0];
 function chrome(s) {
   return `<header class="topbar">
       <div class="topbar-inner">
-        <span class="crest">${icon('ball')}</span>
+        <span class="crest ${s.team.crestUrl ? 'has-img' : ''}">${crestImg(s.team)}</span>
         <span class="topbar-text">
           <h1>${esc(s.team.name)}</h1>
           <p>${esc(s.team.league)}</p>
@@ -76,7 +76,13 @@ async function boot() {
     url.searchParams.set('t', Date.now());
     const res = await fetch(url, { cache: 'no-store' });
     if (!res.ok) throw new Error(`השרת החזיר ${res.status}`);
-    mount(app, buildSeason(await res.json()));
+    const season = buildSeason(await res.json());
+    // Same reasoning as the data URL: resolve against the app's root as the
+    // module sees it, never against the document, so asset paths in the data
+    // file stay correct under the /MGivatayim/ subpath.
+    const root = new URL('../', import.meta.url);
+    season.team.crestUrl = season.team.crest ? new URL(season.team.crest, root).href : null;
+    mount(app, season);
   } catch (err) {
     fail(app, err?.message || String(err));
   }

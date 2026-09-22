@@ -40,7 +40,18 @@ function streaks(chronological) {
   return { best, current };
 }
 
-export function buildSeason(raw) {
+export function buildSeason(input) {
+  // Every list may be missing or empty: the data file is filled in by hand,
+  // often section by section, and a season that has not kicked off yet has
+  // no matches at all. None of that should take the page down.
+  const raw = {
+    ...input,
+    matches: input.matches ?? [],
+    players: input.players ?? [],
+    videos: input.videos ?? [],
+    links: input.links ?? [],
+    analysis: { items: [], ...(input.analysis ?? {}) },
+  };
   const chronological = [...raw.matches].sort((a, b) => a.date.localeCompare(b.date));
   const recent = [...chronological].reverse();
 

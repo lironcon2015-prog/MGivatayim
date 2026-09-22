@@ -4,6 +4,16 @@ import { icon } from './icons.js';
 
 export const CLASS_OF = { win: 'is-win', draw: 'is-draw', loss: 'is-loss' };
 
+// The club's own crest, used wherever the UI means "us". It is deliberately
+// not the app icon: the home-screen icon is the product, the crest is the
+// team, and they stay separate so the app can outlive a crest redesign.
+// Falls back to the ball glyph when the data file names no crest.
+export function crestImg(team) {
+  return team.crestUrl
+    ? `<img src="${esc(team.crestUrl)}" alt="סמל ${esc(team.name)}" width="54" height="54" decoding="async" />`
+    : icon('ball');
+}
+
 export function sectionHead(title, aside = '') {
   return `<div class="sec-head"><h2>${esc(title)}</h2>${aside ? `<span class="aside">${aside}</span>` : ''}</div>`;
 }

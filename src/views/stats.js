@@ -56,7 +56,7 @@ export function renderStats(s) {
 
   <section>
     ${sectionHead('כל המשחקים', `${s.recent.length} משחקים`)}
-    <div class="card">${s.recent.map(matchRow).join('')}</div>
+    <div class="card">${s.recent.length ? s.recent.map(matchRow).join('') : '<div class="empty">טרם נוספו משחקים.</div>'}</div>
   </section>
 
   <section>

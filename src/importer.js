@@ -174,10 +174,10 @@ export const FIELDS = [
 ];
 
 const HEADERS = {
-  name: /^(שם|שם מלא|שם השחקן|שחקן|name|player|full ?name)$/i,
+  name: /^(שם|שם מלא|שם השחקן|שם שחקן|שם ושם משפחה|שחקן|name|player|player ?name|full ?name)$/i,
   first: /^(שם פרטי|first ?name)$/i,
   last: /^(שם משפחה|last ?name|surname)$/i,
-  number: /^(מספר|מס['׳]?|מס חולצה|מספר חולצה|#|no\.?|num(ber)?|shirt|jersey)$/i,
+  number: /^(מס(פר)?['׳"״.]?\s*(חולצה|שחקן|השחקן|על החולצה)?|#|no\.?|num(ber)?|shirt( ?(no|number))?|jersey( ?(no|number))?|player ?(no|number))$/i,
   pos2: /^(עמדה (נוספת|שנייה|משנית|2)|עמדה2|second(ary)? position|pos ?2)$/i,
   pos: /^(עמדה|עמדה ראשית|עמדה 1|position|pos)$/i,
 };
@@ -203,9 +203,14 @@ export function detectColumns(rows) {
   });
 
   const body = headerRow ? rows.slice(1) : rows;
-  if (!headerRow) {
+  // Columns the header did not name are judged by what they hold — also when
+  // there *is* a header row. A list headed "שם, מספר שחקן" lost every shirt
+  // number because "מספר שחקן" was not on the list of known headers; content
+  // does not depend on how the coach phrased the title.
+  {
     const isNum = (v) => /^\d{1,3}$/.test(String(v).trim());
     for (let i = 0; i < width; i++) {
+      if (map[i] || i === firstName || i === lastName) continue;
       const vals = body.map((r) => String(r[i] ?? '').trim()).filter(Boolean);
       if (!vals.length) continue;
       const nums = vals.filter(isNum).length / vals.length;
@@ -213,7 +218,7 @@ export function detectColumns(rows) {
       if (nums > 0.7 && !map.includes('number')) map[i] = 'number';
       else if (poss > 0.6 && !map.includes('pos')) map[i] = 'pos';
       else if (poss > 0.6 && !map.includes('pos2')) map[i] = 'pos2';
-      else if (!map.includes('name') && nums < 0.3) map[i] = 'name';
+      else if (!map.includes('name') && nums < 0.3 && firstName < 0) map[i] = 'name';
     }
   }
   return { map, headerRow, firstName, lastName };
@@ -245,18 +250,27 @@ export function rowsToPlayers(rows, { map, headerRow, firstName = -1, lastName =
 
 const norm = (s) => String(s || '').replace(/[\s"'׳״.-]/g, '').toLowerCase();
 
-// Matched by name first (a number can change between seasons, a child's name
-// does not), then by number for a row whose name was spelled differently.
+// Matching, most certain first:
+//   1. same name and same number;
+//   2. same name, when that name is unique in the squad (a number can change
+//      between seasons, a child's name does not);
+//   3. same number, for a row whose name was spelled differently.
+// A repeated name ("ספיר" five times) is not an identifier: matched by name
+// alone, a re-import renumbered one of them and skipped the rest.
 // Existing ids are kept, so match history still points at the same child.
 export function planImport(existing, incoming) {
-  const byName = new Map(existing.map((p) => [norm(p.name), p]));
+  const counts = new Map();
+  for (const p of existing) counts.set(norm(p.name), (counts.get(norm(p.name)) || 0) + 1);
+  const byNameNum = new Map(existing.map((p) => [`${norm(p.name)}#${p.number ?? ''}`, p]));
+  const byName = new Map(existing.filter((p) => counts.get(norm(p.name)) === 1).map((p) => [norm(p.name), p]));
   const byNumber = new Map(existing.filter((p) => p.number != null).map((p) => [Number(p.number), p]));
   const seen = new Set();
   const rows = incoming.map((raw) => {
     // Stray spaces are not a new spelling: "דניאל  לוי" must not overwrite
     // "דניאל לוי" and show up as a change the manager has to inspect.
     const inc = { ...raw, name: String(raw.name || '').replace(/\s+/g, ' ').trim() };
-    const match = byName.get(norm(inc.name)) || (inc.number != null ? byNumber.get(inc.number) : null);
+    const match = byNameNum.get(`${norm(inc.name)}#${inc.number ?? ''}`) || byName.get(norm(inc.name))
+      || (inc.number != null ? byNumber.get(inc.number) : null);
     if (match && seen.has(match)) return { inc, match: null, kind: 'duplicate' };
     if (match) seen.add(match);
     let kind = 'new';

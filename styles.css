@@ -287,3 +287,85 @@ section { margin-top: 1.6rem; }
 .empty { text-align: center; color: var(--faint); padding: 1.6rem .5rem; font-size: .87rem; }
 
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+
+/* ── Gate ────────────────────────────────────────────────────────────── */
+.gate { padding: 1.3rem 1.2rem; }
+.gate h2 { font-size: 1.15rem; margin-bottom: .45rem; }
+.gate-lead { margin: 0 0 1rem; color: var(--muted); }
+.gate-lead b { color: var(--text); }
+.gate-foot { margin: 1.1rem 0 0; text-align: center; font-size: .8rem; }
+.gate-foot a, .foot a { color: var(--faint); }
+.gate code { direction: ltr; unicode-bidi: isolate; font-size: .85em; background: rgba(255,255,255,.06); padding: .05em .35em; border-radius: 5px; }
+.stale { text-align: center; color: var(--gold-dim); }
+
+/* ── Forms ───────────────────────────────────────────────────────────── */
+.form-stack { display: grid; gap: .8rem; }
+.field { display: grid; gap: .3rem; font-size: .8rem; font-weight: 700; color: var(--muted); }
+.field small { font-weight: 500; color: var(--faint); font-size: .72rem; }
+.field .req { color: var(--gold); font-style: normal; }
+.field input, .field select, .field textarea, .pair input {
+  width: 100%; font: inherit; font-size: .95rem; font-weight: 500; color: var(--text);
+  background: rgba(0,0,0,.25); border: 1px solid var(--line-strong); border-radius: 11px;
+  padding: .6rem .7rem; min-height: 44px;
+}
+.field textarea { resize: vertical; min-height: 70px; line-height: 1.5; }
+.field input:focus-visible, .field select:focus-visible, .field textarea:focus-visible, .pair input:focus-visible {
+  outline: 2px solid var(--gold); outline-offset: 1px; border-color: transparent;
+}
+/* Native date/time pickers draw their icon dark by default; on this
+   background it vanishes. */
+.field input, .pair input { color-scheme: dark; }
+.field.check { grid-template-columns: auto 1fr; align-items: center; gap: .55rem; font-weight: 600; color: var(--text); }
+.field.check input { width: 20px; height: 20px; min-height: 0; accent-color: var(--gold); }
+.pair { display: grid; grid-template-columns: 1.3fr 1fr; gap: 8px; }
+.form-error { margin: 0; color: var(--loss); font-size: .84rem; font-weight: 600; min-height: 1.2em; }
+
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem .6rem; }
+.grid-2 .span-2 { grid-column: 1 / -1; }
+@media (max-width: 360px) { .grid-2 { grid-template-columns: 1fr; } }
+
+/* ── Buttons ─────────────────────────────────────────────────────────── */
+.btn.secondary { background: transparent; color: var(--text); border-color: var(--line-strong); }
+.btn.danger { background: transparent; color: var(--loss); border-color: rgba(228,87,77,.4); }
+.btn.small { width: auto; margin-top: 0; padding: .45rem .8rem; font-size: .84rem; border-radius: 10px; }
+.btn:disabled { opacity: .45; cursor: default; }
+.row-btns { display: flex; flex-wrap: wrap; gap: 8px; margin-top: .9rem; }
+.row-btns .btn { flex: 1; margin-top: 0; }
+.linkish { font: inherit; font-size: .78rem; background: none; border: 0; color: var(--faint); cursor: pointer; padding: 0; text-decoration: underline; }
+.add { margin-bottom: .7rem; }
+.count {
+  display: inline-grid; place-items: center; min-width: 19px; height: 19px; padding: 0 5px;
+  margin-inline-start: .3rem; border-radius: 999px; background: var(--loss); color: #fff; font-size: .7rem;
+}
+
+/* ── Admin lists ─────────────────────────────────────────────────────── */
+.edit-item { padding: 0; margin-bottom: 8px; }
+.edit-item summary {
+  cursor: pointer; list-style: none; padding: .8rem var(--pad);
+  display: flex; align-items: center; gap: .5rem; font-size: .9rem;
+}
+.edit-item summary::-webkit-details-marker { display: none; }
+.edit-item summary::after { content: "›"; margin-inline-start: auto; color: var(--faint); transform: rotate(90deg); transition: transform .15s; }
+.edit-item[open] summary::after { transform: rotate(-90deg); }
+.edit-item[open] summary { border-bottom: 1px solid var(--line); }
+.edit-item > .grid-2 { padding: var(--pad); }
+.edit-item > .btn { margin: 0 var(--pad) var(--pad); }
+
+.user-row { display: flex; align-items: center; gap: .6rem; padding: .7rem 0; }
+.user-row + .user-row { border-top: 1px solid var(--line); }
+.user-row .who { flex: 1; min-width: 0; }
+.user-row .who b { display: block; font-size: .9rem; }
+.user-row .who span { font-size: .72rem; color: var(--faint); }
+.user-row .acts { display: flex; gap: 6px; flex: none; }
+
+/* The save bar stays reachable at the bottom of a long form: the manager
+   edits a score near the top and should not have to scroll to commit it. */
+.savebar {
+  position: sticky; bottom: 0; z-index: 10; margin: 1.4rem calc(-1 * var(--pad)) 0;
+  padding: .8rem var(--pad) calc(.8rem + env(safe-area-inset-bottom));
+  background: rgba(15, 20, 28, .94); backdrop-filter: blur(10px); border-top: 1px solid var(--line-strong);
+}
+.savebar .row-btns { margin-top: .5rem; }
+.save-msg { margin: 0; font-size: .82rem; color: var(--muted); }
+.save-msg.ok { color: var(--win); }
+.save-msg.err { color: var(--loss); }

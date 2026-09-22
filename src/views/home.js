@@ -5,15 +5,20 @@ import { crestImg, sectionHead, formPill, matchRow, leaderRow, tile, splitBar, l
 
 function nextMatchCard(s) {
   const nm = s.nextMatch;
-  if (!nm) return `<div class="card"><div class="empty">אין משחק קרוב בלוח.</div></div>`;
+  if (!nm?.opponent || !nm?.kickoff) return `<div class="card"><div class="empty">אין משחק קרוב בלוח.</div></div>`;
 
   const kick = new Date(nm.kickoff);
-  const waze = safeUrl(nm.venue?.waze);
-  const us = s.team.short;
+  const address = [nm.venue?.name, nm.venue?.address].filter(Boolean).join(', ');
+  const waze = safeUrl(nm.venue?.waze)
+    || (nm.venue?.address ? `https://waze.com/ul?q=${encodeURIComponent(address)}&navigate=yes` : null);
+  // Short names are optional: the manager's form asks for one name per team,
+  // and a missing short form must not reach the page as "undefined".
+  const us = s.team.short || s.team.name;
+  const them = nm.opponentShort || nm.opponent;
 
   const sides = nm.home
-    ? [{ name: us, role: 'מארחת', us: true }, { name: nm.opponentShort, role: 'אורחת' }]
-    : [{ name: nm.opponentShort, role: 'מארחת' }, { name: us, role: 'אורחת', us: true }];
+    ? [{ name: us, role: 'מארחת', us: true }, { name: them, role: 'אורחת' }]
+    : [{ name: them, role: 'מארחת' }, { name: us, role: 'אורחת', us: true }];
 
   const disc = (side) =>
     `<div class="side ${side.us ? 'us' : ''}">

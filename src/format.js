@@ -60,3 +60,38 @@ export function safeUrl(url) {
     return u.protocol === 'http:' || u.protocol === 'https:' ? u.href : null;
   } catch { return null; }
 }
+
+// Kickoff is stored as an instant with its Israel offset ("…T17:00:00+03:00")
+// but edited as a date and a clock time. Which offset applies depends on the
+// date (summer +03:00, winter +02:00), so it is found by asking Intl rather
+// than by knowing when DST starts — those dates move by government decision.
+function partsInIsrael(d) {
+  const p = Object.fromEntries(new Intl.DateTimeFormat('en-CA', {
+    timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+  }).formatToParts(d).map((x) => [x.type, x.value]));
+  return { date: `${p.year}-${p.month}-${p.day}`, time: `${p.hour}:${p.minute}` };
+}
+
+export function israelIso(date, time) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{2}:\d{2}$/.test(time)) return '';
+  for (const off of ['+03:00', '+02:00']) {
+    const d = new Date(`${date}T${time}:00${off}`);
+    const p = partsInIsrael(d);
+    if (p.date === date && p.time === time) return `${date}T${time}:00${off}`;
+  }
+  return `${date}T${time}:00+02:00`;
+}
+
+export function splitKickoff(iso) {
+  if (!iso) return { date: '', time: '' };
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? { date: '', time: '' } : partsInIsrael(d);
+}
+
+export const stamp = (iso) => {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? '—'
+    : d.toLocaleString(he, { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false, timeZone: TZ });
+};

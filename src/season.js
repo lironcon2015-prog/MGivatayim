@@ -46,6 +46,7 @@ export function buildSeason(input) {
   // no matches at all. None of that should take the page down.
   const raw = {
     ...input,
+    team: { name: 'מכבי גבעתיים', ...(input.team ?? {}) },
     matches: input.matches ?? [],
     players: input.players ?? [],
     videos: input.videos ?? [],

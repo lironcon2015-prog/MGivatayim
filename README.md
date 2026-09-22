@@ -56,7 +56,8 @@ data/season.json        הנתונים — הקובץ היחיד לעדכון ש
 
 ## פריסה
 
-GitHub Pages מענף `main`, שורש הריפו. push הוא הפריסה.
+GitHub Pages מענף `main`, שורש הריפו. push ל-`main` הוא הפריסה:
+<https://lironcon2015-prog.github.io/MGivatayim/>
 
 האתר רץ תחת תת-נתיב (`https://<user>.github.io/<repo>/`), ולכן כל הנתיבים
 יחסיים. נבדק שהוא נטען גם בלי סלאש בסוף הכתובת.

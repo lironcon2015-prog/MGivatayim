@@ -1,6 +1,6 @@
 import * as M from '../live/model.js';
 import { serverNow } from '../live/sync.js';
-import { esc, splitKickoff } from '../format.js';
+import { esc, splitKickoff, shortName } from '../format.js';
 import { icon } from '../icons.js';
 import { crestImg } from '../components.js';
 import { POSITIONS, posLabel, isKeeper, layout } from '../positions.js';
@@ -10,7 +10,6 @@ import { openSheet, confirmSheet, toast, buzz } from '../ui/sheet.js';
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 const byNumber = (a, b) => (a.number ?? 999) - (b.number ?? 999) || a.name.localeCompare(b.name, 'he');
-const firstName = (name) => String(name || '').split(' ')[0];
 
 function who(state, pid) {
   const p = M.playerById(state, pid);
@@ -83,7 +82,7 @@ function pitchHtml(state, slots, { interactive }) {
     ${placed.map((s) => {
       const p = who(state, s.pid);
       return `<${tag} class="pl${isKeeper(s.pos) ? ' gk' : ''}" style="left:${(s.x * 100).toFixed(1)}%;top:${(s.y * 100).toFixed(1)}%"${interactive ? ` type="button" data-field="${esc(s.pid)}" aria-label="${esc(`${p.name}, ${posLabel(s.pos)} — חילוף`)}"` : ''}>
-        <span class="pl-num num">${p.number ?? '·'}</span><span class="pl-name">${esc(firstName(p.name))}</span></${tag}>`;
+        <span class="pl-num num">${p.number ?? '·'}</span><span class="pl-name">${esc(shortName(p.name))}</span></${tag}>`;
     }).join('')}
     ${placed.length ? '' : '<div class="pitch-empty">עוד לא נבחר הרכב</div>'}
   </div>`;
@@ -294,7 +293,7 @@ export function mountLive(view, ctx) {
           <div class="sec-head">${icon('shirt')}<h2>על המגרש</h2>${ctl && st.status !== 'fulltime' ? '<span class="aside">הקישו על שחקן לחילוף</span>' : ''}</div>
           ${pitchHtml(st, st.status === 'setup' ? st.lineup : field, { interactive: ctl && ['running', 'break'].includes(st.status) })}
           ${benchPlayers.length && st.status !== 'setup' ? `<div class="bench"><span class="bench-label">ספסל</span>
-            ${benchPlayers.map((p) => `<${ctl ? 'button type="button"' : 'span'} class="bench-p" data-bench="${esc(p.id)}"><span class="num">${p.number ?? '·'}</span>${esc(firstName(p.name))}</${ctl ? 'button' : 'span'}>`).join('')}
+            ${benchPlayers.map((p) => `<${ctl ? 'button type="button"' : 'span'} class="bench-p" data-bench="${esc(p.id)}"><span class="num">${p.number ?? '·'}</span>${esc(shortName(p.name))}</${ctl ? 'button' : 'span'}>`).join('')}
           </div>` : ''}
         </section>
         <section>

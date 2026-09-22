@@ -95,3 +95,11 @@ export const stamp = (iso) => {
   return Number.isNaN(d.getTime()) ? '—'
     : d.toLocaleString(he, { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false, timeZone: TZ });
 };
+
+// Where space allows one word: first name and the surname's initial,
+// "אורי כהן" → "אורי כ.", so two players who share a first name stay apart.
+// A one-word name is shown as is.
+export const shortName = (name) => {
+  const [first, second] = String(name || '').trim().split(/\s+/);
+  return second ? `${first} ${second[0]}.` : (first || '');
+};

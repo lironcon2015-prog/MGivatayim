@@ -726,7 +726,7 @@ body.with-nav .toast { bottom: calc(var(--nav-space) + 10px); }
 }
 .pitch-lines { position: absolute; inset: 0; width: 100%; height: 100%; fill: none; stroke: rgba(255, 255, 255, .11); stroke-width: .55; }
 .pl {
-  position: absolute; transform: translate(-50%, -50%); width: 70px; padding: 0; border: 0; background: none;
+  position: absolute; transform: translate(-50%, -50%); width: 86px; padding: 0; border: 0; background: none;
   display: grid; justify-items: center; gap: 4px; color: inherit; font: inherit;
 }
 button.pl { cursor: pointer; -webkit-tap-highlight-color: transparent; }
@@ -739,7 +739,7 @@ button.pl { cursor: pointer; -webkit-tap-highlight-color: transparent; }
 button.pl:active .pl-num { transform: scale(.9); }
 button.pl:focus-visible .pl-num { outline: 2px solid #fff; outline-offset: 2px; }
 .pl-name {
-  direction: rtl; max-width: 70px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  direction: rtl; max-width: 86px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   font-size: .7rem; font-weight: 700; padding: .06rem .42rem; border-radius: 6px; background: rgba(8, 12, 18, .75);
 }
 .pitch-empty { position: absolute; inset: 0; display: grid; place-items: center; color: var(--faint); font-size: .86rem; }

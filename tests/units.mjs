@@ -161,6 +161,16 @@ await test('unticked rows and kept-missing players are left alone', () => {
   assert.deepEqual(out.map((p) => [p.id, p.number]), [['a', 7], ['c', 4], ['x', 5]]);
 });
 
+await test('short names: first name and the surname initial', async () => {
+  const { shortName } = await import('../src/format.js');
+  assert.equal(shortName('אורי כהן'), 'אורי כ.');
+  assert.equal(shortName('  אלכסנדר   בן-שושן '), 'אלכסנדר ב.');
+  assert.equal(shortName('יוסי בן דוד'), 'יוסי ב.');
+  assert.equal(shortName('איתי'), 'איתי');
+  assert.equal(shortName(''), '');
+  assert.equal(shortName(undefined), '');
+});
+
 export { test, failures };
 export const done = () => passed;
 

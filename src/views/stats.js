@@ -19,7 +19,7 @@ export function renderStats(s) {
   <section>
     ${sectionHead('נתוני העונה', `אחרי ${o.played} משחקים`, 'sparkle')}
     <div class="tiles three">
-      ${tile({ value: pct(o.winRate), label: 'הצלחה', sub: `${o.points} נקודות`, tone: 'good' })}
+      ${tile({ value: pct(o.pointsRate), label: 'הצלחה', sub: `${o.points} מתוך ${o.maxPoints} נק׳`, tone: 'good' })}
       ${tile({ value: dec(o.goalsPerGame, 2), label: 'שערים', sub: 'למשחק', tone: 'accent' })}
       ${tile({ value: o.cleanSheets, label: 'רשת נקייה', sub: `מתוך ${o.played}` })}
     </div>

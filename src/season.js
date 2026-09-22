@@ -101,7 +101,10 @@ export function buildSeason(input) {
     recent,
     overall: {
       ...overall,
-      winRate: overall.played ? overall.win / overall.played : 0,
+      // Points taken out of points available (3 per match): the figure a
+      // league table ranks by, where a draw counts for something.
+      maxPoints: overall.played * 3,
+      pointsRate: overall.played ? overall.points / (overall.played * 3) : 0,
       goalsPerGame: overall.played ? overall.gf / overall.played : 0,
       concededPerGame: overall.played ? overall.ga / overall.played : 0,
       streak: streaks(chronological),

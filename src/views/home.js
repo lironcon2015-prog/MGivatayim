@@ -76,7 +76,7 @@ export function renderHome(s) {
   <section>
     ${sectionHead('העונה במספרים', `${o.played} משחקים`, 'sparkle')}
     <div class="tiles">
-      ${tile({ value: pct(o.winRate), label: 'אחוז ניצחונות', sub: `${o.win} מתוך ${o.played} משחקים`, tone: 'good' })}
+      ${tile({ value: pct(o.pointsRate), label: 'אחוז הצלחה', sub: `${o.points} מתוך ${o.maxPoints} נקודות`, tone: 'good' })}
       ${tile({ value: o.points, label: 'נקודות', sub: `${o.win}נ · ${o.draw}ת · ${o.loss}ה`, tone: 'accent' })}
       ${tile({ value: o.gf, label: 'שערים לזכות', sub: `${dec(o.goalsPerGame)} בממוצע למשחק` })}
       ${tile({ value: o.ga, label: 'ספיגה', sub: `${o.cleanSheets} רשתות נקיות` })}

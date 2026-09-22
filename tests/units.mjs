@@ -182,6 +182,16 @@ await test('the season label is computed when the manager left it empty', async 
   assert.equal(seasonLabel(undefined, new Date(2026, 8, 1)), '2026/27');
 });
 
+await test('success rate is points taken out of points available', async () => {
+  const { buildSeason } = await import('../src/season.js');
+  const m = (gf, ga) => ({ date: '2026-09-01', opponent: 'x', home: true, gf, ga });
+  const o = buildSeason({ matches: [m(2, 1), m(1, 1), m(0, 3)] }).overall;
+  assert.equal(o.points, 4);
+  assert.equal(o.maxPoints, 9);
+  assert.equal(o.pointsRate, 4 / 9);
+  assert.equal(buildSeason({}).overall.pointsRate, 0, 'no matches, no division by zero');
+});
+
 export { test, failures };
 export const done = () => passed;
 

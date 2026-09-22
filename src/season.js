@@ -1,0 +1,80 @@
+// Everything the UI shows about the season is derived here, from the match
+// list alone. Nothing aggregate is stored in season.json on purpose: hand-kept
+// totals drift from the fixtures they summarise, and the mockups this app was
+// built from already disagreed with themselves that way.
+
+export const OUTCOMES = { win: 'ניצחון', draw: 'תיקו', loss: 'הפסד' };
+
+export function outcomeOf(match) {
+  if (match.gf > match.ga) return 'win';
+  if (match.gf < match.ga) return 'loss';
+  return 'draw';
+}
+
+const POINTS = { win: 3, draw: 1, loss: 0 };
+
+function tally(matches) {
+  const t = { played: matches.length, win: 0, draw: 0, loss: 0, gf: 0, ga: 0, points: 0, cleanSheets: 0 };
+  for (const m of matches) {
+    const o = outcomeOf(m);
+    t[o]++;
+    t.points += POINTS[o];
+    t.gf += m.gf;
+    t.ga += m.ga;
+    if (m.ga === 0) t.cleanSheets++;
+  }
+  return t;
+}
+
+// Longest run of wins anywhere in the season, and the run still open at the
+// end of it. Both are reported: "best ever" and "right now" answer different
+// questions and a team mid-slump should not see its September peak as current.
+function streaks(chronological) {
+  let best = 0, run = 0;
+  for (const m of chronological) {
+    run = outcomeOf(m) === 'win' ? run + 1 : 0;
+    if (run > best) best = run;
+  }
+  let current = 0;
+  for (let i = chronological.length - 1; i >= 0 && outcomeOf(chronological[i]) === 'win'; i--) current++;
+  return { best, current };
+}
+
+export function buildSeason(raw) {
+  const chronological = [...raw.matches].sort((a, b) => a.date.localeCompare(b.date));
+  const recent = [...chronological].reverse();
+
+  const overall = tally(chronological);
+  const home = tally(chronological.filter((m) => m.home));
+  const away = tally(chronological.filter((m) => !m.home));
+
+  const players = [...raw.players].map((p) => ({ ...p, points: p.goals + p.assists }));
+  const squadGoals = players.reduce((sum, p) => sum + p.goals, 0);
+
+  return {
+    ...raw,
+    chronological,
+    recent,
+    overall: {
+      ...overall,
+      winRate: overall.played ? overall.win / overall.played : 0,
+      goalsPerGame: overall.played ? overall.gf / overall.played : 0,
+      concededPerGame: overall.played ? overall.ga / overall.played : 0,
+      streak: streaks(chronological),
+    },
+    splits: { home, away },
+    players,
+    // A player tally that does not add up to the team's goals means someone is
+    // missing from the squad list, so the UI can say so instead of quietly
+    // showing a share of the wrong whole.
+    squadGoals,
+    squadGoalsMatch: squadGoals === overall.gf,
+  };
+}
+
+export function topBy(players, key, limit = 5) {
+  return [...players]
+    .filter((p) => p[key] > 0)
+    .sort((a, b) => b[key] - a[key] || b.goals - a.goals || a.name.localeCompare(b.name, 'he'))
+    .slice(0, limit);
+}

@@ -1,0 +1,285 @@
+/* ── Tokens ───────────────────────────────────────────────────────────────
+   Gold carries the brand; green and red are spent only on match outcomes.
+   Keeping them apart is what lets a result read at a glance — in the source
+   mockups the brand colour and the "win" colour were the same green, and the
+   result pills stopped standing out from the furniture. */
+:root {
+  --bg: #0F141C;
+  --surface: #1A2029;
+  --surface-2: #212936;
+  --line: rgba(255, 255, 255, .08);
+  --line-strong: rgba(255, 255, 255, .14);
+
+  --text: #E8EDF5;
+  --muted: #8B98AC;
+  --faint: #5F6B7D;
+
+  --gold: #E8B931;
+  --gold-dim: #A8862A;
+  --gold-soft: rgba(232, 185, 49, .13);
+  --on-gold: #1A1204;
+
+  --win: #2FBF62;
+  --win-soft: rgba(47, 191, 98, .14);
+  --loss: #E4574D;
+  --loss-soft: rgba(228, 87, 77, .14);
+  --draw: #7C8AA0;
+  --draw-soft: rgba(124, 138, 160, .14);
+  --waze: #4A9EFF;
+
+  --r-card: 18px;
+  --r-tile: 14px;
+  --r-pill: 999px;
+  --gap: 12px;
+  --pad: 16px;
+  --shell: 30rem;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: Assistant, Heebo, "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-size: 15px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+h1, h2, h3 { margin: 0; font-weight: 800; letter-spacing: -.015em; line-height: 1.25; }
+
+/* Tabular figures everywhere a number can change under the reader: a ticking
+   countdown that reflows its own width is the fastest way to look broken. */
+.num { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+
+.shell { max-width: var(--shell); margin: 0 auto; padding: 0 var(--pad) 2.5rem; }
+
+/* ── Top bar ─────────────────────────────────────────────────────────── */
+.topbar {
+  position: sticky; top: 0; z-index: 20;
+  background: rgba(15, 20, 28, .88);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--line);
+}
+.topbar-inner {
+  max-width: var(--shell); margin: 0 auto;
+  padding: .7rem var(--pad);
+  display: flex; align-items: center; gap: .7rem;
+}
+.crest {
+  width: 38px; height: 38px; flex: none; border-radius: 11px;
+  display: grid; place-items: center;
+  background: var(--gold-soft); border: 1px solid rgba(232, 185, 49, .3);
+}
+.crest svg { width: 21px; height: 21px; }
+.topbar-text { min-width: 0; }
+.topbar-text h1 { font-size: 1.02rem; }
+.topbar-text p { margin: 0; font-size: .76rem; color: var(--muted); }
+.season-tag {
+  margin-inline-start: auto; flex: none;
+  font-size: .74rem; font-weight: 700; color: var(--gold);
+  background: var(--gold-soft); border: 1px solid rgba(232, 185, 49, .22);
+  border-radius: var(--r-pill); padding: .2rem .6rem;
+}
+
+/* ── Nav ─────────────────────────────────────────────────────────────── */
+.nav { display: flex; gap: 6px; padding: 0 var(--pad) .7rem; max-width: var(--shell); margin: 0 auto; }
+.nav a {
+  flex: 1; text-align: center; text-decoration: none;
+  font-size: .85rem; font-weight: 700; color: var(--muted);
+  padding: .48rem .5rem; border-radius: var(--r-pill);
+  border: 1px solid var(--line); background: var(--surface);
+  transition: background .15s, color .15s, border-color .15s;
+}
+.nav a[aria-current="page"] {
+  background: var(--gold); color: var(--on-gold); border-color: var(--gold);
+}
+.nav a:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+
+/* ── Sections & cards ────────────────────────────────────────────────── */
+section { margin-top: 1.6rem; }
+.sec-head { display: flex; align-items: baseline; gap: .5rem; margin-bottom: .7rem; }
+.sec-head h2 { font-size: 1.06rem; }
+.sec-head .aside { margin-inline-start: auto; font-size: .78rem; color: var(--faint); font-weight: 600; }
+.sec-head .aside a { color: var(--gold); text-decoration: none; }
+
+.card {
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--r-card); padding: var(--pad);
+}
+
+/* ── Next match ──────────────────────────────────────────────────────── */
+.hero { background: linear-gradient(170deg, #202636, var(--surface) 62%); border-color: var(--line-strong); }
+.hero-top { display: flex; align-items: center; gap: .5rem; margin-bottom: 1rem; }
+.badge {
+  font-size: .73rem; font-weight: 700; padding: .18rem .55rem;
+  border-radius: var(--r-pill); background: var(--gold-soft); color: var(--gold);
+}
+.badge.ghost { background: rgba(255,255,255,.06); color: var(--muted); }
+
+.fixture { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: .5rem; }
+.side { text-align: center; }
+.side .disc {
+  width: 54px; height: 54px; margin: 0 auto .45rem; border-radius: 50%;
+  display: grid; place-items: center; font-weight: 800; font-size: 1.05rem;
+  background: var(--surface-2); border: 1px solid var(--line-strong);
+}
+.side.us .disc { background: var(--gold); color: var(--on-gold); border-color: var(--gold); }
+.side strong { display: block; font-size: .92rem; }
+.side span { font-size: .74rem; color: var(--muted); }
+.vs { text-align: center; }
+.vs .kick { font-size: 1.3rem; font-weight: 800; }
+.vs .word { font-size: .72rem; color: var(--faint); font-weight: 700; letter-spacing: .08em; }
+
+.countdown { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 1rem; }
+.cd-unit { background: rgba(0,0,0,.28); border: 1px solid var(--line); border-radius: var(--r-tile); padding: .5rem .2rem; text-align: center; }
+.cd-unit b { display: block; font-size: 1.32rem; font-weight: 800; }
+.cd-unit span { font-size: .68rem; color: var(--muted); }
+.kickoff-past { margin-top: 1rem; text-align: center; color: var(--gold); font-weight: 700; }
+
+.meta-row {
+  display: flex; align-items: center; gap: .55rem; margin-top: .8rem;
+  background: rgba(0,0,0,.22); border: 1px solid var(--line);
+  border-radius: var(--r-tile); padding: .6rem .7rem; font-size: .85rem;
+}
+.meta-row svg { width: 16px; height: 16px; flex: none; color: var(--gold); }
+.meta-row .sub { color: var(--muted); font-size: .78rem; }
+
+.btn {
+  display: flex; align-items: center; justify-content: center; gap: .45rem;
+  width: 100%; margin-top: .8rem; padding: .78rem 1rem;
+  font: inherit; font-weight: 800; text-decoration: none;
+  border: 1px solid transparent; border-radius: var(--r-tile); cursor: pointer;
+  background: var(--gold); color: var(--on-gold);
+}
+.btn svg { width: 17px; height: 17px; }
+.btn:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
+
+/* ── Result pills ────────────────────────────────────────────────────── */
+.form { display: flex; gap: 6px; }
+.form-pill {
+  flex: 1; text-align: center; border-radius: var(--r-tile); padding: .45rem .2rem;
+  border: 1px solid transparent; font-size: .74rem;
+}
+.form-pill b { display: block; font-size: .95rem; font-weight: 800; direction: ltr; unicode-bidi: isolate; }
+.is-win  { background: var(--win-soft);  color: var(--win);  border-color: rgba(47,191,98,.26); }
+.is-loss { background: var(--loss-soft); color: var(--loss); border-color: rgba(228,87,77,.26); }
+.is-draw { background: var(--draw-soft); color: var(--draw); border-color: rgba(124,138,160,.26); }
+
+/* ── Stat tiles ──────────────────────────────────────────────────────── */
+.tiles { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--gap); }
+.tiles.three { grid-template-columns: repeat(3, 1fr); }
+.tile { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-card); padding: .85rem; }
+.tile b { display: block; font-size: 1.75rem; font-weight: 800; line-height: 1.15; }
+.tile .label { font-size: .8rem; font-weight: 700; }
+.tile .sub { font-size: .73rem; color: var(--faint); }
+.tile.accent b { color: var(--gold); }
+.tile.good b { color: var(--win); }
+
+/* ── Split bars ──────────────────────────────────────────────────────── */
+.split + .split { margin-top: .85rem; }
+.split-head { display: flex; align-items: baseline; gap: .4rem; font-size: .84rem; margin-bottom: .35rem; }
+.split-head b { font-weight: 700; }
+.split-head .rec { margin-inline-start: auto; color: var(--muted); font-size: .77rem; }
+.bar { height: 8px; border-radius: var(--r-pill); background: rgba(255,255,255,.07); overflow: hidden; }
+.bar > i { display: block; height: 100%; border-radius: var(--r-pill); background: var(--gold); }
+
+/* ── Leader rows ─────────────────────────────────────────────────────── */
+.leader { display: flex; align-items: center; gap: .7rem; padding: .62rem 0; }
+.leader + .leader { border-top: 1px solid var(--line); }
+.rank {
+  width: 25px; height: 25px; flex: none; border-radius: 8px;
+  display: grid; place-items: center; font-size: .78rem; font-weight: 800;
+  background: var(--surface-2); color: var(--muted);
+}
+.leader:first-child .rank { background: var(--gold); color: var(--on-gold); }
+.leader .who { min-width: 0; flex: 1; }
+.leader .who b { display: block; font-size: .9rem; font-weight: 700; }
+.leader .who span { font-size: .74rem; color: var(--faint); }
+.leader .figs { display: flex; gap: .45rem; flex: none; }
+.fig { text-align: center; min-width: 34px; }
+.fig b { display: block; font-size: .98rem; font-weight: 800; }
+.fig span { font-size: .64rem; color: var(--faint); }
+.fig.g b { color: var(--gold); }
+
+/* ── Match history ───────────────────────────────────────────────────── */
+.match { display: flex; align-items: center; gap: .7rem; padding: .66rem 0; }
+.match + .match { border-top: 1px solid var(--line); }
+.match .when { flex: none; width: 46px; font-size: .72rem; color: var(--faint); text-align: center; }
+.match .when b { display: block; font-size: .84rem; color: var(--muted); font-weight: 700; }
+.match .who { flex: 1; min-width: 0; }
+.match .who b { display: block; font-size: .89rem; font-weight: 700; }
+.match .who span { font-size: .72rem; color: var(--faint); }
+/* Our goals are always the first number, in gold, and the opponent's second.
+   The score is never rendered from a raw string — a flipped scoreline is the
+   one bug in an app like this that nobody forgives. */
+.score { flex: none; display: flex; align-items: center; gap: .3rem; font-weight: 800; font-size: 1rem;
+  direction: ltr; unicode-bidi: isolate; }
+.score .ours { color: var(--gold); }
+.score .sep { color: var(--faint); font-weight: 600; }
+.tag {
+  flex: none; font-size: .7rem; font-weight: 700; padding: .15rem .45rem;
+  border-radius: var(--r-pill); min-width: 48px; text-align: center;
+}
+
+/* ── Media ───────────────────────────────────────────────────────────── */
+.video { display: block; text-decoration: none; color: inherit; }
+.video + .video { margin-top: var(--gap); }
+.thumb {
+  position: relative; aspect-ratio: 16 / 9; border-radius: var(--r-tile);
+  background: linear-gradient(145deg, #253046, #161d28);
+  border: 1px solid var(--line); display: grid; place-items: center;
+}
+.thumb .play {
+  width: 46px; height: 46px; border-radius: 50%; background: var(--gold);
+  display: grid; place-items: center; color: var(--on-gold);
+}
+.thumb .play svg { width: 18px; height: 18px; }
+.thumb .dur {
+  position: absolute; inset-block-end: .5rem; inset-inline-end: .5rem;
+  background: rgba(0,0,0,.66); border-radius: 6px; padding: .08rem .4rem;
+  font-size: .71rem; font-weight: 700;
+}
+.video .cap { display: flex; align-items: baseline; gap: .5rem; padding-top: .5rem; }
+.video .cap b { font-size: .89rem; font-weight: 700; }
+.video .cap span { margin-inline-start: auto; font-size: .73rem; color: var(--faint); }
+
+/* ── Links ───────────────────────────────────────────────────────────── */
+.link { display: flex; align-items: center; gap: .7rem; padding: .7rem 0; text-decoration: none; color: inherit; }
+.link + .link { border-top: 1px solid var(--line); }
+.link .ico {
+  width: 34px; height: 34px; flex: none; border-radius: 10px; display: grid; place-items: center;
+  background: var(--gold-soft); color: var(--gold);
+}
+.link .ico svg { width: 17px; height: 17px; }
+.link .txt { flex: 1; min-width: 0; }
+.link .txt b { display: block; font-size: .87rem; font-weight: 700; }
+.link .txt span { font-size: .74rem; color: var(--faint); }
+.link .chev { color: var(--faint); flex: none; }
+.link .chev svg { width: 15px; height: 15px; }
+.link[aria-disabled="true"] { opacity: .5; cursor: default; }
+
+/* ── Insights ────────────────────────────────────────────────────────── */
+.insight { display: flex; gap: .6rem; padding: .6rem 0; font-size: .87rem; }
+.insight + .insight { border-top: 1px solid var(--line); }
+.insight .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--gold); flex: none; margin-top: .55rem; }
+.insight b { color: var(--gold); font-weight: 700; }
+
+.note { font-size: .76rem; color: var(--faint); margin: .7rem 0 0; }
+.foot { margin-top: 2rem; text-align: center; font-size: .76rem; color: var(--faint); }
+
+/* ── Segmented control ───────────────────────────────────────────────── */
+.seg { display: flex; gap: 5px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-pill); padding: 4px; }
+.seg button {
+  flex: 1; font: inherit; font-size: .83rem; font-weight: 700; cursor: pointer;
+  border: 0; border-radius: var(--r-pill); padding: .4rem .3rem;
+  background: transparent; color: var(--muted);
+}
+.seg button[aria-selected="true"] { background: var(--gold); color: var(--on-gold); }
+.seg button:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+
+.empty { text-align: center; color: var(--faint); padding: 1.6rem .5rem; font-size: .87rem; }
+
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }

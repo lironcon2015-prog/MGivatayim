@@ -1,0 +1,59 @@
+{
+  "team": {
+    "name": "מכבי גבעתיים",
+    "short": "מכבי גבעתיים",
+    "league": "ליגת ילדים א' מרכז",
+    "season": "2025/26",
+    "currentRound": 8
+  },
+  "nextMatch": {
+    "opponent": "הפועל כוכבים",
+    "opponentShort": "הפועל כוכבים",
+    "home": true,
+    "round": 8,
+    "kickoff": "2026-09-26T17:00:00+03:00",
+    "arrival": "16:15",
+    "kit": "כחול / לבן / כחול",
+    "venue": {
+      "name": "מגרש הקריה",
+      "address": "שדרות ירושלים 24, גבעתיים",
+      "waze": "https://waze.com/ul?q=%D7%A9%D7%93%D7%A8%D7%95%D7%AA%20%D7%99%D7%A8%D7%95%D7%A9%D7%9C%D7%99%D7%9D%2024%20%D7%92%D7%91%D7%A2%D7%AA%D7%99%D7%99%D7%9D&navigate=yes"
+    }
+  },
+  "matches": [
+    { "round": 1, "date": "2026-08-08", "opponent": "הפועל אלון",        "home": true,  "gf": 3, "ga": 1 },
+    { "round": 2, "date": "2026-08-15", "opponent": "מכבי נחלים",        "home": false, "gf": 2, "ga": 2 },
+    { "round": 3, "date": "2026-08-22", "opponent": "בני הרצליה",        "home": true,  "gf": 4, "ga": 0 },
+    { "round": 4, "date": "2026-08-29", "opponent": "עירוני ראשון",      "home": false, "gf": 1, "ga": 0 },
+    { "round": 5, "date": "2026-09-05", "opponent": "מכבי פתח תקווה",    "home": true,  "gf": 2, "ga": 3 },
+    { "round": 6, "date": "2026-09-12", "opponent": "הפועל רמת השרון",   "home": false, "gf": 3, "ga": 1 },
+    { "round": 7, "date": "2026-09-19", "opponent": "בני לוד",           "home": true,  "gf": 2, "ga": 1 }
+  ],
+  "players": [
+    { "name": "איתי כהן",   "number": 7,  "position": "קיצוני שמאלי", "goals": 6, "assists": 3, "minutes": 560 },
+    { "name": "דניאל לוי",  "number": 10, "position": "קשר התקפי",   "goals": 5, "assists": 4, "minutes": 585 },
+    { "name": "יובל מזרחי", "number": 9,  "position": "חלוץ",         "goals": 3, "assists": 1, "minutes": 470 },
+    { "name": "עומר שגב",   "number": 8,  "position": "קשר ימני",     "goals": 2, "assists": 2, "minutes": 610 },
+    { "name": "רותם בר",    "number": 6,  "position": "קשר אחורי",    "goals": 1, "assists": 2, "minutes": 630 }
+  ],
+  "videos": [
+    { "title": "השערים מול בני לוד",  "duration": "2:14", "round": 7, "url": "", "featured": true },
+    { "title": "מהלך המחזור",          "duration": "1:38", "round": 6, "url": "" },
+    { "title": "חגיגת הניצחון",        "duration": "0:52", "round": 5, "url": "" }
+  ],
+  "links": [
+    { "title": "קבוצת הוואטסאפ של ההורים", "desc": "עדכונים שוטפים מהמאמן",   "url": "", "icon": "chat" },
+    { "title": "טבלת הליגה",                "desc": "מעודכן למחזור 7",          "url": "", "icon": "table" },
+    { "title": "לוח המשחקים באיגוד",        "desc": "הלוח הרשמי של העונה",      "url": "", "icon": "calendar" },
+    { "title": "אלבום תמונות העונה",        "desc": "גלריית משחקים ואימונים",  "url": "", "icon": "photo" }
+  ],
+  "analysis": {
+    "updated": "2026-09-20",
+    "note": "נכתב ידנית ומתעדכן בקובץ הנתונים — ראו README.",
+    "items": [
+      { "label": "הצמד המוביל", "text": "איתי כהן ודניאל לוי שותפים ל-11 מתוך 17 שערי הקבוצה — 65% מהתפוקה ההתקפית." },
+      { "label": "יציבות",       "text": "חלוקת נקודות מאוזנת בין בית לחוץ, בלי תלות במגרש." },
+      { "label": "הגנה",         "text": "שתי רשתות נקיות ופחות מספיגה וחצי למשחק — הבסיס לרצף הנוכחי." }
+    ]
+  }
+}

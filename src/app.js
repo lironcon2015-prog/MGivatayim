@@ -66,9 +66,15 @@ function fail(app, message) {
 async function boot() {
   const app = document.getElementById('app');
   try {
-    // Cache-busted per load: the data file is the thing that changes weekly,
-    // and a parent refreshing after a match must not get Sunday's table.
-    const res = await fetch(`./data/season.json?t=${Date.now()}`, { cache: 'no-store' });
+    // Resolved against this module's own URL, not the document's. The site is
+    // served from a project subpath (/MGivatayim/), where a document-relative
+    // './data/...' breaks the moment someone opens the URL without its
+    // trailing slash. Cache-busted per load: the data file is the thing that
+    // changes weekly, and a parent refreshing after a match must not get
+    // Sunday's table.
+    const url = new URL('../data/season.json', import.meta.url);
+    url.searchParams.set('t', Date.now());
+    const res = await fetch(url, { cache: 'no-store' });
     if (!res.ok) throw new Error(`השרת החזיר ${res.status}`);
     mount(app, buildSeason(await res.json()));
   } catch (err) {

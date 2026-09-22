@@ -17,8 +17,10 @@ export function crestImg(team) {
     : icon('ball');
 }
 
-export function sectionHead(title, aside = '') {
-  return `<div class="sec-head"><h2>${esc(title)}</h2>${aside ? `<span class="aside">${aside}</span>` : ''}</div>`;
+// The gold glyph before a title is what separates one block of the page from
+// the next now that every card sits on the same glowing ground.
+export function sectionHead(title, aside = '', glyph = '') {
+  return `<div class="sec-head">${glyph ? icon(glyph) : ''}<h2>${esc(title)}</h2>${aside ? `<span class="aside">${aside}</span>` : ''}</div>`;
 }
 
 // The scoreline is assembled from two separate numbers with our goals pinned
@@ -40,7 +42,8 @@ export function matchRow(match, i) {
   const tag = Number.isInteger(i) ? 'button' : 'div';
   return `<${tag} class="match"${tag === 'button' ? ` type="button" data-match="${i}"` : ''}>
     <span class="when"><b class="num">${shortDate(match.date)}</b></span>
-    <span class="who"><b>${esc(match.opponent)}</b><span>${[match.home ? 'בית' : 'חוץ', roundText(match.round)].filter(Boolean).map(esc).join(' · ')}</span></span>
+    <span class="ha">${match.home ? 'בית' : 'חוץ'}</span>
+    <span class="who"><b>${esc(match.opponent)}</b>${roundText(match.round) ? `<span>${esc(roundText(match.round))}</span>` : ''}</span>
     ${scoreEl(match)}
     <span class="tag ${CLASS_OF[o]}">${esc(OUTCOMES[o])}</span>
   </${tag}>`;
@@ -48,7 +51,7 @@ export function matchRow(match, i) {
 
 export function leaderRow(player, rank, figures) {
   const figs = figures
-    .map((f) => `<span class="fig ${f.key === 'goals' ? 'g' : ''}"><b class="num">${player[f.key]}</b><span>${esc(f.label)}</span></span>`)
+    .map((f) => `<span class="fig ${f.key === 'goals' ? 'g' : f.key === 'assists' ? 'a' : ''}"><b class="num">${player[f.key]}</b><span>${esc(f.label)}</span></span>`)
     .join('');
   return `<div class="leader">
     <span class="rank num">${rank}</span>
@@ -66,9 +69,11 @@ export function tile({ value, label, sub, tone = '' }) {
   </div>`;
 }
 
-export function splitBar(name, t, maxPoints) {
+// Home is gold, away is blue: two series told apart by colour, and neither of
+// them green — green is only ever a won match.
+export function splitBar(name, t, maxPoints, side = 'home') {
   const width = maxPoints ? Math.round((t.points / maxPoints) * 100) : 0;
-  return `<div class="split">
+  return `<div class="split ${side}">
     <div class="split-head">
       <b>${esc(name)}</b>
       <span class="rec num">${t.win}נ · ${t.draw}ת · ${t.loss}ה · ${t.points} נק'</span>

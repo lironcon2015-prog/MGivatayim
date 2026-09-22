@@ -3,9 +3,15 @@ import { longDate, clock, pct, dec, esc, safeUrl, splitDuration, pad2 } from '..
 import { icon } from '../icons.js';
 import { crestImg, sectionHead, formPill, matchRow, leaderRow, tile, splitBar, linkRow, videoCard } from '../components.js';
 
+// "Next match" is the page's lead card, so its title lives inside it as a
+// gold eyebrow instead of a section head above it.
+const eyebrow = (aside = '') => `<div class="hero-top">
+    <span class="eyebrow">המשחק הבא</span>${aside ? `<span class="hero-meta">${aside}</span>` : ''}
+  </div>`;
+
 function nextMatchCard(s) {
   const nm = s.nextMatch;
-  if (!nm?.opponent || !nm?.kickoff) return `<div class="card"><div class="empty">אין משחק קרוב בלוח.</div></div>`;
+  if (!nm?.opponent || !nm?.kickoff) return `<div class="card hero">${eyebrow()}<div class="empty">אין משחק קרוב בלוח.</div></div>`;
 
   const kick = new Date(nm.kickoff);
   const address = [nm.venue?.name, nm.venue?.address].filter(Boolean).join(', ');
@@ -26,26 +32,25 @@ function nextMatchCard(s) {
       <strong>${esc(side.name)}</strong><span>${side.role}</span>
     </div>`;
 
+  const round = nm.round != null && nm.round !== '' ? `מחזור ${esc(nm.round)} · ` : '';
+  const place = esc(nm.venue?.name || nm.venue?.address || 'מגרש טרם נקבע');
+  const chips = [
+    nm.arrival ? `<span class="meta-chip">${icon('clock')}<span>התכנסות <span class="num">${esc(nm.arrival)}</span></span></span>` : '',
+    nm.kit ? `<span class="meta-chip">${icon('shirt')}<span>${esc(nm.kit)}</span></span>` : '',
+  ].filter(Boolean).join('');
+
   return `<div class="card hero">
-    <div class="hero-top">
-      ${nm.round != null && nm.round !== '' ? `<span class="badge">מחזור ${esc(nm.round)}</span>` : ''}
-      <span class="badge ghost">${nm.home ? 'משחק בית' : 'משחק חוץ'}</span>
-    </div>
+    ${eyebrow(`${round}${nm.home ? 'בית' : 'חוץ'}`)}
     <div class="fixture">
       ${disc(sides[0])}
-      <div class="vs"><div class="word">VS</div><div class="kick num">${clock(kick)}</div></div>
+      <div class="vs"><div class="kick num">${clock(kick)}</div><div class="word">VS</div><div class="date">${esc(longDate(kick))}</div></div>
       ${disc(sides[1])}
     </div>
     <div id="countdown" data-kickoff="${kick.toISOString()}"></div>
     <div class="meta-row">${icon('pin')}
-      <span><b>${esc(nm.venue?.name || nm.venue?.address || 'מגרש טרם נקבע')}</b>
-      ${nm.venue?.name && nm.venue?.address ? `<div class="sub">${esc(nm.venue.address)}</div>` : ''}</span>
+      <span><b>${place}</b>${nm.venue?.name && nm.venue?.address ? ` <span class="sub">· ${esc(nm.venue.address)}</span>` : ''}</span>
     </div>
-    <div class="meta-row">${icon('clock')}
-      <span>${esc(longDate(kick))} · שריקה ב-${clock(kick)}
-      ${nm.arrival ? `<div class="sub">התכנסות ${esc(nm.arrival)}</div>` : ''}</span>
-    </div>
-    ${nm.kit ? `<div class="meta-row">${icon('shirt')}<span>תלבושת: ${esc(nm.kit)}</span></div>` : ''}
+    ${chips ? `<div class="meta-chips">${chips}</div>` : ''}
     ${waze ? `<a class="btn" href="${esc(waze)}" target="_blank" rel="noopener noreferrer">${icon('nav')} ניווט אל המגרש ב-Waze</a>` : ''}
   </div>`;
 }
@@ -58,19 +63,18 @@ export function renderHome(s) {
 
   return `
   <section>
-    ${sectionHead('המשחק הבא')}
     ${nextMatchCard(s)}
   </section>
 
   <section>
-    ${sectionHead('התוצאות האחרונות', `${last5.length} אחרונות`)}
+    ${sectionHead('התוצאות האחרונות', `${last5.length} אחרונות`, 'trophy')}
     ${last5.length
       ? `<div class="form">${last5.map(formPill).join('')}</div>`
       : '<div class="card"><div class="empty">העונה עוד לא התחילה.</div></div>'}
   </section>
 
   <section>
-    ${sectionHead('העונה במספרים', `${o.played} משחקים`)}
+    ${sectionHead('העונה במספרים', `${o.played} משחקים`, 'sparkle')}
     <div class="tiles">
       ${tile({ value: pct(o.winRate), label: 'אחוז ניצחונות', sub: `${o.win} מתוך ${o.played} משחקים`, tone: 'good' })}
       ${tile({ value: o.points, label: 'נקודות', sub: `${o.win}נ · ${o.draw}ת · ${o.loss}ה`, tone: 'accent' })}
@@ -80,16 +84,16 @@ export function renderHome(s) {
   </section>
 
   <section>
-    ${sectionHead('בית מול חוץ', `${o.points} נקודות`)}
     <div class="card">
+      <div class="card-head"><h2>בית מול חוץ</h2><span class="aside num">${o.points} נקודות</span></div>
       ${splitBar('בבית', s.splits.home, maxPoints)}
-      ${splitBar('בחוץ', s.splits.away, maxPoints)}
+      ${splitBar('בחוץ', s.splits.away, maxPoints, 'away')}
     </div>
   </section>
 
   <section>
-    ${sectionHead('מובילי העונה', '<a href="#/stats">לטבלה המלאה</a>')}
-    <div class="card">
+    ${sectionHead('מובילי העונה', '<a href="#/stats">לטבלה המלאה</a>', 'trophy')}
+    <div class="card rows">
       ${scorers.length
         ? scorers.map((p, i) => leaderRow(p, i + 1, [{ key: 'goals', label: 'שערים' }, { key: 'assists', label: 'בישולים' }])).join('')
         : '<div class="empty">טרם נרשמו שערים העונה.</div>'}
@@ -97,22 +101,22 @@ export function renderHome(s) {
   </section>
 
   <section>
-    ${sectionHead('היסטוריית משחקים', `${s.recent.length} משחקים`)}
-    <div class="card">${s.recent.length ? s.recent.map(matchRow).join('') : '<div class="empty">טרם נוספו משחקים.</div>'}</div>
+    ${sectionHead('היסטוריית משחקים', `${s.recent.length} משחקים`, 'calendar')}
+    <div class="card rows">${s.recent.length ? s.recent.map(matchRow).join('') : '<div class="empty">טרם נוספו משחקים.</div>'}</div>
   </section>
 
   <section>
-    ${sectionHead('סרטונים מהעונה', '<a href="#/media">לכל הסרטונים</a>')}
+    ${sectionHead('סרטונים מהעונה', '<a href="#/media">לכל הסרטונים</a>', 'film')}
     ${s.videos.length ? videoCard(s.videos[0]) : '<div class="card"><div class="empty">טרם הועלו סרטונים.</div></div>'}
   </section>
 
   <section>
-    ${sectionHead('קישורים שימושיים', `${s.links.length} קישורים`)}
-    <div class="card">${s.links.length ? s.links.map(linkRow).join('') : '<div class="empty">טרם נוספו קישורים.</div>'}</div>
+    ${sectionHead('קישורים שימושיים', `${s.links.length} קישורים`, 'link')}
+    <div class="card rows">${s.links.length ? s.links.map(linkRow).join('') : '<div class="empty">טרם נוספו קישורים.</div>'}</div>
   </section>
 
   <section>
-    ${sectionHead('תמונת מצב של העונה')}
+    ${sectionHead('תמונת מצב של העונה', '', 'bulb')}
     <div class="card">
       ${s.analysis.items.map((it) => `<div class="insight"><span class="dot"></span><span><b>${esc(it.label)}:</b> ${esc(it.text)}</span></div>`).join('')}
       <div class="insight"><span class="dot"></span><span><b>רצף נוכחי:</b> ${o.streak.current

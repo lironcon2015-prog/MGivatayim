@@ -9,17 +9,17 @@ export function renderMedia(s) {
   const missing = videos.filter((v) => !safeUrl(v.url)).length;
 
   if (!videos.length) {
-    return `<section>${sectionHead('סרטונים')}<div class="card"><div class="empty">טרם הועלו סרטונים לעונה.</div></div></section>`;
+    return `<section>${sectionHead('סרטונים', '', 'film')}<div class="card"><div class="empty">טרם הועלו סרטונים לעונה.</div></div></section>`;
   }
 
   return `
   <section>
-    ${sectionHead('הסרטון הנבחר', esc(roundText(featured.round)))}
+    ${sectionHead('הסרטון הנבחר', esc(roundText(featured.round)), 'film')}
     ${videoCard(featured)}
   </section>
 
   ${rest.length ? `<section>
-    ${sectionHead('כל הסרטונים', `${videos.length} סרטונים`)}
+    ${sectionHead('כל הסרטונים', `${videos.length} סרטונים`, 'play')}
     ${rest.map(videoCard).join('')}
   </section>` : ''}
 
@@ -28,7 +28,7 @@ export function renderMedia(s) {
       : `ל-${missing} מהסרטונים עדיין לא הוגדר קישור.`}</p></section>` : ''}
 
   <section>
-    ${sectionHead('קישורים שימושיים')}
+    ${sectionHead('קישורים שימושיים', '', 'link')}
     <div class="card">${!s.links.length ? '<div class="empty">טרם נוספו קישורים.</div>' : s.links.map((l) => `<div class="insight"><span class="dot"></span><span><b>${esc(l.title)}:</b> ${esc(l.desc)}</span></div>`).join('')}</div>
   </section>`;
 }

@@ -212,7 +212,7 @@ export function mountLive(view, ctx) {
       </div>`;
     }).join('');
     return `<section>
-      <div class="sec-head"><h2>פרטי המשחק</h2></div>
+      <div class="sec-head">${icon('calendar')}<h2>פרטי המשחק</h2></div>
       <div class="card">
         <div class="grid-2">
           <label class="field span-2"><span>יריבה</span><input data-meta="opponent" value="${esc(st.opponent)}" placeholder="שם הקבוצה היריבה" /></label>
@@ -223,7 +223,7 @@ export function mountLive(view, ctx) {
       </div>
     </section>
     <section>
-      <div class="sec-head"><h2>הרכב פותח</h2><span class="aside num">${st.lineup.length} על המגרש</span></div>
+      <div class="sec-head">${icon('user')}<h2>הרכב פותח</h2><span class="aside num">${st.lineup.length} על המגרש</span></div>
       ${pitchHtml(st, st.lineup, { interactive: false })}
       <div class="card lu">${rows || '<div class="empty">אין שחקנים בסגל. הוסיפו שחקנים במסך הניהול.</div>'}</div>
     </section>`;
@@ -259,14 +259,14 @@ export function mountLive(view, ctx) {
       ${ctl ? `<section class="ctl-wrap">${controls(st)}${syncChip()}</section>` : ''}
       ${st.status === 'setup' && ctl ? lineupEditor(st) : `
         <section>
-          <div class="sec-head"><h2>על המגרש</h2>${ctl && st.status !== 'fulltime' ? '<span class="aside">הקישו על שחקן לחילוף</span>' : ''}</div>
+          <div class="sec-head">${icon('shirt')}<h2>על המגרש</h2>${ctl && st.status !== 'fulltime' ? '<span class="aside">הקישו על שחקן לחילוף</span>' : ''}</div>
           ${pitchHtml(st, st.status === 'setup' ? st.lineup : field, { interactive: ctl && ['running', 'break'].includes(st.status) })}
           ${benchPlayers.length && st.status !== 'setup' ? `<div class="bench"><span class="bench-label">ספסל</span>
             ${benchPlayers.map((p) => `<${ctl ? 'button type="button"' : 'span'} class="bench-p" data-bench="${esc(p.id)}"><span class="num">${p.number ?? '·'}</span>${esc(firstName(p.name))}</${ctl ? 'button' : 'span'}>`).join('')}
           </div>` : ''}
         </section>
         <section>
-          <div class="sec-head"><h2>מהלך המשחק</h2>${ctl ? '<span class="aside">הקישו על אירוע לתיקון</span>' : ''}</div>
+          <div class="sec-head">${icon('clock')}<h2>מהלך המשחק</h2>${ctl ? '<span class="aside">הקישו על אירוע לתיקון</span>' : ''}</div>
           <div class="card">${timelineHtml(st, { interactive: ctl })}</div>
         </section>`}
       ${st.status === 'ended' ? endedPanel(st) : ''}

@@ -1,6 +1,7 @@
 import { buildSeason } from './season.js';
 import { esc } from './format.js';
 import { crestImg } from './components.js';
+import { icon } from './icons.js';
 import { DEFAULT_CREST } from './config.js';
 import { call, bridgeConfigured } from './bridge.js';
 import * as store from './store.js';
@@ -15,10 +16,10 @@ import * as LM from './live/model.js';
 import { mountLive, openMatchSheet } from './views/live.js';
 
 const ROUTES = [
-  { hash: '#/',      label: 'בית',    render: renderHome,  wire: (root) => startCountdown(root) },
-  { hash: '#/live',  label: 'לייב',   live: true },
-  { hash: '#/stats', label: 'נתונים', render: renderStats, wire: (root, s) => wireStats(root, s) },
-  { hash: '#/media', label: 'מדיה',   render: renderMedia },
+  { hash: '#/',      label: 'בית',    glyph: 'home',      render: renderHome,  wire: (root) => startCountdown(root) },
+  { hash: '#/live',  label: 'לייב',   glyph: 'broadcast', live: true },
+  { hash: '#/stats', label: 'נתונים', glyph: 'chart',     render: renderStats, wire: (root, s) => wireStats(root, s) },
+  { hash: '#/media', label: 'מדיה',   glyph: 'film',      render: renderMedia },
 ];
 const ADMIN_HASH = '#/admin';
 
@@ -136,12 +137,17 @@ let teardown = () => {};
 
 function chrome(team) {
   const name = team?.name || 'מכבי גבעתיים';
+  // A floating bar at the bottom, in reach of the thumb. body.with-nav
+  // reserves room for it, and lifts the save bar, toasts and the update bar
+  // above it.
+  const tab = (href, glyph, label, extra = '') => `<a href="${href}">${icon(glyph)}<span>${esc(label)}</span>${extra}</a>`;
   const nav = state.access === 'approved' && state.season
-    ? `<nav class="nav" id="nav">
-        ${ROUTES.map((r) => `<a href="${r.hash}">${esc(r.label)}${r.live && liveActive() ? '<i class="live-dot" aria-label="משחק חי"></i>' : ''}</a>`).join('')}
-        ${isAdmin() ? `<a href="${ADMIN_HASH}">ניהול</a>` : ''}
+    ? `<nav class="nav" id="nav" aria-label="ניווט ראשי">
+        ${ROUTES.map((r) => tab(r.hash, r.glyph, r.label, r.live && liveActive() ? '<i class="live-dot" aria-label="משחק חי"></i>' : '')).join('')}
+        ${isAdmin() ? tab(ADMIN_HASH, 'shield', 'ניהול') : ''}
       </nav>`
     : '';
+  document.body.classList.toggle('with-nav', !!nav);
   const crestTeam = { name, crestUrl: team?.crestUrl || new URL(DEFAULT_CREST, ROOT).href };
   return `<header class="topbar">
       <div class="topbar-inner">
@@ -152,10 +158,10 @@ function chrome(team) {
         </span>
         ${team?.season ? `<span class="season-tag num">עונת ${esc(team.season)}</span>` : ''}
       </div>
-      ${nav}
     </header>
     <main class="shell" id="view" tabindex="-1"></main>
-    <footer class="app-foot">גרסה <span class="num" id="app-version">${esc(appVersion() || '—')}</span></footer>`;
+    <footer class="app-foot">גרסה <span class="num" id="app-version">${esc(appVersion() || '—')}</span></footer>
+    ${nav}`;
 }
 
 function markNav(hash) {

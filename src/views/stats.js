@@ -17,7 +17,7 @@ export function renderStats(s) {
 
   return `
   <section>
-    ${sectionHead('נתוני העונה', `אחרי ${o.played} משחקים`)}
+    ${sectionHead('נתוני העונה', `אחרי ${o.played} משחקים`, 'sparkle')}
     <div class="tiles three">
       ${tile({ value: pct(o.winRate), label: 'הצלחה', sub: `${o.points} נקודות`, tone: 'good' })}
       ${tile({ value: dec(o.goalsPerGame, 2), label: 'שערים', sub: 'למשחק', tone: 'accent' })}
@@ -26,7 +26,7 @@ export function renderStats(s) {
   </section>
 
   <section>
-    ${sectionHead('שיאים ורצפים')}
+    ${sectionHead('שיאים ורצפים', '', 'bolt')}
     <div class="tiles three">
       ${tile({ value: o.streak.current, label: 'רצף נוכחי', sub: 'ניצחונות', tone: 'accent' })}
       ${tile({ value: o.streak.best, label: 'הרצף הטוב', sub: 'העונה' })}
@@ -35,10 +35,10 @@ export function renderStats(s) {
   </section>
 
   <section>
-    ${sectionHead('בית מול חוץ')}
     <div class="card">
+      <div class="card-head"><h2>בית מול חוץ</h2><span class="aside num">${o.points} נקודות</span></div>
       ${splitBar('בבית', s.splits.home, maxPoints)}
-      ${splitBar('בחוץ', s.splits.away, maxPoints)}
+      ${splitBar('בחוץ', s.splits.away, maxPoints, 'away')}
       <p class="note">${s.splits.home.points === s.splits.away.points
         ? 'תפוקה זהה בבית ובחוץ.'
         : `הפרש של ${Math.abs(s.splits.home.points - s.splits.away.points)} נקודות לטובת ${s.splits.home.points > s.splits.away.points ? 'משחקי הבית' : 'משחקי החוץ'}.`}</p>
@@ -46,21 +46,21 @@ export function renderStats(s) {
   </section>
 
   <section>
-    ${sectionHead('טבלת מובילים')}
+    ${sectionHead('טבלת מובילים', '', 'trophy')}
     <div class="seg" role="tablist" id="board-tabs">
       ${BOARDS.map((b, i) => `<button role="tab" type="button" data-board="${b.key}" aria-selected="${i === 0}">${esc(b.label)}</button>`).join('')}
     </div>
-    <div class="card" id="board" style="margin-top:.7rem"></div>
+    <div class="card rows" id="board" style="margin-top:.7rem"></div>
     ${s.squadGoalsMatch ? '' : `<p class="note">שימו לב: סכום השערים של השחקנים (${s.squadGoals}) שונה מסך שערי הקבוצה (${s.overall.gf}) — ייתכן ששחקן חסר ברשימה.</p>`}
   </section>
 
   <section>
-    ${sectionHead('כל המשחקים', `${s.recent.length} משחקים`)}
-    <div class="card">${s.recent.length ? s.recent.map(matchRow).join('') : '<div class="empty">טרם נוספו משחקים.</div>'}</div>
+    ${sectionHead('כל המשחקים', `${s.recent.length} משחקים`, 'calendar')}
+    <div class="card rows">${s.recent.length ? s.recent.map(matchRow).join('') : '<div class="empty">טרם נוספו משחקים.</div>'}</div>
   </section>
 
   <section>
-    ${sectionHead('תרומת המוביל')}
+    ${sectionHead('תרומת המוביל', '', 'bulb')}
     <div class="card">
       ${best
         ? `<div class="insight"><span class="dot"></span><span><b>${esc(best.name)}</b> כבש ${best.goals} מתוך ${s.overall.gf} שערי הקבוצה — ${share} מהתפוקה.</span></div>`

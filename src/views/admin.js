@@ -39,7 +39,7 @@ const NEXT_FIELDS = [
 
 const LISTS = [
   {
-    path: 'matches', title: 'תוצאות משחקים', add: 'הוספת משחק', prepend: true,
+    path: 'matches', title: 'תוצאות משחקים', glyph: 'trophy', add: 'הוספת משחק', prepend: true,
     blank: () => ({ date: today(), opponent: '', home: true, round: null, gf: 0, ga: 0 }),
     label: (m) => `${m.opponent || 'משחק חדש'} · ${m.gf ?? '?'}:${m.ga ?? '?'}`,
     fields: [
@@ -52,7 +52,7 @@ const LISTS = [
     ],
   },
   {
-    path: 'players', title: 'שחקנים', add: 'הוספת שחקן',
+    path: 'players', title: 'שחקנים', glyph: 'user', add: 'הוספת שחקן',
     note: 'שערים, בישולים ודקות ממשחקים שתועדו בלייב נספרים לבד. בשדות "לפני הלייב" מזינים רק משחקים שלא תועדו.',
     blank: () => ({ id: newId(), name: '', number: null, pos: '', pos2: '', goals: 0, assists: 0, minutes: 0 }),
     label: (p) => [p.number != null && p.number !== '' ? p.number : null, p.name || 'שחקן חדש', posLabel(p.pos)].filter((x) => x != null && x !== '').join(' · '),
@@ -67,7 +67,7 @@ const LISTS = [
     ],
   },
   {
-    path: 'videos', title: 'סרטונים', add: 'הוספת סרטון', prepend: true,
+    path: 'videos', title: 'סרטונים', glyph: 'film', add: 'הוספת סרטון', prepend: true,
     blank: () => ({ title: '', round: null, duration: '', url: '', featured: false }),
     label: (v) => v.title || 'סרטון חדש',
     fields: [
@@ -79,7 +79,7 @@ const LISTS = [
     ],
   },
   {
-    path: 'links', title: 'קישורים', add: 'הוספת קישור',
+    path: 'links', title: 'קישורים', glyph: 'link', add: 'הוספת קישור',
     blank: () => ({ title: '', desc: '', url: '', icon: 'chat' }),
     label: (l) => l.title || 'קישור חדש',
     fields: [
@@ -90,7 +90,7 @@ const LISTS = [
     ],
   },
   {
-    path: 'analysis.items', title: 'תמונת מצב', add: 'הוספת תובנה',
+    path: 'analysis.items', title: 'תמונת מצב', glyph: 'bulb', add: 'הוספת תובנה',
     blank: () => ({ label: '', text: '' }),
     label: (i) => i.label || 'תובנה חדשה',
     fields: [
@@ -247,7 +247,7 @@ export function mountAdmin(view, ctx) {
     const scroll = window.scrollY;
     view.innerHTML = `
       <section>
-        <div class="sec-head"><h2>ניהול</h2>
+        <div class="sec-head">${icon('shield')}<h2>ניהול</h2>
           <span class="aside"><button type="button" class="linkish" id="logout">יציאה ממצב מנהל</button></span></div>
         <div class="seg" role="tablist">
           <button type="button" role="tab" data-tab="season" aria-selected="${tab === 'season'}">נתוני העונה</button>
@@ -364,13 +364,13 @@ export function mountAdmin(view, ctx) {
         <span class="acts">${actions.map(([st, label, cls]) =>
           `<button type="button" class="btn small ${cls || ''}" data-user="${esc(u.id)}" data-set="${st}">${label}</button>`).join('')}</span>
       </div>`;
-    const block = (title, list, actions, empty) => `<section>
-        <div class="sec-head"><h2>${title}</h2><span class="aside">${list.length}</span></div>
-        <div class="card">${list.length ? list.map((u) => row(u, actions)).join('') : `<div class="empty">${empty}</div>`}</div>
+    const block = (title, glyph, list, actions, empty) => `<section>
+        <div class="sec-head">${icon(glyph)}<h2>${title}</h2><span class="aside">${list.length}</span></div>
+        <div class="card rows">${list.length ? list.map((u) => row(u, actions)).join('') : `<div class="empty">${empty}</div>`}</div>
       </section>`;
-    return block('ממתינים לאישור', by(['pending']), [['approved', 'אישור'], ['rejected', 'דחייה', 'secondary']], 'אין בקשות חדשות.')
-      + block('בעלי גישה', by(['approved']), [['revoked', 'ביטול גישה', 'danger']], 'עוד לא אושר אף אחד.')
-      + block('נדחו / בוטלו', by(['rejected', 'revoked']), [['approved', 'אישור'], ['remove', 'מחיקה', 'secondary']], 'אין.');
+    return block('ממתינים לאישור', 'user', by(['pending']), [['approved', 'אישור'], ['rejected', 'דחייה', 'secondary']], 'אין בקשות חדשות.')
+      + block('בעלי גישה', 'check', by(['approved']), [['revoked', 'ביטול גישה', 'danger']], 'עוד לא אושר אף אחד.')
+      + block('נדחו / בוטלו', 'shield', by(['rejected', 'revoked']), [['approved', 'אישור'], ['remove', 'מחיקה', 'secondary']], 'אין.');
   }
 
   async function loadUsers() {
@@ -392,7 +392,7 @@ export function mountAdmin(view, ctx) {
   function listHtml(list) {
     const items = getPath(draft, list.path) || [];
     return `<section>
-      <div class="sec-head"><h2>${esc(list.title)}</h2><span class="aside">${items.length}</span></div>
+      <div class="sec-head">${icon(list.glyph)}<h2>${esc(list.title)}</h2><span class="aside">${items.length}</span></div>
       ${list.note ? `<p class="note list-note">${esc(list.note)}</p>` : ''}
       <div class="add-row">
         <button type="button" class="btn secondary small add" data-add="${list.path}">+ ${esc(list.add)}</button>
@@ -412,16 +412,16 @@ export function mountAdmin(view, ctx) {
     const nm = draft.nextMatch;
     return `
       <section>
-        <div class="sec-head"><h2>הקבוצה</h2></div>
+        <div class="sec-head">${icon('shield')}<h2>הקבוצה</h2></div>
         <div class="card">${grid(TEAM_FIELDS, 'team.', draft.team)}</div>
       </section>
       <section>
-        <div class="sec-head"><h2>מבנה משחק</h2></div>
+        <div class="sec-head">${icon('clock')}<h2>מבנה משחק</h2></div>
         <div class="card" data-format-editor>${formatEditorHtml(cleanFormat(draft.settings?.format))}
           <p class="note">ברירת המחדל לכל משחק חי. אפשר לשנות גם בפתיחת משחק מסוים.</p></div>
       </section>
       <section>
-        <div class="sec-head"><h2>המשחק הבא</h2></div>
+        <div class="sec-head">${icon('calendar')}<h2>המשחק הבא</h2></div>
         <div class="card">
           ${nm ? `${grid(NEXT_FIELDS, 'nextMatch.', nm)}
             <div class="row-btns">

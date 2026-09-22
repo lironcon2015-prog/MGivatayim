@@ -310,7 +310,9 @@ export function mountAdmin(view, ctx) {
     const KIND = { new: ['חדש', 'k-new'], update: ['עדכון', 'k-upd'], same: ['קיים', 'k-same'], duplicate: ['כפול בקובץ', 'k-dup'] };
     const body = () => {
       const n = include.filter(Boolean).length;
-      return `<p class="sheet-text">${esc(source)} · ${rows.length - (cols.headerRow ? 1 : 0)} שורות${cols.headerRow ? ' · זוהתה שורת כותרות' : ''}</p>
+      // <bdi>: a Latin file name otherwise absorbs the row count beside it
+      // into its own left-to-right run ("22 · players.csv שורות").
+      return `<p class="sheet-text"><bdi>${esc(source)}</bdi> · ${rows.length - (cols.headerRow ? 1 : 0)} שורות${cols.headerRow ? ' · זוהתה שורת כותרות' : ''}</p>
         <div class="imp-cols">${Array.from({ length: width }, (_, i) => `<label class="field"><span>עמודה ${i + 1}${rows[0]?.[i] && cols.headerRow ? ` · ${esc(String(rows[0][i]).slice(0, 14))}` : ''}</span>
           <select data-col="${i}">${FIELDS.map((f) => `<option value="${f.key}"${cols.map[i] === f.key ? ' selected' : ''}>${f.label}</option>`).join('')}</select></label>`).join('')}</div>
         ${players.length ? `<div class="imp-list">${plan.rows.map((r, i) => `<label class="imp-row${include[i] ? '' : ' off'}">

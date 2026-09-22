@@ -103,6 +103,15 @@ await test('quoted CSV fields and semicolon separators', () => {
   assert.equal(rows[2][0], 'אבי "הקטן"');
 });
 
+await test('an unfamiliar number header is recognised, and content decides the rest', () => {
+  // The owner's real squad file, first rows: "שם,מספר שחקן".
+  const rows = parseDelimited('שם,מספר שחקן\nמיכאלי כהן,1\nאביב איצחקי,2\nתום יונו,5\n');
+  const players = rowsToPlayers(rows, detectColumns(rows));
+  assert.deepEqual(players.map((p) => [p.name, p.number]), [['מיכאלי כהן', 1], ['אביב איצחקי', 2], ['תום יונו', 5]]);
+  const odd = parseDelimited('שם,חולצה לעונה\nאיתי,7\nדני,10\n');
+  assert.deepEqual(rowsToPlayers(odd, detectColumns(odd)).map((p) => p.number), [7, 10]);
+});
+
 await test('separate first/last name columns are joined', () => {
   const rows = parseDelimited('שם פרטי,שם משפחה,מספר\nאיתי,כהן,7\n');
   const players = rowsToPlayers(rows, detectColumns(rows));
@@ -130,6 +139,19 @@ await test('import plan: matches by name, then number; keeps ids; flags missing'
   let n = 0;
   const out = applyImport(existing, plan, { include: [true, true, true], removeMissing: true, newId: () => 'n' + ++n });
   assert.deepEqual(out.map((p) => [p.id, p.name, p.number]), [['a', 'איתי כהן', 11], ['b', 'דניאל לוי', 10], ['n1', 'חדש', 5]]);
+});
+
+await test('a name that repeats in the squad is matched by name and number together', () => {
+  const inc = [20, 21, 23, 22, 33].map((number) => ({ name: 'ספיר', number, pos: '', pos2: '' }));
+  let n = 0;
+  const first = applyImport([], planImport([], inc), { include: inc.map(() => true), removeMissing: false, newId: () => 'id' + ++n });
+  assert.equal(first.length, 5);
+  const again = planImport(first, inc);
+  assert.deepEqual(again.rows.map((r) => r.kind), ['same', 'same', 'same', 'same', 'same']);
+  assert.deepEqual(again.rows.map((r) => r.match.number), [20, 21, 23, 22, 33]);
+  const renamed = planImport(first, [{ name: 'ספיר לוי', number: 21, pos: '', pos2: '' }]);
+  assert.equal(renamed.rows[0].kind, 'update');
+  assert.equal(renamed.rows[0].match.id, 'id2');
 });
 
 await test('unticked rows and kept-missing players are left alone', () => {

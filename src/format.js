@@ -103,3 +103,14 @@ export const shortName = (name) => {
   const [first, second] = String(name || '').trim().split(/\s+/);
   return second ? `${first} ${second[0]}.` : (first || '');
 };
+
+// The season label when the manager has not typed one: computed, like every
+// other derived figure. A youth season starts in the summer, so from July
+// on it is "this year / next", before July "last year / this". The manager's
+// own label, when there is one, wins.
+export function currentSeasonLabel(now = new Date()) {
+  const y = now.getFullYear();
+  const start = now.getMonth() >= 6 ? y : y - 1;
+  return `${start}/${String((start + 1) % 100).padStart(2, '0')}`;
+}
+export const seasonLabel = (team, now) => String(team?.season || '').trim() || currentSeasonLabel(now);

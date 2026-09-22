@@ -1,5 +1,5 @@
 import { buildSeason } from './season.js';
-import { esc } from './format.js';
+import { esc, seasonLabel } from './format.js';
 import { crestImg } from './components.js';
 import { icon } from './icons.js';
 import { DEFAULT_CREST } from './config.js';
@@ -156,7 +156,7 @@ function chrome(team) {
           <h1>${esc(name)}</h1>
           <p>${esc(team?.league || 'העונה של הקבוצה')}</p>
         </span>
-        ${team?.season ? `<span class="season-tag num">עונת ${esc(team.season)}</span>` : ''}
+        ${team ? `<span class="season-tag num">עונת ${esc(seasonLabel(team))}</span>` : ''}
       </div>
     </header>
     <main class="shell" id="view" tabindex="-1"></main>
@@ -258,7 +258,7 @@ function render() {
   }
   view.innerHTML = (route.hash === '#/' ? liveBanner() : '') + route.render(s)
     + (state.stale ? '<p class="note stale">מוצגים הנתונים האחרונים שנשמרו במכשיר — אין כרגע חיבור לשרת.</p>' : '')
-    + `<p class="foot">${esc(s.team.name)}${s.team.season ? ' · ' + esc(s.team.season) : ''}${isAdmin() ? '' : ' · <a href="#/admin">כניסת מנהל</a>'}</p>`;
+    + `<p class="foot">${esc(s.team.name)} · ${esc(seasonLabel(s.team))}${isAdmin() ? '' : ' · <a href="#/admin">כניסת מנהל</a>'}</p>`;
   teardown = route.wire ? route.wire(view, s) || (() => {}) : () => {};
 }
 

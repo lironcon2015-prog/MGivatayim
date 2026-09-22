@@ -1,5 +1,5 @@
 import { call } from '../bridge.js';
-import { esc, safeUrl, israelIso, splitKickoff, stamp } from '../format.js';
+import { esc, safeUrl, israelIso, splitKickoff, stamp, currentSeasonLabel } from '../format.js';
 import { POSITIONS, primaryPos, posLabel } from '../positions.js';
 import { readRows, parseDelimited, detectColumns, rowsToPlayers, planImport, applyImport, FIELDS } from '../importer.js';
 import { DEFAULT_FORMAT, DEFAULT_SIZE, cleanFormat, cleanSize } from '../live/model.js';
@@ -22,7 +22,7 @@ const today = () => new Date().toISOString().slice(0, 10);
 const TEAM_FIELDS = [
   { key: 'name', label: 'שם הקבוצה', required: true },
   { key: 'league', label: 'ליגה' },
-  { key: 'season', label: 'עונה', placeholder: '2026/27' },
+  { key: 'season', label: 'עונה', placeholder: currentSeasonLabel(), hint: `ריק = ${currentSeasonLabel()}, לפי התאריך` },
 ];
 
 const NEXT_FIELDS = [

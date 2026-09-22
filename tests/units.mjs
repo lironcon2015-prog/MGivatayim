@@ -171,6 +171,17 @@ await test('short names: first name and the surname initial', async () => {
   assert.equal(shortName(undefined), '');
 });
 
+await test('the season label is computed when the manager left it empty', async () => {
+  const { currentSeasonLabel, seasonLabel } = await import('../src/format.js');
+  assert.equal(currentSeasonLabel(new Date(2026, 8, 22)), '2026/27');
+  assert.equal(currentSeasonLabel(new Date(2027, 2, 1)), '2026/27');
+  assert.equal(currentSeasonLabel(new Date(2027, 6, 1)), '2027/28');
+  assert.equal(currentSeasonLabel(new Date(2099, 7, 1)), '2099/00');
+  assert.equal(seasonLabel({ season: ' 2025/26 ' }), '2025/26', "the manager's own label wins");
+  assert.equal(seasonLabel({ season: '' }, new Date(2026, 8, 1)), '2026/27');
+  assert.equal(seasonLabel(undefined, new Date(2026, 8, 1)), '2026/27');
+});
+
 export { test, failures };
 export const done = () => passed;
 

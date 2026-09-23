@@ -29,6 +29,7 @@
   --gold-soft: rgba(232, 185, 49, .12);
   --gold-line: rgba(232, 185, 49, .34);
   --gold-glow: rgba(232, 185, 49, .42);
+  --text-pulse: rgba(232, 237, 245, .55);   /* a player on the field, in the minutes list */
   --on-gold: #1A1204;
   --gold-fill: linear-gradient(180deg, var(--gold-hi), var(--gold-lo));
 
@@ -983,6 +984,22 @@ button.match:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px
 .mn-row.short .mn-val, .mn-row.short .mn-name { color: var(--gold); }
 .mn-state { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-inline-end: .45rem; vertical-align: .08em; border: 1.5px solid var(--faint); }
 .mn-state.on { background: var(--text); border-color: var(--text); }
+/* A player on the field while the clock runs. White, not gold: gold in this
+   list is a shortfall, and a gold pulse is the live match itself. */
+.mn-row.live .mn-state.on { animation: mn-pulse 1.8s ease-out infinite; }
+.mn-row.live .mn-tick { font-style: normal; animation: mn-tick 1s steps(1, end) infinite; }
+.mn-row.live .mn-fill::after {
+  content: ""; position: absolute; top: -2px; bottom: -2px; inset-inline-end: -2px; width: 8px; border-radius: 4px;
+  background: var(--text); box-shadow: 0 0 8px var(--text-pulse); animation: mn-glow 1.8s ease-in-out infinite;
+}
+.mn-row.live.short .mn-fill::after { background: var(--gold-hi); box-shadow: 0 0 8px var(--gold-glow); }
+@keyframes mn-pulse {
+  0% { box-shadow: 0 0 0 0 var(--text-pulse); }
+  70% { box-shadow: 0 0 0 7px transparent; }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+@keyframes mn-tick { 50% { opacity: .15; } }
+@keyframes mn-glow { 50% { opacity: .35; } }
 .mn-track { grid-column: 2 / 4; position: relative; height: 6px; border-radius: 4px; background: var(--well); }
 .mn-fill, .mn-span { position: absolute; inset-block: 0; inset-inline-start: 0; border-radius: 4px; background: var(--faint); }
 .short .mn-fill { background: var(--gold-fill); }

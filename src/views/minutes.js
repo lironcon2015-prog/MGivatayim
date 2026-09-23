@@ -53,10 +53,14 @@ function rowsHtml(state, rows, min) {
   return rows.length ? rows.map((r) => {
     const sub = r.reachAt ? `<span class="mn-sub">על המגרש · יגיע לרף בדקה <span class="num">${r.reachAt}</span></span>`
       : r.ranges?.length ? `<span class="mn-sub">${rangesText(r.ranges)}</span>` : '';
-    return `<div class="mn-row${r.short ? ' short' : ''}" data-mn-row="${esc(r.id)}">
+    // On the field while the clock runs: the row is alive — the dot pulses,
+    // the minute mark ticks, the bar's growing end glows. At a break the
+    // clock stops and so does the row.
+    const live = r.on && state.status === 'running';
+    return `<div class="mn-row${r.short ? ' short' : ''}${live ? ' live' : ''}" data-mn-row="${esc(r.id)}">
       ${shirt(r.number)}
       <span class="mn-name">${state.status !== 'ended' ? `<i class="mn-state${r.on ? ' on' : ''}" aria-label="${r.on ? 'על המגרש' : 'בספסל'}"></i>` : ''}${esc(r.name)}</span>
-      <span class="mn-val num">${mins(r.minutes)}</span>
+      <span class="mn-val num">${live ? M.ltr(`${r.minutes}<i class="mn-tick">'</i>`) : mins(r.minutes)}</span>
       <span class="mn-track" aria-hidden="true"><i class="mn-fill" style="width:${pct(r.minutes, of)}%"></i><i class="mn-min" style="inset-inline-start:${pct(min, of)}%"></i></span>
       ${sub}
     </div>`;

@@ -26,6 +26,31 @@
 חוזרים לענף העבודה ומיישרים אותו ל-`main` — ענף שנשאר מאחור הוא איך
 שינוי נבנה על בסיס ישן.
 
+**בתחילת סשן:** `git fetch origin main` ויישור ענף העבודה אליו. לפעמים
+סוכן נוסף עובד על הריפו במקביל, ו-`main` זז בינתיים.
+
+## מפת הקבצים
+
+| קובץ | תפקיד |
+|---|---|
+| `index.html`, `styles.css`, `manifest.webmanifest`, `sw.js`, `version.json` | המעטפת, העיצוב כולו, PWA |
+| `src/app.js` | ניתוב (`#/`, `#/live`, `#/stats`, `#/media`, `#/admin`), מצב גישה, ניווט |
+| `src/config.js` | כתובת הגשר (`BRIDGE_URL`) וסמל ברירת מחדל |
+| `src/bridge.js` | `call(action, params, {asAdmin})` — הקריאה היחידה לגשר |
+| `src/store.js` | localStorage בקידומת `mg:` — `device`, `name`, `admin` (קוד המנהל), `season` (עותק במטמון), `bridge` (דריסה לבדיקות), `pollMs` |
+| `src/season.js` | `buildSeason` — כל מה שמחושב |
+| `src/format.js`, `src/components.js`, `src/icons.js`, `src/ui/sheet.js` | עיצוב נתונים (`esc`, תאריכים, שמות), רכיבי ממשק, אייקונים, גיליון תחתון |
+| `src/views/*.js` | מסך לכל נתיב; `gate.js` = בקשת גישה והמתנה |
+| `src/live/model.js`, `src/live/sync.js` | משחק חי (ראו למטה) |
+| `src/fixtures.js`, `src/importer.js`, `src/positions.js`, `src/posters.js`, `src/install.js`, `src/updater.js` | ראו הסעיפים המתאימים |
+| `tools/bridge.gs` | הגשר (Apps Script) |
+| `tools/bump.mjs` | קידום גרסה |
+| `tools/make-fixtures.py` | מייצר את `docs/fixtures/*.xlsx` (`openpyxl`) — לא לערוך את הקבצים ידנית |
+| `README.md` | הוראות למנהל: התקנת הגשר בפעם הראשונה, `ADMIN_CODE` (12 תווים לפחות), פריסה |
+
+כניסת מנהל: `#/admin` → קוד המנהל, שנשמר ב-`mg:admin` במכשיר. אין משתמשים
+ואין סיסמאות מעבר לזה.
+
 ## ארכיטקטורה: הגשר
 
 הנתונים **לא** נמצאים בריפו. הם יושבים בתיקייה `MGivatayim` בגוגל דרייב של
@@ -313,7 +338,7 @@ GitHub Pages מענף `main`, שורש הריפו, בלי workflow. push ל-`mai
 
 ```bash
 npm i playwright            # פעם אחת, בשורש. node_modules מוחרג ב-.gitignore
-node tests/units.mjs        # ייבוא (כולל xlsx אמיתי) ומודל המשחק החי
+node tests/units.mjs        # ייבוא (כולל xlsx אמיתי), ומודל המשחק החי דרך units-live.mjs
 node tests/bridge.mjs       # כללי ההרשאה של bridge.gs — מריץ את הקובץ האמיתי
 node tests/e2e.mjs          # הורה + מנהל בדפדפן, מול הגשר האמיתי על שירותי גוגל מדומים
 node tests/pwa.mjs          # גרסאות מסונכרנות, precache שלם, ועדכון שמגיע לדף פתוח
@@ -322,6 +347,14 @@ node tests/pwa.mjs          # גרסאות מסונכרנות, precache שלם, 
 בסשן מרוחק `.claude/hooks/session-start.sh` מתקין את playwright אם חסר. אותו
 הוק מפעיל בכל סשן את הסקיל `token-efficient-workflow` (`.claude/skills/`).
 `CLAUDE.md` גובר עליו.
+
+הבדיקות מריצות את ה-Chromium שבתמונה (`/opt/pw-browsers`) — לא להריץ
+`playwright install`. לצילומי מסך של האפליקציה: שרת סטטי על שורש הריפו,
+`localStorage['mg:bridge']` לגשר מדומה (`page.route`), וחלון בגודל 390×844.
+
+**בדיקה חדשה מוכיחה את עצמה:** אחרי שהיא עוברת, מסירים את התיקון (`git stash`
+על הקובץ) ורואים שהיא נכשלת. בדיקה שעוברת גם בלי התיקון לא בודקת כלום —
+כך נתפסו כאן כבר שתי בדיקות ריקות.
 
 `tests/mock-bridge.mjs` מריץ את `tools/bridge.gs` עצמו ב-Node על גרסאות
 בזיכרון של DriveApp, CacheService ושות'. אין "גשר מזויף" שמחקה את המקורי —

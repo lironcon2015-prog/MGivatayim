@@ -13,10 +13,13 @@
 <meta property="og:title" content="מדריך להורים">
 <meta property="og:description" content="התקנה, מה יש באפליקציה, צפייה במשחק חי, ותיעוד משחק כשהמנהל לא במגרש.">
 <meta property="og:url" content="https://lironcon2015-prog.github.io/MGivatayim/docs/parent.html">
-<meta property="og:image" content="https://lironcon2015-prog.github.io/MGivatayim/assets/crest.png">
-<meta property="og:image:width" content="256">
-<meta property="og:image:height" content="256">
-<meta name="twitter:card" content="summary">
+<meta property="og:image" content="https://lironcon2015-prog.github.io/MGivatayim/docs/og-parent.jpg">
+<meta property="og:image:secure_url" content="https://lironcon2015-prog.github.io/MGivatayim/docs/og-parent.jpg">
+<meta property="og:image:type" content="image/jpeg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="סמל מכבי גבעתיים">
+<meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="../icons/favicon-32.png" sizes="32x32">
 <link rel="apple-touch-icon" href="../icons/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -130,6 +133,12 @@ footer{margin-top:40px;text-align:center;font-size:13px;color:var(--faint)}
 .code{display:flex;gap:8px;align-items:center;margin-top:10px}
 .code .in{flex:1;padding:9px 12px;border-radius:14px;background:var(--well);border:1px solid var(--line2);color:var(--muted);font-family:Rubik,sans-serif;direction:ltr;text-align:start}
 .code .go{padding:9px 16px;border-radius:999px;font-weight:800;background:linear-gradient(180deg,var(--gold-hi),var(--gold-lo));color:var(--on-gold)}
+
+.app-link{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin-top:14px}
+.app-btn{display:inline-flex;align-items:center;gap:8px;padding:10px 18px;border-radius:999px;font-weight:800;text-decoration:none;background:linear-gradient(180deg,var(--gold-hi),var(--gold-lo));color:var(--on-gold);box-shadow:0 10px 26px -12px var(--gold-glow)}
+.app-btn-sm{padding:5px 14px;font-size:14px;margin:4px 0;box-shadow:none}
+.app-btn:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
+.app-url{font-family:Rubik,sans-serif;font-size:13px;color:var(--muted);direction:ltr;unicode-bidi:isolate;word-break:break-all;user-select:all}
 </style>
 </head>
 <body>
@@ -138,28 +147,16 @@ footer{margin-top:40px;text-align:center;font-size:13px;color:var(--faint)}
     <p class="eyebrow">מכבי גבעתיים · העונה</p>
     <h1>מדריך להורים</h1>
     <p>האפליקציה של הקבוצה מרכזת במקום אחד את המשחק הבא, התוצאות, נתוני השחקנים, הסרטונים ומשחק חי שמתעדכן בזמן אמת. כך לא צריך לחפש בוואטסאפ מתי ההתכנסות, מה התוצאה ומי הבקיע.</p>
+    <div class="app-link"><a class="app-btn" href="https://lironcon2015-prog.github.io/MGivatayim/">לאפליקציה ←</a><span class="app-url">https://lironcon2015-prog.github.io/MGivatayim/</span></div>
   </header>
 
   <nav class="toc" aria-label="תוכן">
-    <a href="#install">התקנה וכניסה</a>
     <a href="#app">מה יש באפליקציה</a>
     <a href="#live">משחק חי</a>
     <a href="#control">תיעוד משחק עם קוד</a>
+    <a href="#install">התקנה וכניסה</a>
     <a href="#faq">שאלות</a>
   </nav>
-
-  <section id="install">
-    <h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></svg>התקנה וכניסה</h2>
-    <div class="card">
-      <ol class="steps">
-        <li><span>פותחים את הקישור שקיבלתם מהמנהל. אם הוא נפתח בתוך וואטסאפ, בוחרים "פתיחה ב-Safari" (באייפון) או "פתיחה ב-Chrome" (באנדרואיד).</span></li>
-        <li><span><b>קודם מתקינים, ורק אחר כך מבקשים גישה.</b> באייפון: כפתור השיתוף ← "הוספה למסך הבית". באנדרואיד: "התקנה". באייפון האפליקציה שבמסך הבית היא מכשיר נפרד מ-Safari, ולכן בקשה שנשלחה מ-Safari לא עוברת אליה.</span></li>
-        <li><span>פותחים את האפליקציה ממסך הבית, כותבים שם (למשל "אבא של איתי") ושולחים בקשת גישה.</span></li>
-        <li><span>המנהל מאשר, ומאותו רגע העונה פתוחה בפניכם. אין סיסמה ואין צורך בחשבון גוגל: הטלפון מזוהה לבד.</span></li>
-      </ol>
-      <p class="note">כל טלפון מאושר בנפרד. אם יש לכם טלפון וגם טאבלט, שולחים בקשה מכל אחד מהם.</p>
-    </div>
-  </section>
 
   <section id="app">
     <h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg>מה יש באפליקציה</h2>
@@ -229,6 +226,19 @@ footer{margin-top:40px;text-align:center;font-size:13px;color:var(--faint)}
     <h3>אין קליטה במגרש?</h3>
     <p>ממשיכים לתעד כרגיל. כל פעולה נרשמת בטלפון מיד ונשמרת בו, גם אם הוא נסגר. כשהקליטה חוזרת, הפעולות נשלחות לבד. בזמן הזה כתוב על המסך "אין קליטה · N פעולות ממתינות", וכשהכל עבר מופיע "כולם רואים את העדכון".</p>
     <p class="note">השליטה מסתיימת כשהמשחק נשמר. תיקון של משחק שכבר הסתיים נעשה רק אצל המנהל.</p>
+  </section>
+
+  <section id="install">
+    <h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></svg>התקנה וכניסה</h2>
+    <div class="card">
+      <ol class="steps">
+        <li><span>פותחים את האפליקציה: <a class="app-btn app-btn-sm" href="https://lironcon2015-prog.github.io/MGivatayim/">לאפליקציה ←</a><br> אם הקישור נפתח בתוך וואטסאפ, בוחרים "פתיחה ב-Safari" (באייפון) או "פתיחה ב-Chrome" (באנדרואיד).</span></li>
+        <li><span><b>קודם מתקינים, ורק אחר כך מבקשים גישה.</b> באייפון: כפתור השיתוף ← "הוספה למסך הבית". באנדרואיד: "התקנה". באייפון האפליקציה שבמסך הבית היא מכשיר נפרד מ-Safari, ולכן בקשה שנשלחה מ-Safari לא עוברת אליה.</span></li>
+        <li><span>פותחים את האפליקציה ממסך הבית, כותבים שם (למשל "אבא של איתי") ושולחים בקשת גישה.</span></li>
+        <li><span>המנהל מאשר, ומאותו רגע העונה פתוחה בפניכם. אין סיסמה ואין צורך בחשבון גוגל: הטלפון מזוהה לבד.</span></li>
+      </ol>
+      <p class="note">כל טלפון מאושר בנפרד. אם יש לכם טלפון וגם טאבלט, שולחים בקשה מכל אחד מהם.</p>
+    </div>
   </section>
 
   <section id="faq">

@@ -1,5 +1,5 @@
 import { esc } from '../format.js';
-import { installHelp } from '../install.js';
+import { installHelp, isStandalone } from '../install.js';
 
 // Screens shown before the season: every state a device can be in toward the
 // bridge gets its own plain explanation and exactly one thing to do next.
@@ -20,7 +20,9 @@ export function setupScreen() {
 }
 
 export function requestScreen(name = '', error = '') {
-  return installHelp() + card('בקשת גישה',
+  // Outside the home-screen app the title itself says the order: install
+  // first, then ask (an iPhone request from Safari does not reach the icon).
+  return installHelp() + card(isStandalone() ? 'בקשת גישה' : 'בקשת גישה — אחרי התקנה במסך הבית',
     `<p class="gate-lead">הנתונים של הקבוצה פתוחים להורים ולשחקנים באישור המנהל. שלחו בקשה פעם אחת מהמכשיר הזה.</p>
      <form id="request-form" class="form-stack" novalidate>
        <label class="field"><span>איך המנהל יזהה אתכם?</span>

@@ -399,14 +399,18 @@ section { margin-top: 1.9rem; }
 .foot { margin-top: 2.2rem; text-align: center; font-size: .78rem; color: var(--faint); }
 
 /* ── Segmented control ───────────────────────────────────────────────── */
-.seg { display: flex; gap: 4px; background: var(--surface); border: 1px solid rgba(255, 255, 255, .09); border-radius: var(--r-pill); padding: 4px; }
+/* Every switch in the app — tabs, the attendance and role switches — is
+   one well with the chosen option lit in soft gold and a gold outline, as in
+   the owner's mockup. Not solid gold: a switch is furniture, and a solid
+   gold pill competed with the one lead card each screen is allowed. */
+.seg { display: flex; gap: 4px; background: var(--well); border: 1px solid var(--line); border-radius: var(--r-pill); padding: 3px; }
 .seg button {
   flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: .4rem;
   font: inherit; font-size: .88rem; font-weight: 700; cursor: pointer;
-  border: 0; border-radius: var(--r-pill); padding: .6rem .3rem;
-  background: transparent; color: var(--muted); transition: background .15s, color .15s;
+  border: 1px solid transparent; border-radius: var(--r-pill); padding: .55rem .3rem;
+  background: transparent; color: var(--muted); transition: background .15s, color .15s, border-color .15s;
 }
-.seg button[aria-selected="true"] { background: var(--gold); color: var(--on-gold); box-shadow: 0 0 16px rgba(232, 185, 49, .4); }
+.seg button[aria-selected="true"] { background: var(--gold-soft); color: var(--gold); border-color: var(--gold-line); }
 .seg button:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 
 .empty { text-align: center; color: var(--faint); padding: 1.6rem .5rem; font-size: .9rem; }
@@ -486,7 +490,6 @@ section { margin-top: 1.9rem; }
   border-radius: var(--r-pill); background: var(--gold); color: var(--on-gold); font-size: .72rem; font-weight: 800;
   box-shadow: 0 0 12px rgba(232, 185, 49, .5);
 }
-.seg button[aria-selected="true"] .count { background: var(--on-gold); color: var(--gold); box-shadow: none; }
 
 /* ── Admin lists ─────────────────────────────────────────────────────── */
 .edit-item { padding: 0; margin-bottom: 8px; border-radius: 22px; overflow: hidden; }
@@ -990,12 +993,12 @@ button.match:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px
 .mn-played { font-size: .78rem; color: var(--muted); }
 .mn-tg, .role-tg { display: inline-flex; flex: none; padding: 2px; border-radius: var(--r-pill); background: var(--well); border: 1px solid var(--line); }
 .mn-tg button, .role-tg button {
-  font: inherit; font-size: .78rem; font-weight: 700; padding: .3rem .75rem; border: 0; border-radius: var(--r-pill);
+  font: inherit; font-size: .78rem; font-weight: 700; padding: .3rem .75rem; border: 1px solid transparent; border-radius: var(--r-pill);
   background: none; color: var(--muted); cursor: pointer;
 }
 .mn-tg button:focus-visible, .role-tg button:focus-visible { outline: 2px solid var(--gold); outline-offset: 1px; }
-.mn-tg button[aria-pressed="true"][data-mn-state="here"], .role-tg button[aria-pressed="true"] { background: var(--gold-soft); color: var(--gold); }
-.mn-tg button[aria-pressed="true"][data-mn-state="away"] { background: var(--surface-2); color: var(--text); }
+.mn-tg button[aria-pressed="true"][data-mn-state="here"], .role-tg button[aria-pressed="true"] { background: var(--gold-soft); color: var(--gold); border-color: var(--gold-line); }
+.mn-tg button[aria-pressed="true"][data-mn-state="away"] { background: var(--surface-2); color: var(--text); border-color: var(--line-strong); }
 .role-tg button:disabled { cursor: default; }
 
 .mn-kpis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: .75rem 0; }

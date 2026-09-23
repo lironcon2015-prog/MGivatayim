@@ -47,7 +47,7 @@
 | `tools/bridge.gs` | הגשר (Apps Script) |
 | `tools/bump.mjs` | קידום גרסה |
 | `tools/make-fixtures.py` | מייצר את `docs/fixtures/*.xlsx` (`openpyxl`) — לא לערוך את הקבצים ידנית |
-| `docs/coach.html` | "מדריך למאמן" — דף עצמאי באתר, עם תגיות og לתצוגה המקדימה בוואטסאפ (`…/MGivatayim/docs/coach.html`), לשליחה למאמן. שינוי במסכי המאמן → עדכון שלו |
+| `docs/coach.html` | "מדריך למאמן" — דף עצמאי באתר (הגרסה בתחתית נקראת מ-`version.json`), עם תגיות og לתצוגה המקדימה בוואטסאפ (`…/MGivatayim/docs/coach.html`), לשליחה למאמן. שינוי במסכי המאמן → עדכון שלו |
 | `README.md` | הוראות למנהל: התקנת הגשר בפעם הראשונה, `ADMIN_CODE` (12 תווים לפחות), פריסה |
 
 כניסת מנהל: `#/admin` → קוד המנהל, שנשמר ב-`mg:admin` במכשיר. אין משתמשים

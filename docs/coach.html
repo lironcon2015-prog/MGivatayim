@@ -257,7 +257,14 @@ footer{margin-top:40px;text-align:center;font-size:13px;color:var(--faint)}
     </div>
   </section>
 
-  <footer>מכבי גבעתיים · העונה · נכון לגרסה <span class="num">1.15.0</span></footer>
+  <footer>מכבי גבעתיים · העונה · גרסה <span class="num" id="app-version">1.16.0</span></footer>
+  <script>
+    // The app's version as the site declares it now, so the guide never
+    // shows a number the app has moved past. The text above is the fallback.
+    fetch('../version.json', { cache: 'no-store' }).then((r) => r.json())
+      .then((v) => { if (v && v.version) document.getElementById('app-version').textContent = v.version; })
+      .catch(() => {});
+  </script>
 </div>
 
 </body>

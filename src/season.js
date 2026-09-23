@@ -5,6 +5,7 @@
 
 import { minutesPlayed } from './live/model.js';
 import { primaryPos, posLabel } from './positions.js';
+import { upcomingFixtures, fixtureAsNext } from './fixtures.js';
 
 export const OUTCOMES = { win: 'ניצחון', draw: 'תיקו', loss: 'הפסד' };
 
@@ -43,7 +44,9 @@ function streaks(chronological) {
   return { best, current };
 }
 
-export function buildSeason(input) {
+const sameDay = (f, nm) => !!nm?.kickoff && String(nm.kickoff).slice(0, 10) === f.date;
+
+export function buildSeason(input, now = new Date()) {
   // Every list may be missing or empty: the data file is filled in by hand,
   // often section by section, and a season that has not kicked off yet has
   // no matches at all. None of that should take the page down.
@@ -51,6 +54,7 @@ export function buildSeason(input) {
     ...input,
     team: { name: 'מכבי גבעתיים', ...(input.team ?? {}) },
     matches: input.matches ?? [],
+    fixtures: input.fixtures ?? [],
     players: input.players ?? [],
     videos: input.videos ?? [],
     links: input.links ?? [],
@@ -95,8 +99,18 @@ export function buildSeason(input) {
   });
   const squadGoals = players.reduce((sum, p) => sum + p.goals, 0);
 
+  // The next match: the one the manager set by hand (with its gathering time
+  // and kit), else the first fixture still ahead in the schedule. Derived on
+  // every load, so entering a result moves the schedule on by itself.
+  const upcoming = upcomingFixtures(raw.fixtures, raw.matches, now);
+  const nextMatch = raw.nextMatch?.opponent ? raw.nextMatch : fixtureAsNext(upcoming[0]);
+
   return {
     ...raw,
+    nextMatch,
+    // Every fixture still ahead, and those after the one the card shows.
+    schedule: upcoming,
+    upcoming: raw.nextMatch?.opponent ? upcoming.filter((f) => !sameDay(f, raw.nextMatch)) : upcoming.slice(1),
     chronological,
     recent,
     overall: {

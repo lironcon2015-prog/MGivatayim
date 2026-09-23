@@ -192,6 +192,109 @@ await test('success rate is points taken out of points available', async () => {
   assert.equal(buildSeason({}).overall.pointsRate, 0, 'no matches, no division by zero');
 });
 
+await test('fixtures: dates and times as spreadsheets write them', async () => {
+  const { parseDate, parseTime, parseHome } = await import('../src/fixtures.js');
+  assert.equal(parseDate('19/09/2026').date, '2026-09-19');
+  assert.equal(parseDate('19.9.26').date, '2026-09-19');
+  assert.equal(parseDate('2026-09-19').date, '2026-09-19');
+  assert.equal(parseDate('31/02/2026').date, '', 'no 31 February');
+  assert.deepEqual(parseDate('46284'), { date: '2026-09-19', time: '' }, 'Excel serial');
+  assert.deepEqual(parseDate('46284.729166667'), { date: '2026-09-19', time: '17:30' }, 'serial with a time');
+  assert.equal(parseDate('19/09/2026 17:30').time, '17:30');
+  assert.equal(parseTime('17:30'), '17:30');
+  assert.equal(parseTime('9.00'), '09:00');
+  assert.equal(parseTime('0.5'), '12:00');
+  assert.equal(parseTime('25:00'), '');
+  assert.equal(parseHome('בית'), true);
+  assert.equal(parseHome('ח'), false);
+  assert.equal(parseHome('?'), null);
+});
+
+await test('fixtures: our-view format (opponent, home/away, our goals)', async () => {
+  const F = await import('../src/fixtures.js');
+  const rows = [
+    ['מחזור', 'תאריך', 'שעה', 'יריבה', 'בית/חוץ', 'מגרש', 'שערים שלנו', 'שערי היריבה'],
+    ['1', '15/08/2026', '17:00', 'בני יהודה', 'בית', 'גבעתיים', '3', '1'],
+    ['2', '22/08/2026', '', 'מכבי יפו', 'חוץ', '', '', ''],
+    ['', '', '', '', '', '', '', ''],
+    ['3', '', '', 'בלי תאריך', 'בית', '', '', ''],
+  ];
+  const cols = F.detectFixtureColumns(rows);
+  assert.equal(cols.headerRow, true);
+  const out = F.rowsToFixtures(rows, cols);
+  assert.deepEqual(out.results, [{ date: '2026-08-15', opponent: 'בני יהודה', home: true, round: 1, gf: 3, ga: 1 }]);
+  assert.equal(out.fixtures.length, 1);
+  assert.deepEqual(out.fixtures[0], { date: '2026-08-22', time: '', opponent: 'מכבי יפו', home: false, round: 2, venue: { name: '', address: '' } });
+  assert.equal(out.skipped, 1, 'the row without a date is counted, the empty row is not');
+});
+
+await test('fixtures: league format (home team, away team, home/away goals)', async () => {
+  const F = await import('../src/fixtures.js');
+  const rows = [
+    ['מחזור', 'תאריך', 'קבוצת בית', 'קבוצת חוץ', 'שערי בית', 'שערי חוץ'],
+    ['1', '15/08/2026', 'מכבי גבעתיים', 'בני יהודה', '3', '1'],
+    ['2', '22/08/2026', 'מכבי יפו', 'מכבי גבעתיים', '2', '0'],
+    ['3', '29/08/2026', 'מ.כ. גבעתיים ', 'הפועל חולון', '', ''],
+    ['4', '05/09/2026', 'הפועל רמת גן', 'מכבי גבעתיים', '', ''],
+  ];
+  const out = F.rowsToFixtures(rows, F.detectFixtureColumns(rows), 'מכבי גבעתיים');
+  assert.deepEqual(out.results.map((r) => [r.opponent, r.home, r.gf, r.ga]),
+    [['בני יהודה', true, 3, 1], ['מכבי יפו', false, 0, 2]], 'away: our goals are the away column');
+  assert.deepEqual(out.fixtures.map((f) => [f.opponent, f.home]), [['הפועל רמת גן', false]],
+    'a row where neither side is spelled like us is skipped, not guessed');
+  assert.equal(out.skipped, 1);
+});
+
+await test('fixtures: what is still ahead, and the next match derived from it', async () => {
+  const F = await import('../src/fixtures.js');
+  const { buildSeason } = await import('../src/season.js');
+  const now = new Date('2026-09-23T09:00:00+03:00');
+  const fx = (date, opponent, time = '') => ({ date, time, opponent, home: true, round: null, venue: { name: '', address: '' } });
+  const fixtures = [fx('2026-09-20', 'עבר'), fx('2026-09-23', 'היום', '18:00'), fx('2026-09-30', 'שוחק'), fx('2026-10-07', 'אחר כך')];
+  const matches = [{ date: '2026-09-30', opponent: 'שוחק', home: true, gf: 1, ga: 0 }];
+  assert.deepEqual(F.upcomingFixtures(fixtures, matches, now).map((f) => f.opponent), ['היום', 'אחר כך'],
+    'past fixtures and dates that already have a result drop out');
+  const s = buildSeason({ fixtures, matches }, now);
+  assert.equal(s.nextMatch.opponent, 'היום');
+  assert.equal(s.nextMatch.kickoff, '2026-09-23T18:00:00+03:00');
+  assert.equal(s.nextMatch.fromFixtures, true);
+  assert.deepEqual(s.upcoming.map((f) => f.opponent), ['אחר כך'], 'the card shows the first; the list the rest');
+  assert.equal(s.schedule.length, 2);
+  const tbd = buildSeason({ fixtures: [fx('2026-10-07', 'בלי שעה')] }, now).nextMatch;
+  assert.equal(tbd.timeTbd, true);
+  const manual = buildSeason({ fixtures, matches, nextMatch: { opponent: 'ידני', kickoff: '2026-09-23T18:00:00+03:00' } }, now);
+  assert.equal(manual.nextMatch.opponent, 'ידני', 'a next match set by hand wins');
+  assert.deepEqual(manual.upcoming.map((f) => f.opponent), ['אחר כך'], 'the same day is not listed twice');
+  assert.equal(buildSeason({}, now).nextMatch, null);
+});
+
+await test('fixtures: an import never overwrites a result already there', async () => {
+  const F = await import('../src/fixtures.js');
+  const season = { matches: [{ date: '2026-08-15', opponent: 'בני יהודה', gf: 4, ga: 4, liveId: 'L1' }] };
+  const r = F.applyFixtureImport(season, {
+    fixtures: [{ date: '2026-10-01', opponent: 'X' }],
+    results: [{ date: '2026-08-15', opponent: 'בני יהודה', gf: 3, ga: 1 }, { date: '2026-08-22', opponent: 'יפו', gf: 1, ga: 1 }],
+  });
+  assert.equal(r.added, 1);
+  assert.equal(r.matches.find((m) => m.date === '2026-08-15').gf, 4, 'the live-recorded score stays');
+  assert.equal(r.fixtures.length, 1);
+});
+
+await test('the demo schedule in docs/fixtures imports as documented', async () => {
+  const F = await import('../src/fixtures.js');
+  const { readFileSync } = await import('node:fs');
+  const rows = await readRows(new Blob([readFileSync(new URL('../docs/fixtures/schedule-demo.xlsx', import.meta.url))]));
+  const out = F.rowsToFixtures(rows, F.detectFixtureColumns(rows), 'מכבי גבעתיים');
+  assert.equal(out.results.length, 5);
+  assert.equal(out.fixtures.length, 17);
+  assert.equal(out.skipped, 0);
+  assert.deepEqual([out.results[1].opponent, out.results[1].home, out.results[1].gf, out.results[1].ga], ['מכבי יפו', false, 1, 1]);
+  assert.equal(out.fixtures[0].time, '16:45', 'Excel time cells');
+  assert.equal(out.fixtures.at(-1).time, '', 'late rounds without a time');
+  const tpl = await readRows(new Blob([readFileSync(new URL('../docs/fixtures/schedule-template.xlsx', import.meta.url))]));
+  assert.equal(F.rowsToFixtures(tpl, F.detectFixtureColumns(tpl), 'מכבי גבעתיים').fixtures.length, 1);
+});
+
 export { test, failures };
 export const done = () => passed;
 

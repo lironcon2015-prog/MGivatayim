@@ -1,7 +1,7 @@
 import { topBy } from '../season.js';
 import { longDate, clock, pct, dec, esc, safeUrl, splitDuration, pad2 } from '../format.js';
 import { icon } from '../icons.js';
-import { crestImg, sectionHead, formPill, matchRow, leaderRow, tile, splitBar, linkRow, videoCard } from '../components.js';
+import { crestImg, sectionHead, formPill, matchRow, fixtureRow, leaderRow, tile, splitBar, linkRow, videoCard } from '../components.js';
 
 // "Next match" is the page's lead card, so its title lives inside it as a
 // gold eyebrow instead of a section head above it.
@@ -43,10 +43,10 @@ function nextMatchCard(s) {
     ${eyebrow(`${round}${nm.home ? 'בית' : 'חוץ'}`)}
     <div class="fixture">
       ${disc(sides[0])}
-      <div class="vs"><div class="kick num">${clock(kick)}</div><div class="word">VS</div><div class="date">${esc(longDate(kick))}</div></div>
+      <div class="vs"><div class="kick num">${nm.timeTbd ? 'שעה טרם נקבעה' : clock(kick)}</div><div class="word">VS</div><div class="date">${esc(longDate(kick))}</div></div>
       ${disc(sides[1])}
     </div>
-    <div id="countdown" data-kickoff="${kick.toISOString()}"></div>
+    ${nm.timeTbd ? '' : `<div id="countdown" data-kickoff="${kick.toISOString()}"></div>`}
     <div class="meta-row">${icon('pin')}
       <span><b>${place}</b>${nm.venue?.name && nm.venue?.address ? ` <span class="sub">· ${esc(nm.venue.address)}</span>` : ''}</span>
     </div>
@@ -65,6 +65,11 @@ export function renderHome(s) {
   <section>
     ${nextMatchCard(s)}
   </section>
+
+  ${s.upcoming.length ? `<section>
+    ${sectionHead('בהמשך', s.upcoming.length > 3 ? '<a href="#/stats">ללוח המלא</a>' : '', 'calendar')}
+    <div class="card rows">${s.upcoming.slice(0, 3).map(fixtureRow).join('')}</div>
+  </section>` : ''}
 
   <section>
     ${sectionHead('התוצאות האחרונות', `${last5.length} אחרונות`, 'trophy')}

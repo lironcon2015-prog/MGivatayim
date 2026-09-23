@@ -1,5 +1,5 @@
 import { call } from '../bridge.js';
-import { esc, safeUrl, israelIso, splitKickoff, stamp, currentSeasonLabel } from '../format.js';
+import { esc, safeUrl, israelIso, splitKickoff, stamp, currentSeasonLabel, shortDate } from '../format.js';
 import { POSITIONS, primaryPos, posLabel } from '../positions.js';
 import { readRows, parseDelimited, detectColumns, rowsToPlayers, planImport, applyImport, FIELDS } from '../importer.js';
 import { DEFAULT_FORMAT, DEFAULT_SIZE, cleanFormat, cleanSize } from '../live/model.js';
@@ -7,6 +7,7 @@ import { formatEditorHtml, wireFormatEditor } from './live.js';
 import { openSheet, toast } from '../ui/sheet.js';
 import { icon } from '../icons.js';
 import { preparePosters } from '../posters.js';
+import { detectFixtureColumns, rowsToFixtures, applyFixtureImport, upcomingFixtures, FIXTURE_FIELDS } from '../fixtures.js';
 
 /* ── What the manager edits ───────────────────────────────────────────────
    One table drives every list editor: the form, the "add" template and the
@@ -19,6 +20,7 @@ const ICON_OPTS = [['chat', 'צ׳אט'], ['table', 'טבלה'], ['calendar', 'ל
 const POS_OPTS = [['', '—'], ...POSITIONS.map((p) => [p.id, p.label])];
 const newId = () => 'p' + Math.random().toString(36).slice(2, 9);
 const today = () => new Date().toISOString().slice(0, 10);
+const IMPORT_ACCEPT = '.xlsx,.csv,.tsv,.txt,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv';
 
 const TEAM_FIELDS = [
   { key: 'name', label: 'שם הקבוצה', required: true },
@@ -39,6 +41,23 @@ const NEXT_FIELDS = [
 ];
 
 const LISTS = [
+  {
+    // The season's schedule. The next match is derived from it when none is
+    // set by hand; a whole schedule usually arrives as a spreadsheet (importer).
+    path: 'fixtures', title: 'לוח משחקים', glyph: 'calendar', add: 'הוספת משחק ללוח', importer: 'fixtures',
+    note: 'המשחקים שעוד לא נערכו. המשחק הבא נלקח מכאן אוטומטית, ומשחק שהוזנה לו תוצאה יורד מהלוח.',
+    blank: () => ({ date: today(), time: '', opponent: '', home: true, round: null, venue: { name: '', address: '' } }),
+    label: (f) => `${f.date ? shortDate(f.date) + ' · ' : ''}${f.opponent || 'משחק חדש'}`,
+    fields: [
+      { key: 'date', label: 'תאריך', type: 'date', required: true },
+      { key: 'time', label: 'שעה', type: 'time', hint: 'ריק = טרם נקבעה' },
+      { key: 'opponent', label: 'יריבה', required: true },
+      { key: 'home', label: 'בית / חוץ', type: 'select', options: HOME_OPTS },
+      { key: 'round', label: 'מחזור', type: 'number' },
+      { key: 'venue.name', label: 'מגרש' },
+      { key: 'venue.address', label: 'כתובת', hint: 'קישור ה-Waze נבנה מהכתובת' },
+    ],
+  },
   {
     path: 'matches', title: 'תוצאות משחקים', glyph: 'trophy', add: 'הוספת משחק', prepend: true,
     blank: () => ({ date: today(), opponent: '', home: true, round: null, gf: 0, ga: 0 }),
@@ -206,7 +225,7 @@ let tab = 'season';
 const blankSeason = () => ({
   team: { name: 'מכבי גבעתיים', league: '', season: '' },
   settings: { format: [...DEFAULT_FORMAT], size: DEFAULT_SIZE },
-  nextMatch: null, matches: [], players: [], videos: [], links: [],
+  nextMatch: null, fixtures: [], matches: [], players: [], videos: [], links: [],
   analysis: { items: [], note: '' },
 });
 
@@ -214,6 +233,7 @@ function adopt(payload) {
   draft = clone(payload?.season) || blankSeason();
   draft.analysis ??= { items: [], note: '' };
   draft.analysis.items ??= [];
+  draft.fixtures ??= [];
   draft.settings ??= { format: [...DEFAULT_FORMAT] };
   // Players saved before ids and positions existed: the id follows the same
   // name rule season.js reads with, so live history still credits them.
@@ -267,6 +287,13 @@ export function mountAdmin(view, ctx) {
         set: (n) => { draft.settings = { ...(draft.settings || {}), size: n }; touch(); },
       });
     }
+    view.querySelector('[data-import-fixtures]')?.addEventListener('change', async (e) => {
+      const file = e.target.files?.[0];
+      e.target.value = '';
+      if (!file) return;
+      try { fixturePreview(await readRows(file), file.name); }
+      catch (err) { toast(esc(err.message), { kind: 'err', ms: 7000 }); }
+    });
     view.querySelector('[data-import-file]')?.addEventListener('change', async (e) => {
       const file = e.target.files?.[0];
       e.target.value = '';
@@ -278,21 +305,70 @@ export function mountAdmin(view, ctx) {
 
   /* ---- import ---- */
 
-  function pasteSheet() {
+  function pasteSheet(kind = 'players') {
+    const fixtures = kind === 'fixtures';
     const sh = openSheet({
-      title: 'הדבקה מאקסל',
-      body: `<p class="sheet-text">מסמנים באקסל או ב-Google Sheets את העמודות של השם והמספר (אפשר גם עמדה), מעתיקים, ומדביקים כאן.</p>
-        <textarea class="paste-box" rows="8" placeholder="7	איתי כהן	כנף שמאל&#10;10	דניאל לוי	קשר קדמי" dir="auto" data-paste></textarea>
+      title: fixtures ? 'הדבקת לוח משחקים' : 'הדבקה מאקסל',
+      body: `<p class="sheet-text">${fixtures
+        ? 'מסמנים באקסל את הטבלה <b>כולל שורת הכותרות</b> (תאריך, יריבה, בית/חוץ… או קבוצת בית וקבוצת חוץ), מעתיקים ומדביקים כאן.'
+        : 'מסמנים באקסל או ב-Google Sheets את העמודות של השם והמספר (אפשר גם עמדה), מעתיקים, ומדביקים כאן.'}</p>
+        <textarea class="paste-box" rows="8" placeholder="${fixtures ? 'מחזור	תאריך	שעה	יריבה	בית/חוץ&#10;7	26/09/2026	17:30	הפועל רמת גן	בית' : '7	איתי כהן	כנף שמאל&#10;10	דניאל לוי	קשר קדמי'}" dir="auto" data-paste></textarea>
         <div class="sheet-actions"><button type="button" class="btn" data-go>המשך</button></div>`,
       onMount: ({ el }) => {
         el.querySelector('[data-go]').addEventListener('click', () => {
           const rows = parseDelimited(el.querySelector('[data-paste]').value);
           if (!rows.length) { toast('לא הודבק כלום', { kind: 'err' }); return; }
           sh.close('next');
-          importPreview(rows, 'הדבקה');
+          if (fixtures) fixturePreview(rows, 'הדבקה');
+          else importPreview(rows, 'הדבקה');
         });
       },
     });
+  }
+
+  // A schedule file replaces the fixture list (it is the whole schedule);
+  // rows that carry a score are results, added to the season's matches
+  // unless that date already has one. Shown before anything changes.
+  function fixturePreview(rows, source) {
+    let cols = detectFixtureColumns(rows);
+    let out;
+    const compute = () => { out = rowsToFixtures(rows, cols, draft.team?.name || ''); };
+    compute();
+    const have = new Set((draft.matches || []).map((m) => m.date));
+    const row = (f, res) => `<div class="imp-row"><span class="imp-name"><b>${esc(shortDate(f.date))} · ${esc(f.opponent)}</b>
+        <small>${f.home ? 'בית' : 'חוץ'}${f.round != null ? ` · מחזור ${f.round}` : ''}${res ? ` · תוצאה <span class="num" dir="ltr">${f.gf}:${f.ga}</span>` : f.time ? ` · ${esc(f.time)}` : ' · שעה טרם נקבעה'}${f.venue?.name ? ` · ${esc(f.venue.name)}` : ''}</small></span>
+        <span class="imp-kind ${res ? (have.has(f.date) ? 'k-same' : 'k-new') : 'k-upd'}">${res ? (have.has(f.date) ? 'יש כבר' : 'תוצאה') : 'בלוח'}</span></div>`;
+    const body = () => {
+      const newRes = out.results.filter((r) => !have.has(r.date)).length;
+      const width = cols.map.length;
+      return `<p class="sheet-text"><bdi>${esc(source)}</bdi> · ${out.fixtures.length} משחקים ללוח · ${out.results.length} תוצאות${out.skipped ? ` · ${out.skipped} שורות בלי תאריך או יריבה דולגו` : ''}</p>
+        ${cols.headerRow ? '' : '<p class="form-error">לא זוהתה שורת כותרות. השורה הראשונה צריכה לומר מה בכל עמודה — תאריך, יריבה, בית/חוץ וכו׳ — או לבחור כאן ידנית.</p>'}
+        <div class="imp-cols">${Array.from({ length: width }, (_, i) => `<label class="field"><span>עמודה ${i + 1}${rows[0]?.[i] ? ` · ${esc(String(rows[0][i]).slice(0, 14))}` : ''}</span>
+          <select data-fcol="${i}">${FIXTURE_FIELDS.map((f) => `<option value="${f.key}"${cols.map[i] === f.key ? ' selected' : ''}>${f.label}</option>`).join('')}</select></label>`).join('')}</div>
+        ${out.fixtures.length || out.results.length ? `<div class="imp-list">${out.results.map((r) => row(r, true)).join('')}${out.fixtures.map((f) => row(f, false)).join('')}</div>`
+          : '<div class="empty">לא נמצאו משחקים. בדקו שיש עמודת תאריך ועמודת יריבה (או קבוצת בית וקבוצת חוץ).</div>'}
+        ${(draft.fixtures || []).length ? `<p class="note">הלוח הנוכחי (${draft.fixtures.length} משחקים) יוחלף בלוח מהקובץ.</p>` : ''}
+        <div class="sheet-actions"><button type="button" class="btn" data-fapply${out.fixtures.length || newRes ? '' : ' disabled'}>${out.fixtures.length ? `ייבוא ${out.fixtures.length} משחקים ללוח` : 'ייבוא'}${newRes ? ` ו-${newRes} תוצאות` : ''}</button></div>`;
+    };
+    const sh = openSheet({ title: 'ייבוא לוח משחקים', tall: true, body: body(), onMount: ({ el }) => wire(el) });
+    function wire(el) {
+      el.querySelectorAll('[data-fcol]').forEach((sel) => sel.addEventListener('change', () => {
+        const map = [...cols.map];
+        if (sel.value) map.forEach((k, i) => { if (k === sel.value) map[i] = ''; });
+        map[Number(sel.dataset.fcol)] = sel.value;
+        cols = { map, headerRow: true };
+        compute();
+        sh.setBody(body()); wire(sh.body);
+      }));
+      el.querySelector('[data-fapply]')?.addEventListener('click', () => {
+        const r = applyFixtureImport(draft, out);
+        draft.fixtures = r.fixtures;
+        draft.matches = r.matches;
+        sh.close('done');
+        touch(); paint();
+        toast(`הלוח עודכן · ${r.fixtures.length} משחקים${r.added ? ` · ${r.added} תוצאות` : ''}. לחצו "שמירה" כדי שכולם יראו.`, { ms: 6000 });
+      });
+    }
   }
 
   // Shows what will happen before anything happens: which rows are new,
@@ -404,7 +480,10 @@ export function mountAdmin(view, ctx) {
         <button type="button" class="btn secondary small add" data-add="${list.path}">+ ${esc(list.add)}</button>
         ${list.path === 'players' ? `<button type="button" class="btn secondary small add" data-import="file">${icon('upload')} ייבוא מקובץ</button>
           <button type="button" class="btn secondary small add" data-import="paste">${icon('clipboard')} הדבקה מאקסל</button>
-          <input type="file" data-import-file accept=".xlsx,.csv,.tsv,.txt,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" hidden />` : ''}
+          <input type="file" data-import-file accept="${IMPORT_ACCEPT}" hidden />` : ''}
+        ${list.importer === 'fixtures' ? `<button type="button" class="btn secondary small add" data-import="fixtures-file">${icon('upload')} ייבוא לוח מקובץ</button>
+          <button type="button" class="btn secondary small add" data-import="fixtures-paste">${icon('clipboard')} הדבקה מאקסל</button>
+          <input type="file" data-import-fixtures accept="${IMPORT_ACCEPT}" hidden />` : ''}
       </div>
       ${items.map((item, i) => `<details class="card edit-item"${item.__open ? ' open' : ''} data-item="${list.path}.${i}">
           <summary><b>${esc(list.label(item))}</b></summary>
@@ -416,6 +495,7 @@ export function mountAdmin(view, ctx) {
 
   function seasonHtml() {
     const nm = draft.nextMatch;
+    const nextFixture = nm ? null : upcomingFixtures(draft.fixtures, draft.matches)[0];
     return `
       <section>
         <div class="sec-head">${icon('shield')}<h2>הקבוצה</h2></div>
@@ -434,8 +514,10 @@ export function mountAdmin(view, ctx) {
               <button type="button" class="btn small" id="played">המשחק התקיים — הזנת תוצאה</button>
               <button type="button" class="btn small secondary" id="no-next">אין משחק קרוב</button>
             </div>`
-          : `<div class="empty">אין משחק קרוב בלוח.</div>
-             <button type="button" class="btn small" id="add-next">+ קביעת משחק הבא</button>`}
+          : `${nextFixture
+              ? `<p class="sheet-text">מלוח המשחקים: <b>${esc(nextFixture.opponent)}</b> · <span class="num">${esc(shortDate(nextFixture.date))}</span>${nextFixture.time ? ` · <span class="num">${esc(nextFixture.time)}</span>` : ''}. ההורים רואים אותו כמשחק הבא.</p>`
+              : '<div class="empty">אין משחק קרוב בלוח.</div>'}
+             <button type="button" class="btn small" id="add-next">+ ${nextFixture ? 'הוספת פרטים (התכנסות, תלבושת)' : 'קביעת משחק הבא'}</button>`}
         </div>
       </section>
       ${LISTS.map(listHtml).join('')}
@@ -547,6 +629,8 @@ export function mountAdmin(view, ctx) {
     }
     if (t.dataset.set) { t.disabled = true; setStatus(t.dataset.user, t.dataset.set); return; }
     if (t.dataset.import === 'file') { view.querySelector('[data-import-file]')?.click(); return; }
+    if (t.dataset.import === 'fixtures-file') { view.querySelector('[data-import-fixtures]')?.click(); return; }
+    if (t.dataset.import === 'fixtures-paste') { pasteSheet('fixtures'); return; }
     if (t.dataset.import === 'paste') { pasteSheet(); return; }
     if (t.dataset.add) {
       const list = LISTS.find((l) => l.path === t.dataset.add);
@@ -568,7 +652,12 @@ export function mountAdmin(view, ctx) {
       return;
     }
     if (t.id === 'add-next') {
-      draft.nextMatch = { opponent: '', home: true, round: null, kickoff: '', arrival: '', venue: { name: '', address: '', waze: '' }, kit: '' };
+      // Starts from the next fixture in the schedule, when there is one: the
+      // manager only adds what the schedule does not know (gathering, kit).
+      const f = upcomingFixtures(draft.fixtures, draft.matches)[0];
+      draft.nextMatch = f
+        ? { opponent: f.opponent, home: f.home !== false, round: f.round ?? null, kickoff: f.time ? israelIso(f.date, f.time) : '', arrival: '', venue: { name: f.venue?.name || '', address: f.venue?.address || '', waze: '' }, kit: '' }
+        : { opponent: '', home: true, round: null, kickoff: '', arrival: '', venue: { name: '', address: '', waze: '' }, kit: '' };
       touch(); paint();
       return;
     }

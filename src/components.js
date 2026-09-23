@@ -50,6 +50,18 @@ export function matchRow(match, i) {
   </${tag}>`;
 }
 
+// A fixture still ahead: date, home/away, opponent, round and ground, and
+// the kick-off time where a result row has its score.
+export function fixtureRow(f) {
+  const sub = [roundText(f.round), f.venue?.name].filter(Boolean).map(esc).join(' · ');
+  return `<div class="match fixture-row">
+    <span class="when"><b class="num">${shortDate(f.date)}</b></span>
+    <span class="ha">${f.home !== false ? 'בית' : 'חוץ'}</span>
+    <span class="who"><b>${esc(f.opponent)}</b>${sub ? `<span>${sub}</span>` : ''}</span>
+    <span class="kick num">${f.time ? esc(f.time) : 'טרם נקבע'}</span>
+  </div>`;
+}
+
 export function leaderRow(player, rank, figures) {
   const figs = figures
     .map((f) => `<span class="fig ${f.key === 'goals' ? 'g' : f.key === 'assists' ? 'a' : ''}"><b class="num">${player[f.key]}</b><span>${esc(f.label)}</span></span>`)

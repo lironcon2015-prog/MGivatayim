@@ -1,6 +1,6 @@
 import { topBy } from '../season.js';
 import { pct, dec, esc } from '../format.js';
-import { sectionHead, leaderRow, tile, splitBar, matchRow } from '../components.js';
+import { sectionHead, leaderRow, tile, splitBar, matchRow, fixtureRow } from '../components.js';
 
 const ALL_BOARDS = [
   { key: 'goals',   label: 'שערים',   figs: [{ key: 'goals', label: 'שערים' }, { key: 'assists', label: 'בישולים' }] },
@@ -55,8 +55,13 @@ export function renderStats(s) {
     ${s.squadGoalsMatch ? '' : `<p class="note">שימו לב: סכום השערים של השחקנים (${s.squadGoals}) שונה מסך שערי הקבוצה (${s.overall.gf}) — ייתכן ששחקן חסר ברשימה.</p>`}
   </section>
 
+  ${s.schedule.length ? `<section>
+    ${sectionHead('לוח המשחקים', `${s.schedule.length} משחקים`, 'calendar')}
+    <div class="card rows">${s.schedule.map(fixtureRow).join('')}</div>
+  </section>` : ''}
+
   <section>
-    ${sectionHead('כל המשחקים', `${s.recent.length} משחקים`, 'calendar')}
+    ${sectionHead('כל המשחקים', `${s.recent.length} משחקים`, 'trophy')}
     <div class="card rows">${s.recent.length ? s.recent.map(matchRow).join('') : '<div class="empty">טרם נוספו משחקים.</div>'}</div>
   </section>
 

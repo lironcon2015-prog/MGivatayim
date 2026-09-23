@@ -331,6 +331,8 @@ section { margin-top: 1.9rem; }
   direction: ltr; unicode-bidi: isolate; }
 .score .ours { color: var(--gold); }
 .score .sep { color: var(--faint); font-weight: 500; }
+/* In a fixture row the kick-off time sits where a result has its score. */
+.fixture-row .kick { flex: none; font-size: 1rem; font-weight: 600; color: var(--muted); direction: ltr; unicode-bidi: isolate; }
 .tag {
   flex: none; font-size: .74rem; font-weight: 700; padding: .2rem .65rem;
   border-radius: var(--r-pill); border: 1px solid transparent; text-align: center;

@@ -355,6 +355,30 @@ await step('a video link gets a poster in Drive, and the parent sees it', async 
   await parent.locator('.thumb-img[src^="blob:"]').first().waitFor({ timeout: 10000 });
 });
 
+await step('a pasted schedule becomes the next match and the list after it', async () => {
+  await admin.goto(APP + '#/admin');
+  await admin.click('[data-import="fixtures-paste"]');
+  await admin.fill('[data-paste]', [
+    'מחזור\tתאריך\tשעה\tקבוצת בית\tקבוצת חוץ\tשערי בית\tשערי חוץ',
+    '1\t01/08/2026\t17:00\tמכבי גבעתיים\tעירוני לוח\t2\t2',
+    '8\t01/11/2030\t17:30\tהפועל לוח\tמכבי גבעתיים\t\t',
+    '9\t08/11/2030\t\tמכבי גבעתיים\tבני לוח\t\t',
+  ].join('\n'));
+  await admin.click('[data-go]');
+  await admin.locator('[data-fapply]').click();
+  await admin.click('#save');
+  await waitText(admin, 'נשמר');
+  const season = JSON.parse(bridge.driveFile('season.json')).season;
+  expect(season.fixtures.length === 2, 'fixtures: ' + season.fixtures.length);
+  expect(season.matches.some((m) => m.opponent === 'עירוני לוח' && m.gf === 2), 'the result row was not added');
+  expect(!('nextMatch' in season) || !season.nextMatch, 'the next match must be derived, not stored');
+  await parent.goto(APP + '#/');
+  await parent.reload();
+  await parent.locator('.hero', { hasText: 'הפועל לוח' }).waitFor({ timeout: 8000 });
+  await parent.locator('.fixture-row', { hasText: 'בני לוח' }).waitFor();
+  expect((await parent.locator('.fixture-row', { hasText: 'בני לוח' }).innerText()).includes('טרם נקבע'), 'a missing time should say so');
+});
+
 await step('revoking locks the parent out and drops their cached copy', async () => {
   await admin.goto(APP + '#/admin');
   await admin.click('[data-tab="access"]');

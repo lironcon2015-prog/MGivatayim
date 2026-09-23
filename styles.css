@@ -669,34 +669,27 @@ body.with-nav .toast { bottom: calc(var(--nav-space) + 10px); }
 .sc-score .sep { color: var(--faint); font-weight: 600; font-size: 2rem; transform: translateY(-.1em); }
 .sc-score.bump { animation: bump .9s cubic-bezier(.2, .9, .3, 1.2); }
 @keyframes bump { 0% { transform: scale(1); } 22% { transform: scale(1.2); } 100% { transform: scale(1); } }
-/* Scorers: two columns under the two teams, ours on the right (RTL, like the
-   score). A ball glyph opens each line; names cut with an ellipsis and the
-   minutes wrap under them, so a long name or a hat-trick never pushes the
-   other side. */
+/* Scorers: two equal columns under the two teams, ours on the right (RTL,
+   like the score), each centred under its crest. A name and its minute
+   chips share a line and wrap, so a long name or a hat-trick never pushes
+   the other side. */
 .sc-scorers {
   display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1.4rem;
   margin: .85rem 0 0; padding-top: .7rem; border-top: 1px solid var(--line);
 }
-.sc-scorers ul { list-style: none; margin: 0; padding: 0; display: grid; gap: .3rem; align-content: start; text-align: center; }
-.sc-scorers li { font-size: .8rem; line-height: 1.35; color: #C3CCDA; min-width: 0; }
-.sc-scorers li::before {
-  content: ""; display: inline-block; width: 6px; height: 6px; margin-inline-end: .4rem; vertical-align: .12em;
-  border-radius: 50%; background: var(--gold); box-shadow: 0 0 8px var(--gold);
+.sc-scorers ul { list-style: none; margin: 0; padding: 0; display: grid; gap: .4rem; align-content: start; justify-items: center; text-align: center; }
+.sc-scorers li { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: .3rem .35rem; min-width: 0; max-width: 100%; }
+.scr-name { font-size: .82rem; font-weight: 700; line-height: 1.3; color: var(--text); }
+.scr-chips { display: flex; flex-wrap: wrap; justify-content: center; gap: 3px; }
+/* A minute per chip: gold for ours, neutral for theirs — the same split as
+   the score above them. */
+.scr-chip {
+  font-size: .7rem; font-weight: 600; line-height: 1; white-space: nowrap;
+  padding: .22rem .36rem; border-radius: var(--r-pill);
+  color: var(--gold); background: var(--gold-soft); border: 1px solid rgba(232, 185, 49, .25);
 }
-.sc-scorers .them li::before { background: var(--faint); box-shadow: none; }
-.scr-name { font-weight: 700; }
-.scr-min { color: var(--muted); font-size: .76rem; }
-/* The opponent's minutes: a fixed grid of eight per row, so the ninth
-   starts a new row whatever the phone's width. The dot opens the first row
-   only. */
-.sc-scorers .them .scr-row {
-  display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 2px;
-  font-size: .68rem; color: var(--muted); white-space: nowrap;
-}
-.sc-scorers .them .scr-row::before { display: none; }
-.sc-scorers .them .scr-row span { text-align: center; }
+.sc-scorers .them .scr-chip { color: var(--muted); background: var(--surface-2); border-color: var(--line-strong); }
 .scr-more { font-size: .74rem; }
-.sc-scorers li.scr-more::before { display: none; }
 .scr-more button {
   font: inherit; font-weight: 700; color: var(--gold); cursor: pointer;
   background: var(--gold-soft); border: 1px solid rgba(232, 185, 49, .25); border-radius: var(--r-pill);

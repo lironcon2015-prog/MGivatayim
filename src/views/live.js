@@ -128,20 +128,20 @@ export function mountLive(view, ctx) {
 
   /* ---- views ---- */
 
-  // Scorers under each side of the score. Ours are grouped by player — a
-  // hat-trick is one line with three minutes, not three lines — up to
-  // MAX_SCORER_LINES, then "ועוד N". The opponent's goals carry no names:
-  // their minutes sit in rows of MINUTES_PER_ROW, so the ninth goal starts a
-  // second row instead of running out of the card, and past MAX_SCORER_LINES
-  // rows they fold the same way. "ועוד N" is a button to the timeline, at the
-  // first goal the scoreboard does not name.
+  // Scorers under each side of the score, each under that side's crest.
+  // Ours are grouped by player — a hat-trick is one line with three minutes —
+  // up to MAX_SCORER_LINES; the opponent's goals carry no names, so they are
+  // minute chips that wrap, up to MAX_THEM. Past either cap "ועוד N" jumps
+  // to the first goal not shown in the timeline. A chip per minute rather
+  // than a comma-separated run: in Hebrew the commas between LTR minutes
+  // landed on the wrong side.
   function scorersHtml(st) {
     const MAX_SCORER_LINES = 4;
-    const MINUTES_PER_ROW = 8;
+    const MAX_THEM = 12;
     const goals = st.events.filter((e) => e.type === 'goal')
       .sort((a, b) => a.period - b.period || a.atMs - b.atMs);
     if (!goals.length) return '';
-    const minute = (e) => M.minuteLabel(st.format, e.period, e.atMs);
+    const chip = (e) => `<span class="scr-chip num">${esc(M.minuteLabel(st.format, e.period, e.atMs))}</span>`;
     const more = (n, goalId) => `<li class="scr-more"><button type="button" data-goto="${esc(goalId)}">ועוד ${n}</button></li>`;
 
     const ours = new Map();
@@ -152,19 +152,16 @@ export function mountLive(view, ctx) {
     }
     const groups = [...ours];
     const usHtml = groups.slice(0, MAX_SCORER_LINES).map(([pid, evs]) =>
-      `<li><span class="scr-name">${esc(pid === '?' ? 'לא ידוע' : who(st, pid).name)}</span> <span class="scr-min num">${evs.map((e) => esc(minute(e))).join(', ')}</span></li>`).join('')
+      `<li><span class="scr-name">${esc(pid === '?' ? 'לא ידוע' : who(st, pid).name)}</span><span class="scr-chips">${evs.map(chip).join('')}</span></li>`).join('')
       + (groups.length > MAX_SCORER_LINES ? more(groups.length - MAX_SCORER_LINES, groups[MAX_SCORER_LINES][1][0].id) : '');
 
     const them = goals.filter((g) => g.side === 'them');
-    const rows = [];
-    for (let k = 0; k < them.length; k += MINUTES_PER_ROW) rows.push(them.slice(k, k + MINUTES_PER_ROW));
-    const themHtml = rows.slice(0, MAX_SCORER_LINES).map((row) =>
-      `<li class="scr-row">${row.map((e) => `<span class="num">${esc(minute(e))}</span>`).join('')}</li>`).join('')
-      + (rows.length > MAX_SCORER_LINES ? more(them.length - MAX_SCORER_LINES * MINUTES_PER_ROW, them[MAX_SCORER_LINES * MINUTES_PER_ROW].id) : '');
+    const themHtml = (them.length ? `<li><span class="scr-chips">${them.slice(0, MAX_THEM).map(chip).join('')}</span></li>` : '')
+      + (them.length > MAX_THEM ? more(them.length - MAX_THEM, them[MAX_THEM].id) : '');
 
     return `<div class="sc-scorers">
-      <ul class="us">${usHtml}</ul>
-      <ul class="them">${themHtml}</ul>
+      <ul class="us" aria-label="שערים שלנו">${usHtml}</ul>
+      <ul class="them" aria-label="שערי היריבה">${themHtml}</ul>
     </div>`;
   }
 

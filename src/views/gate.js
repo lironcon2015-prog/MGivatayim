@@ -1,5 +1,5 @@
 import { esc } from '../format.js';
-import { installHelp, isStandalone } from '../install.js';
+import { installHelp, isStandalone, platform } from '../install.js';
 
 // Screens shown before the season: every state a device can be in toward the
 // bridge gets its own plain explanation and exactly one thing to do next.
@@ -19,19 +19,33 @@ export function setupScreen() {
      <p class="note">למנהל: הוראות ההתקנה נמצאות בראש הקובץ <code>tools/bridge.gs</code> בריפו.</p>`);
 }
 
-export function requestScreen(name = '', error = '') {
-  // Outside the home-screen app the title itself says the order: install
-  // first, then ask (an iPhone request from Safari does not reach the icon).
-  return installHelp() + card(isStandalone() ? 'בקשת גישה' : 'בקשת גישה — אחרי התקנה במסך הבית',
-    `<p class="gate-lead">הנתונים של הקבוצה פתוחים להורים ולשחקנים באישור המנהל. שלחו בקשה פעם אחת מהמכשיר הזה.</p>
+// On a phone, the request is sent from the home-screen app only: on iPhone a
+// request from Safari does not reach the icon, and the owner wants everyone
+// installed, Android too. `skipInstall` is the way through for a phone that
+// cannot install; a computer or other browser gets the form directly.
+export function requestGated(skipInstall) {
+  return !isStandalone() && platform() !== 'other' && !skipInstall;
+}
+
+export function requestScreen(name = '', error = '', { skipInstall = false } = {}) {
+  const form = `<p class="gate-lead">הנתונים של הקבוצה פתוחים להורים ולשחקנים באישור המנהל. שלחו בקשה פעם אחת מהמכשיר הזה.</p>
      <form id="request-form" class="form-stack" novalidate>
        <label class="field"><span>איך המנהל יזהה אתכם?</span>
          <input name="name" required maxlength="40" autocomplete="name" placeholder="למשל: אבא של איתי" value="${esc(name)}" />
        </label>
        ${error ? `<p class="form-error" role="alert">${esc(error)}</p>` : ''}
        <button class="btn" type="submit">שליחת בקשה</button>
-     </form>
-     ${adminLink}`);
+     </form>`;
+  if (requestGated(skipInstall)) {
+    return installHelp() + card('בקשת גישה — אחרי התקנה במסך הבית',
+      `<p class="gate-lead">את הבקשה שולחים <b>מהאפליקציה שבמסך הבית</b>: מתקינים לפי ההוראות למעלה, פותחים מהאייקון, והטופס יחכה שם.</p>
+       <p class="gate-foot"><button type="button" class="linkish" data-skip-install>אי אפשר להתקין? להמשיך בלי התקנה</button></p>
+       ${platform() === 'ios' ? '<p class="note">באייפון: בקשה שתישלח מכאן לא תעבור לאפליקציה אם תתקינו אחר כך.</p>' : ''}
+       ${adminLink}`);
+  }
+  // Outside the home-screen app the title itself says the order: install
+  // first, then ask.
+  return installHelp() + card(isStandalone() ? 'בקשת גישה' : 'בקשת גישה — אחרי התקנה במסך הבית', form + adminLink);
 }
 
 export function pendingScreen(name) {

@@ -63,6 +63,7 @@ const text = (page) => page.locator('#view').innerText();
 const waitText = (page, s, timeout = 5000) => page.locator('#view').getByText(s, { exact: false }).first().waitFor({ timeout });
 
 const parent = await device('parent');
+const IPHONE = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1';
 const admin = await device('admin');
 
 console.log('e2e:');
@@ -70,6 +71,24 @@ console.log('e2e:');
 await step('a new device lands on the access request, not on data', async () => {
   await parent.goto(APP);
   await waitText(parent, 'בקשת גישה');
+});
+
+await step('on a phone outside the home-screen app there is no request form, only a way through', async () => {
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, userAgent: IPHONE });
+  await ctx.addInitScript((url) => { try { localStorage.setItem('mg:bridge', url); } catch {} }, BRIDGE);
+  await ctx.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
+  const phone = await ctx.newPage();
+  await phone.goto(APP);
+  await phone.locator('[data-skip-install]').waitFor();
+  expect(await phone.locator('#request-form').count() === 0, 'a phone in the browser must not see the form');
+  await phone.click('[data-skip-install]');
+  await phone.locator('#request-form').waitFor();
+  await phone.addInitScript(() => { window.navigator.__defineGetter__('standalone', () => true); });
+  await phone.reload();
+  await phone.locator('#request-form').waitFor();
+  expect((await phone.locator('.gate h2').first().innerText()).trim() === 'בקשת גישה', 'inside the installed app the title is plain');
+  expect(await phone.locator('[data-install]').count() === 0, 'the installed app shows no install help');
+  await ctx.close();
 });
 
 await step('the first screen explains installing on iPhone and Android', async () => {

@@ -36,6 +36,7 @@ const state = {
   payload: null,          // { version, updatedAt, season } as the bridge returns it
   season: null,           // buildSeason(payload.season), ready for the views
   stale: false,           // showing the device cache because the bridge was unreachable
+  skipInstall: false,     // a phone that cannot install chose to ask from the browser (this visit only)
 };
 
 const isAdmin = () => !!store.getAdminCode();
@@ -215,9 +216,10 @@ function render() {
       view.querySelector('#retry').addEventListener('click', () => { state.access = 'loading'; render(); start(); });
       return;
     case 'none':
-      view.innerHTML = gate.requestScreen(state.name, state.formError);
+      view.innerHTML = gate.requestScreen(state.name, state.formError, { skipInstall: state.skipInstall });
       teardown = wireInstall(view);
-      view.querySelector('#request-form').addEventListener('submit', (e) => {
+      view.querySelector('[data-skip-install]')?.addEventListener('click', () => { state.skipInstall = true; render(); });
+      view.querySelector('#request-form')?.addEventListener('submit', (e) => {
         e.preventDefault();
         const name = new FormData(e.target).get('name').trim();
         if (!name) { state.formError = 'צריך למלא שם.'; render(); return; }

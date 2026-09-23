@@ -300,7 +300,7 @@ export function applyImport(existing, plan, { include, removeMissing, newId }) {
       if (inc.pos) p.pos = inc.pos;
       if (inc.pos2) p.pos2 = inc.pos2;
     } else {
-      result.push({ id: newId(), name: inc.name, number: inc.number, pos: inc.pos, pos2: inc.pos2, goals: 0, assists: 0, minutes: 0 });
+      result.push({ id: newId(), name: inc.name, number: inc.number, pos: inc.pos, pos2: inc.pos2, goals: 0, assists: 0 });
     }
   });
   return result;

@@ -365,12 +365,12 @@ await step('the scorer\'s total comes from the match events', async () => {
 });
 
 await step('minutes per player are the manager\'s only', async () => {
-  expect(await parent.locator('[data-board="minutes"]').count() === 0, 'a parent sees the minutes tab');
+  expect(await parent.locator('#minutes').count() === 0, 'a parent sees the minutes section');
   const cached = await parent.evaluate(() => JSON.parse(localStorage.getItem('mg:season') || 'null'));
   expect(cached && cached.season.players.every((p) => !('minutes' in p)), 'minutes reached the parent\'s device');
   expect(cached.season.matches.every((m) => !('lineup' in m)), 'a past lineup reached the parent\'s device');
   await admin.goto(APP + '#/stats');
-  await admin.locator('[data-board="minutes"]').waitFor();
+  await admin.locator('#minutes .mn-table').waitFor();
 });
 
 await step('a history row opens the match with its goals and subs', async () => {
@@ -495,6 +495,106 @@ await step('deleting the games clears the schedule and typed results, and keeps 
   expect(season.matches.length > 0 && season.matches.every((m) => m.liveId), 'typed results left, or the live one lost: ' + JSON.stringify(season.matches.map((m) => m.opponent)));
 });
 
+// The coach: an approved device the manager marks. It sees what a parent
+// sees, and playing time on top — in the live match and across the season.
+let coach;
+const coachFile = () => JSON.parse(bridge.driveFile('coach.json') || '{}');
+const asAdmin = (action, params = {}) =>
+  admin.evaluate(([url, a, p]) => import(url).then((m) => m.call(a, p, { asAdmin: true })), [APP + 'src/bridge.js', action, params]);
+const until = async (fn, what, ms = 8000) => {
+  const end = Date.now() + ms;
+  while (!fn()) { if (Date.now() > end) throw new Error('timed out waiting for ' + what); await new Promise((r) => setTimeout(r, 100)); }
+};
+
+await step('a device the manager marks as coach sees playing time; a parent does not', async () => {
+  coach = await device('coach');
+  await coach.goto(APP);
+  await coach.fill('input[name=name]', 'המאמן');
+  await coach.locator('#request-form button').click();
+  await waitText(coach, 'ממתינה לאישור');
+  await admin.goto(APP + '#/admin');
+  await admin.click('[data-tab="access"]');
+  const row = admin.locator('.user-row', { hasText: 'המאמן' });
+  await row.locator('[data-set="approved"]').click();
+  await row.locator('[data-role="coach"]').click();
+  await row.locator('.role-on').waitFor();
+  await coach.click('#recheck');
+  await coach.goto(APP + '#/stats');
+  await coach.locator('#minutes .mn-table').waitFor({ timeout: 8000 });
+  await coach.locator('#minutes [data-mnview="map"]').click();
+  await coach.locator('#minutes .mn-map .mn-cell').first().waitFor();
+  await coach.locator('#minutes .mn-pl').first().click();
+  await coach.locator('.sheet .mn-hist').waitFor();
+  await coach.locator('.sheet-x').click();
+  await parent.goto(APP + '#/stats');
+  await parent.reload();
+  await parent.locator('#board').waitFor();
+  expect(await parent.locator('#minutes').count() === 0, 'a parent sees the minutes section');
+  const cached = await parent.evaluate(() => JSON.parse(localStorage.getItem('mg:season') || 'null'));
+  expect(cached.role === 'parent' && !('coach' in cached), 'coach data reached a parent\'s device');
+});
+
+await step('before kick-off the coach sets the minimum and who came; a parent sees no minutes tab', async () => {
+  await asAdmin('clearLive');
+  await admin.goto(APP + '#/live');
+  await admin.reload();
+  await admin.locator('[data-act="new"]').click();
+  await waitText(admin, 'הרכב פותח');
+  await admin.fill('[data-meta="opponent"]', 'הפועל מבחן');
+  await admin.locator('[data-meta="opponent"]').blur();
+  await until(() => liveFile().opponent === 'הפועל מבחן', 'the opponent to be saved');
+  const id = liveFile().id;
+  await coach.goto(APP + '#/live');
+  await coach.locator('[data-tab="minutes"]').click({ timeout: 8000 });
+  await coach.locator('[data-mn-step="5"]').click();
+  await until(() => coachFile().matches?.[id]?.min === 25, 'the minimum to reach Drive');
+  expect(coachFile().minDefault === 25, 'the new minimum is the default for the next match');
+  const benched = liveFile().players.find((p) => !liveFile().lineup.some((l) => l.pid === p.id));
+  await coach.locator(`[data-mn-present="${benched.id}"]`).click();
+  await until(() => (coachFile().matches[id].absent || []).includes(benched.id), 'the absence to reach Drive');
+  expect(await coach.locator(`[data-mn-present="${benched.id}"]`).getAttribute('aria-pressed') === 'false', 'still shown as present');
+  // They turned up after all: the one player on the bench, for the alert.
+  await coach.locator(`[data-mn-present="${benched.id}"]`).click();
+  await until(() => !coachFile().matches[id].absent.includes(benched.id), 'the correction to reach Drive');
+  await parent.goto(APP + '#/live');
+  await parent.locator('.score-card').waitFor({ timeout: 8000 });
+  expect(await parent.locator('[data-tab="minutes"]').count() === 0, 'a parent sees the minutes tab');
+  coach.benchName = benched.name;
+});
+
+await step('at the break before the last period the coach is alerted once, wherever they are', async () => {
+  await coach.goto(APP + '#/');
+  const st = () => liveFile();
+  for (let i = 0; i < 4; i++) {
+    const s = st();
+    if (s.status === 'break' && s.period === s.format.length - 1) break;
+    await admin.locator('[data-act="start"]').first().click();
+    if (s.status === 'setup' && await admin.locator('[data-ok]').count()) await admin.click('[data-ok]');
+    await until(() => st().status === 'running', 'the period to start');
+    await admin.click('[data-act="end"]');
+    await admin.click('[data-ok]');
+    await until(() => st().status === 'break' || st().status === 'fulltime', 'the period to end');
+  }
+  const toastEl = coach.locator('.toast', { hasText: 'בספסל מתחת' });
+  await toastEl.waitFor({ timeout: 8000 });
+  await toastEl.locator('button').click();
+  await coach.locator('.mn-alert').waitFor();
+  const alert = await coach.locator('.mn-alert').innerText();
+  expect(alert.includes(coach.benchName), 'the benched player is not in the alert: ' + alert);
+  expect(await coach.locator('.mn-row').count() > 0, 'no minutes list');
+  await coach.goto(APP + '#/');
+  await coach.reload();
+  await new Promise((r) => setTimeout(r, 2000));
+  expect(await coach.locator('.toast', { hasText: 'בספסל מתחת' }).count() === 0, 'the alert came twice');
+  await parent.goto(APP + '#/live');
+  await parent.locator('.score-card').waitFor();
+  await new Promise((r) => setTimeout(r, 1500));
+  expect(await parent.locator('.mn-alert, .toast:has-text("בספסל")').count() === 0, 'a parent got the coach\'s alert');
+  await asAdmin('clearLive');
+  const coachId = (await asAdmin('listUsers')).find((u) => u.name === 'המאמן').id;
+  await asAdmin('setStatus', { id: coachId, status: 'revoked' });
+});
+
 await step('revoking locks the parent out and drops their cached copy', async () => {
   await admin.goto(APP + '#/admin');
   await admin.click('[data-tab="access"]');
@@ -508,7 +608,7 @@ await step('revoking locks the parent out and drops their cached copy', async ()
 });
 
 await step('no page errors and no CORS preflight on any device', async () => {
-  const errs = [...parent.errors, ...admin.errors];
+  const errs = [...parent.errors, ...admin.errors, ...(coach?.errors || [])];
   expect(!errs.length, errs.join(' | '));
 });
 

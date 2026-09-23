@@ -15,7 +15,9 @@ import { hydratePosters } from './posters.js';
 import { wireInstall } from './install.js';
 import { LiveSession } from './live/sync.js';
 import * as LM from './live/model.js';
-import { mountLive, openMatchSheet } from './views/live.js';
+import { mountLive, openMatchSheet, showMinutesTab } from './views/live.js';
+import { cleanCoach, coachFor, shortfall, alertKey } from './minutes.js';
+import { toast, buzz } from './ui/sheet.js';
 
 const ROUTES = [
   { hash: '#/',      label: 'בית',    glyph: 'home',      render: renderHome,  wire: (root) => startCountdown(root) },
@@ -40,6 +42,11 @@ const state = {
 };
 
 const isAdmin = () => !!store.getAdminCode();
+// The coach's screens — playing time — are the manager's too. The bridge
+// decides who gets the data; this only decides what to draw.
+const canMinutes = () => isAdmin() || state.payload?.role === 'coach';
+const coachData = () => cleanCoach(state.payload?.coach);
+const coachCfg = (liveId) => coachFor(coachData(), liveId);
 
 // One live session for the whole app: it polls slowly everywhere (so the home
 // banner and the tab's dot appear when a match starts) and fast on the live
@@ -57,13 +64,18 @@ function prepare(payload) {
   if (!payload?.season) return null;
   const s = buildSeason(payload.season);
   s.team.crestUrl = new URL(s.team.crest || DEFAULT_CREST, ROOT).href;
-  // Minutes are the manager's: the bridge does not send them to parents, and
-  // the stats screen drops the tab rather than show a column of zeros.
-  s.showMinutes = isAdmin();
+  // Minutes are the coach's and the manager's: the bridge sends parents
+  // neither past lineups nor the coach data, and the screens are left out
+  // rather than drawn empty.
+  s.showMinutes = canMinutes();
+  s.coach = coachData();
   return s;
 }
 
 function accept(payload) {
+  // A save from the manager's editor answers with the season alone; the
+  // role and the coach data it did not touch carry over.
+  if (state.payload && payload && !('role' in payload)) payload = { ...payload, role: state.payload.role, coach: state.payload.coach };
   state.payload = payload;
   state.season = prepare(payload);
   state.access = 'approved';
@@ -135,6 +147,55 @@ async function adminLogin(code) {
     state.formError = e.code === 'bad_code' ? 'הקוד שגוי.' : e.message;
     render();
   }
+}
+
+// The coach's threshold and attendance for one match: shown at once, sent
+// behind it. The bridge answers with the whole coach record, which replaces
+// the optimistic one — it may have frozen older matches at the old default.
+async function saveCoach(liveId, patch) {
+  const c = coachData();
+  const e = { ...(c.matches[liveId] || {}) };
+  if ('min' in patch && patch.min !== c.minDefault) {
+    // As the bridge does: matches played under the old default keep it.
+    const ids = [...(state.payload?.season?.matches || []).map((m) => m.liveId), session.state?.id];
+    for (const id of ids) {
+      if (!id || id === liveId) continue;
+      c.matches[id] = { absent: [], ...c.matches[id] };
+      c.matches[id].min ??= c.minDefault;
+    }
+  }
+  if ('min' in patch) { e.min = patch.min; c.minDefault = patch.min; }
+  if ('absent' in patch) e.absent = patch.absent;
+  c.matches[liveId] = e;
+  const setCoach = (coach) => {
+    state.payload = { ...state.payload, coach };
+    if (state.season) state.season.coach = cleanCoach(coach);
+    store.setCachedSeason(state.payload);
+  };
+  const before = state.payload?.coach;
+  setCoach(c);
+  try {
+    setCoach(await call('setCoachMatch', { liveId, ...patch }, { asAdmin: isAdmin() }));
+  } catch (err) {
+    setCoach(before);
+    throw err;
+  }
+}
+
+// The one alert: at the break before the last period, players on the bench
+// still under the minimum. Wherever the coach is in the app, once per match.
+function checkMinutesAlert() {
+  const st = session.state;
+  if (!st || !canMinutes()) return;
+  const cfg = coachCfg(st.id);
+  const short = shortfall(st, cfg);
+  if (!short.length || store.getAlerted() === alertKey(st)) return;
+  store.setAlerted(alertKey(st));
+  buzz([200, 100, 200]);
+  toast(`<b>${short.length === 1 ? 'שחקן אחד' : `${short.length} שחקנים`} בספסל מתחת ל-<span class="num">${LM.ltr(`${cfg.min}'`)}</span></b> לפני ${esc(LM.periodName(st.format, st.period))}`, {
+    action: 'לרשימת הדקות', ms: 15000,
+    onAction: () => { showMinutesTab(); if (location.hash === '#/live') render(); else location.hash = '#/live'; },
+  });
 }
 
 /* ---------- rendering ---------- */
@@ -258,6 +319,9 @@ function render() {
       team: s.team,
       nextMatch: s.nextMatch,
       isAdmin,
+      canMinutes,
+      coachCfg,
+      saveCoach,
       players: () => s.players.map((p) => ({ id: p.id, name: p.name, number: p.number ?? null, pos: p.pos || '', pos2: p.pos2 || '' })),
       format: () => LM.cleanFormat(s.settings?.format),
       size: () => LM.cleanSize(s.settings?.size),
@@ -291,6 +355,7 @@ function liveBanner() {
 let lastLiveKey = '';
 let lastLiveStatus = null;
 session.subscribe(() => {
+  checkMinutesAlert();
   const st = session.state;
   const key = st ? `${st.id}|${st.status}|${st.period}|${LM.score(st).us}:${LM.score(st).them}` : 'none';
   // A match that just ended is now a row in the season's results: fetch it,
@@ -316,7 +381,7 @@ document.addEventListener('click', (e) => {
   const row = e.target.closest('[data-match]');
   if (!row || !state.season) return;
   const m = state.season.recent[Number(row.dataset.match)];
-  if (m) openMatchSheet(m);
+  if (m) openMatchSheet(m, canMinutes() && m.liveId ? { coachCfg: () => coachCfg(m.liveId), saveCoach: (patch) => saveCoach(m.liveId, patch) } : null);
 });
 
 /* ---------- start ---------- */

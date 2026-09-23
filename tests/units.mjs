@@ -317,6 +317,7 @@ export const done = () => passed;
 if (process.argv[1].endsWith('units.mjs')) {
   const model = await import('./units-live.mjs').catch((e) => (e.code === 'ERR_MODULE_NOT_FOUND' ? null : Promise.reject(e)));
   if (model) await model.run(test);
+  await (await import('./units-minutes.mjs')).run(test);
   console.log(`\nunits: ${passed} passed, ${failures.length} failed`);
   process.exit(failures.length ? 1 : 0);
 }

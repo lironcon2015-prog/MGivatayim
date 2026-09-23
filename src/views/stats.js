@@ -1,15 +1,13 @@
 import { topBy } from '../season.js';
 import { pct, dec, esc } from '../format.js';
 import { sectionHead, leaderRow, tile, splitBar, matchRow, fixtureRow } from '../components.js';
+import { seasonMinutesHtml, wireSeasonMinutes } from './minutes.js';
 
-const ALL_BOARDS = [
+const BOARDS = [
   { key: 'goals',   label: 'שערים',   figs: [{ key: 'goals', label: 'שערים' }, { key: 'assists', label: 'בישולים' }] },
   { key: 'assists', label: 'בישולים', figs: [{ key: 'assists', label: 'בישולים' }, { key: 'goals', label: 'שערים' }] },
   { key: 'points',  label: 'מעורבות', figs: [{ key: 'points', label: 'סה"כ' }, { key: 'goals', label: 'שערים' }, { key: 'assists', label: 'בישולים' }] },
-  { key: 'minutes', label: 'דקות',    figs: [{ key: 'minutes', label: 'דקות' }], managerOnly: true },
 ];
-const boardsFor = (s) => ALL_BOARDS.filter((b) => !b.managerOnly || s.showMinutes);
-
 export function renderStats(s) {
   const o = s.overall;
   const maxPoints = Math.max(s.splits.home.points, s.splits.away.points, 1);
@@ -49,11 +47,13 @@ export function renderStats(s) {
   <section>
     ${sectionHead('טבלת מובילים', '', 'trophy')}
     <div class="seg" role="tablist" id="board-tabs">
-      ${boardsFor(s).map((b, i) => `<button role="tab" type="button" data-board="${b.key}" aria-selected="${i === 0}">${esc(b.label)}</button>`).join('')}
+      ${BOARDS.map((b, i) => `<button role="tab" type="button" data-board="${b.key}" aria-selected="${i === 0}">${esc(b.label)}</button>`).join('')}
     </div>
     <div class="card rows" id="board" style="margin-top:.7rem"></div>
     ${s.squadGoalsMatch ? '' : `<p class="note">שימו לב: סכום השערים של השחקנים (${s.squadGoals}) שונה מסך שערי הקבוצה (${s.overall.gf}) — ייתכן ששחקן חסר ברשימה.</p>`}
   </section>
+
+  ${s.showMinutes ? seasonMinutesHtml(s) : ''}
 
   ${s.schedule.length ? `<section>
     ${sectionHead('לוח המשחקים', `${s.schedule.length} משחקים`, 'calendar')}
@@ -81,7 +81,7 @@ export function wireStats(root, s) {
   if (!tabs || !out) return () => {};
 
   const draw = (key) => {
-    const board = boardsFor(s).find((b) => b.key === key) || boardsFor(s)[0];
+    const board = BOARDS.find((b) => b.key === key) || BOARDS[0];
     const rows = topBy(s.players, board.key, 10);
     out.innerHTML = rows.length
       ? rows.map((p, i) => leaderRow(p, i + 1, board.figs)).join('')
@@ -96,6 +96,7 @@ export function wireStats(root, s) {
   };
 
   tabs.addEventListener('click', onClick);
-  draw(boardsFor(s)[0].key);
-  return () => tabs.removeEventListener('click', onClick);
+  draw(BOARDS[0].key);
+  const unMinutes = s.showMinutes ? wireSeasonMinutes(root, s) : () => {};
+  return () => { tabs.removeEventListener('click', onClick); unMinutes(); };
 }

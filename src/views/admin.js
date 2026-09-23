@@ -74,7 +74,7 @@ const LISTS = [
   {
     path: 'players', title: 'שחקנים', glyph: 'user', add: 'הוספת שחקן',
     note: 'שערים, בישולים ודקות ממשחקים שתועדו בלייב נספרים לבד. בשדות "לפני הלייב" מזינים רק משחקים שלא תועדו.',
-    blank: () => ({ id: newId(), name: '', number: null, pos: '', pos2: '', goals: 0, assists: 0, minutes: 0 }),
+    blank: () => ({ id: newId(), name: '', number: null, pos: '', pos2: '', goals: 0, assists: 0 }),
     label: (p) => [p.number != null && p.number !== '' ? p.number : null, p.name || 'שחקן חדש', posLabel(p.pos)].filter((x) => x != null && x !== '').join(' · '),
     fields: [
       { key: 'name', label: 'שם', required: true },
@@ -83,7 +83,6 @@ const LISTS = [
       { key: 'pos2', label: 'עמדה נוספת', type: 'select', options: POS_OPTS },
       { key: 'goals', label: 'שערים לפני הלייב', type: 'number' },
       { key: 'assists', label: 'בישולים לפני הלייב', type: 'number' },
-      { key: 'minutes', label: 'דקות לפני הלייב', type: 'number' },
     ],
   },
   {
@@ -263,6 +262,8 @@ export function mountAdmin(view, ctx) {
 
   const pendingCount = () => (users || []).filter((u) => u.status === 'pending').length;
 
+  // The access list can answer before the season does (both load on mount);
+  // until the season is in, its tab says so instead of drawing nothing.
   function paint() {
     if (!alive) return;
     const scroll = window.scrollY;
@@ -275,7 +276,7 @@ export function mountAdmin(view, ctx) {
           <button type="button" role="tab" data-tab="access" aria-selected="${tab === 'access'}">גישה${pendingCount() ? ` <b class="count">${pendingCount()}</b>` : ''}</button>
         </div>
       </section>
-      ${tab === 'access' ? accessHtml() : seasonHtml()}`;
+      ${tab === 'access' ? accessHtml() : draft ? seasonHtml() : '<section><div class="card"><div class="empty">טוען…</div></div></section>'}`;
     window.scrollTo(0, scroll);
     const fmt = view.querySelector('[data-format-editor]');
     if (fmt) {
@@ -519,9 +520,13 @@ export function mountAdmin(view, ctx) {
     if (!users) return `<section><div class="card"><div class="empty">טוען…</div></div></section>`;
     const by = (st) => users.filter((u) => st.includes(u.status))
       .sort((a, b) => String(b.requestedAt).localeCompare(String(a.requestedAt)));
+    // A coach is an approved device the manager marked: it sees playing time
+    // too. The role belongs to the device — a coach's phone and laptop are
+    // marked one by one.
+    const coach = (u) => u.status === 'approved';
     const row = (u, actions) => `<div class="user-row">
-        <span class="who"><b>${esc(u.name)}</b><span>ביקש ${esc(stamp(u.requestedAt))}${u.lastSeen ? ` · נראה ${esc(stamp(u.lastSeen))}` : ''}</span></span>
-        <span class="acts">${actions.map(([st, label, cls]) =>
+        <span class="who"><b>${esc(u.name)}</b><span>${u.role === 'coach' ? '<span class="role-on">מאמן</span> · ' : ''}ביקש ${esc(stamp(u.requestedAt))}${u.lastSeen ? ` · נראה ${esc(stamp(u.lastSeen))}` : ''}</span></span>
+        <span class="acts">${coach(u) ? `<button type="button" class="btn small secondary" data-user="${esc(u.id)}" data-role="${u.role === 'coach' ? 'parent' : 'coach'}">${u.role === 'coach' ? 'ביטול מאמן' : 'מאמן'}</button>` : ''}${actions.map(([st, label, cls]) =>
           `<button type="button" class="btn small ${cls || ''}" data-user="${esc(u.id)}" data-set="${st}">${label}</button>`).join('')}</span>
       </div>`;
     const block = (title, glyph, list, actions, empty) => `<section>
@@ -537,6 +542,12 @@ export function mountAdmin(view, ctx) {
     try { users = await call('listUsers', {}, { asAdmin: true }); usersError = ''; }
     catch (e) { usersError = e.message; }
     paint();
+  }
+
+  async function setRole(id, role) {
+    try { await call('setRole', { id, role }, { asAdmin: true }); }
+    catch (e) { usersError = e.message; }
+    await loadUsers();
   }
 
   async function setStatus(id, st) {
@@ -707,6 +718,7 @@ export function mountAdmin(view, ctx) {
       return;
     }
     if (t.dataset.set) { t.disabled = true; setStatus(t.dataset.user, t.dataset.set); return; }
+    if (t.dataset.role) { t.disabled = true; setRole(t.dataset.user, t.dataset.role); return; }
     if (t.dataset.import === 'file') { view.querySelector('[data-import-file]')?.click(); return; }
     if (t.dataset.clearGames !== undefined) { clearGamesSheet(); return; }
     if (t.dataset.inviteCopy !== undefined) { copyInvite(); return; }

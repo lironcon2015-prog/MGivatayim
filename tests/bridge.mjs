@@ -305,4 +305,87 @@ console.log('live:');
   });
 }
 
+// The coach: an approved device the manager marked. It reads what the
+// manager reads about minutes and writes only its own data (threshold and
+// attendance) — never the season, the live match or anyone's access.
+{
+  const C = createBridge({ adminCode: ADMIN });
+  const coach = 'c'.repeat(64), parent = 'd'.repeat(64);
+  const approve = (key, name) => {
+    C.post({ action: 'requestAccess', deviceKey: key, name });
+    const id = C.post({ action: 'listUsers', adminCode: ADMIN }).result.find((u) => u.name === name).id;
+    C.post({ action: 'setStatus', adminCode: ADMIN, id, status: 'approved' });
+    return id;
+  };
+  const coachId = approve(coach, 'המאמן');
+  approve(parent, 'הורה');
+  C.post({ action: 'putSeason', adminCode: ADMIN, baseVersion: 0, season: {
+    players: [{ id: 'p1', name: 'איתי', minutes: 30 }],
+    matches: [{ liveId: 'OLD', date: '2026-09-19', opponent: 'בני לוד', gf: 1, ga: 0, lineup: [{ pid: 'p1', pos: 'ST' }], events: [] }] } });
+
+  test('only the manager can mark a coach, and only with a known role', () => {
+    assert.equal(err(C.post({ action: 'setRole', deviceKey: coach, id: coachId, role: 'coach' })), 'bad_code');
+    assert.equal(err(C.post({ action: 'setRole', adminCode: ADMIN, id: coachId, role: 'admin' })), 'bad_role');
+    assert.equal(err(C.post({ action: 'setCoachMatch', deviceKey: coach, liveId: 'M1', min: 25 })), 'not_coach',
+      'an approved device is not a coach until marked');
+    assert.equal(C.post({ action: 'setRole', adminCode: ADMIN, id: coachId, role: 'coach' }).result.role, 'coach');
+    assert.equal(C.post({ action: 'listUsers', adminCode: ADMIN }).result.find((u) => u.id === coachId).role, 'coach');
+  });
+
+  test('the coach reads minutes and past lineups; a parent still does not', () => {
+    const c = C.post({ action: 'getSeason', deviceKey: coach }).result;
+    assert.equal(c.role, 'coach');
+    assert.equal(c.season.matches[0].lineup.length, 1);
+    assert.deepEqual(c.coach, { minDefault: 20, matches: {} });
+    const p = C.post({ action: 'getSeason', deviceKey: parent }).result;
+    assert.equal(p.role, 'parent');
+    assert.equal('lineup' in p.season.matches[0], false);
+    assert.equal('coach' in p, false, 'coach data sent to a parent');
+    assert.equal(C.post({ action: 'getSeason', adminCode: ADMIN }).result.role, 'admin');
+  });
+
+  test('a parent cannot write coach data', () => {
+    assert.equal(err(C.post({ action: 'setCoachMatch', deviceKey: parent, liveId: 'M1', min: 5 })), 'not_coach');
+  });
+
+  test('the coach writes threshold and attendance; the new threshold becomes the default without rewriting the past', () => {
+    const r = C.post({ action: 'setCoachMatch', deviceKey: coach, liveId: 'M1', min: 25, absent: ['p2', 'p2', 'p3'] }).result;
+    assert.equal(r.minDefault, 25);
+    assert.deepEqual(r.matches.M1, { min: 25, absent: ['p2', 'p3'] });
+    assert.equal(r.matches.OLD.min, 20, 'a match played under the old default keeps it');
+    const again = C.post({ action: 'setCoachMatch', adminCode: ADMIN, liveId: 'M1', absent: [] }).result;
+    assert.deepEqual(again.matches.M1, { min: 25, absent: [] }, 'attendance alone leaves the threshold');
+    C.clearCache();
+    assert.equal(C.post({ action: 'getSeason', deviceKey: coach }).result.coach.minDefault, 25);
+  });
+
+  test('coach data is validated', () => {
+    assert.equal(err(C.post({ action: 'setCoachMatch', deviceKey: coach, liveId: '<img>', min: 20 })), 'bad_match');
+    assert.equal(err(C.post({ action: 'setCoachMatch', deviceKey: coach, liveId: 'M1', min: -1 })), 'bad_min');
+    assert.equal(err(C.post({ action: 'setCoachMatch', deviceKey: coach, liveId: 'M1', min: 2.5 })), 'bad_min');
+    assert.equal(err(C.post({ action: 'setCoachMatch', deviceKey: coach, liveId: 'M1', absent: 'p1' })), 'bad_absent');
+  });
+
+  test('a coach writes nothing else: not the season, not the live match, not access', () => {
+    assert.equal(err(C.post({ action: 'putSeason', deviceKey: coach, baseVersion: 1, season: {} })), 'bad_code');
+    assert.equal(err(C.post({ action: 'startLive', deviceKey: coach, state: { id: 'X', status: 'setup' } })), 'bad_code');
+    C.post({ action: 'startLive', adminCode: ADMIN, state: { id: 'X', status: 'setup' } });
+    const v = C.post({ action: 'getLive', deviceKey: coach }).result;
+    assert.equal(v.canControl, false);
+    assert.equal(err(C.post({ action: 'putLive', deviceKey: coach, baseVersion: v.version, state: { id: 'X', status: 'running' } })), 'not_controller');
+    assert.equal(err(C.post({ action: 'setStatus', deviceKey: coach, id: coachId, status: 'approved' })), 'bad_code');
+  });
+
+  test('unmarking or revoking a coach takes the minutes away', () => {
+    C.post({ action: 'setRole', adminCode: ADMIN, id: coachId, role: 'parent' });
+    const r = C.post({ action: 'getSeason', deviceKey: coach }).result;
+    assert.equal(r.role, 'parent');
+    assert.equal('coach' in r, false);
+    assert.equal(err(C.post({ action: 'setCoachMatch', deviceKey: coach, liveId: 'M1', min: 20 })), 'not_coach');
+    C.post({ action: 'setRole', adminCode: ADMIN, id: coachId, role: 'coach' });
+    C.post({ action: 'setStatus', adminCode: ADMIN, id: coachId, status: 'revoked' });
+    assert.equal(err(C.post({ action: 'setCoachMatch', deviceKey: coach, liveId: 'M1', min: 20 })), 'not_approved');
+  });
+}
+
 console.log(`\nbridge: ${passed} passed`);

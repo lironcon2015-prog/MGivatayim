@@ -5,6 +5,13 @@ import { icon } from '../icons.js';
 import { crestImg } from '../components.js';
 import { POSITIONS, posLabel, isKeeper, layout } from '../positions.js';
 import { openSheet, confirmSheet, toast, buzz } from '../ui/sheet.js';
+import { liveMinutesHtml, hasShortfall, coachFormEvent, coachSheet, matchMinutesHtml } from './minutes.js';
+
+// Which half of the live screen the coach is looking at: the match, or the
+// minutes. Kept across visits to the screen, so the alert's "to the minutes"
+// can open it there.
+let tab = 'match';
+export const showMinutesTab = () => { tab = 'minutes'; };
 
 /* ── Small pieces shared by the live screen and the match sheet ────────── */
 
@@ -90,15 +97,30 @@ function pitchHtml(state, slots, { interactive }) {
 
 /* ── Match sheet (history rows) ─────────────────────────────────────────── */
 
-export function openMatchSheet(match) {
+// `coach` — the coach's view of a live match's minutes, or null: its
+// minimum and attendance (coachCfg) and how to change them (saveCoach).
+export function openMatchSheet(match, coach = null) {
   const state = { ...match, format: match.format || M.DEFAULT_FORMAT, events: match.events || [], players: match.players || [], lineup: match.lineup || [] };
   const hasEvents = state.events.some((e) => e.type === 'goal' || e.type === 'sub');
+  const minutes = coach && state.lineup.length;
+  const minutesHtml = () => (minutes ? matchMinutesHtml(state, coach.coachCfg()) : '');
   openSheet({
     title: `${match.home ? 'בית' : 'חוץ'} · מול ${match.opponent}`,
     subtitle: `<span class="num">${esc(match.date.split('-').reverse().slice(0, 2).join('.'))}</span>${match.round ? ` · מחזור ${match.round}` : ''}`,
-    tall: hasEvents,
+    tall: hasEvents || minutes,
     body: `<div class="ms-score num"><span class="ours">${match.gf}</span><span class="sep">:</span><span>${match.ga}</span></div>
-      ${hasEvents ? timelineHtml(state) : '<p class="sheet-text">למשחק הזה לא תועדו אירועים — רק התוצאה.</p>'}`,
+      ${hasEvents ? timelineHtml(state) : '<p class="sheet-text">למשחק הזה לא תועדו אירועים — רק התוצאה.</p>'}
+      <div data-ms-minutes>${minutesHtml()}</div>`,
+    onMount: ({ el }) => {
+      if (!minutes) return;
+      const host = el.querySelector('[data-ms-minutes]');
+      host.onclick = (e) => {
+        if (!e.target.closest('[data-mn="edit"]')) return;
+        coachSheet(state, coach.coachCfg, (patch) => coach.saveCoach(patch)
+          .catch((err) => { toast(esc(err.message), { kind: 'err' }); })
+          .finally(() => { host.innerHTML = minutesHtml(); }));
+      };
+    },
   });
 }
 
@@ -338,9 +360,25 @@ export function mountLive(view, ctx) {
     const field = M.onField(st);
     const benchPlayers = M.bench(st).sort(byNumber);
     const scroll = window.scrollY;
+    const coach = ctx.canMinutes();
+    const cfg = coach ? ctx.coachCfg(st.id) : null;
+    if (!coach) tab = 'match';
+    const tabs = coach ? `<div class="seg live-tabs" role="tablist">
+        <button role="tab" type="button" data-tab="match" aria-selected="${tab === 'match'}">משחק</button>
+        <button role="tab" type="button" data-tab="minutes" aria-selected="${tab === 'minutes'}">דקות${hasShortfall(st, cfg) ? '<i class="live-dot" aria-label="יש התראה"></i>' : ''}</button>
+      </div>` : '';
+
+    if (tab === 'minutes') {
+      view.innerHTML = `${scoreboard(st)}${tabs}<div data-mn-host>${liveMinutesHtml(st, now(), cfg)}</div>`;
+      lastMinute = minuteKey(st);
+      window.scrollTo(0, scroll);
+      tick();
+      return;
+    }
 
     view.innerHTML = `
       ${scoreboard(st)}
+      ${tabs}
       ${ctl ? `<section class="ctl-wrap">${controls(st)}${syncChip()}</section>` : ''}
       ${st.status === 'setup' && ctl ? lineupEditor(st) : `
         <section>
@@ -369,12 +407,21 @@ export function mountLive(view, ctx) {
     </div></section>`;
   }
 
+  // The minutes tab moves with the clock: redrawn when a minute passes, not
+  // four times a second.
+  let lastMinute = '';
+  const minuteKey = (st) => `${st.status}|${st.status === 'running' ? Math.floor(M.elapsedMs(st, now()) / 60000) : ''}`;
+
   // The clock is redrawn four times a second without touching anything else,
   // so a tap on a button is never lost to a re-render.
   let lastScore = null;
   function tick() {
     const st = state();
     if (!st) return;
+    if (tab === 'minutes' && st.status !== 'setup' && minuteKey(st) !== lastMinute) {
+      const host = view.querySelector('[data-mn-host]');
+      if (host) { host.innerHTML = liveMinutesHtml(st, now(), ctx.coachCfg(st.id)); lastMinute = minuteKey(st); }
+    }
     const c = view.querySelector('[data-clock]');
     const x = view.querySelector('[data-extra]');
     if (!c) return;
@@ -782,6 +829,15 @@ export function mountLive(view, ctx) {
     }
   }
 
+  // The coach's threshold and attendance: drawn at once, then again with
+  // what the bridge kept — or back as it was, with the reason.
+  function saveCoach(st, patch) {
+    const p = ctx.saveCoach(st.id, patch);
+    render();
+    p.then(render, (err) => { toast(esc(err.message), { kind: 'err' }); render(); });
+    return p;
+  }
+
   /* ---- events ---- */
 
   const onClick = async (e) => {
@@ -790,6 +846,11 @@ export function mountLive(view, ctx) {
     const st = state();
     const a = t.dataset.act;
     if (t.dataset.goto) { goToEvent(t.dataset.goto); return; }
+    if (t.dataset.tab) { tab = t.dataset.tab; render(); return; }
+    if (st && tab === 'minutes' && ctx.canMinutes()) {
+      if (t.dataset.mn === 'edit') { coachSheet(st, () => ctx.coachCfg(st.id), (patch) => saveCoach(st, patch)); return; }
+      if (coachFormEvent(t, st, ctx.coachCfg(st.id), (patch) => saveCoach(st, patch))) return;
+    }
     if (a === 'new') { t.disabled = true; newMatch(); return; }
     if (a === 'pick') { pickFixtureSheet(); return; }
     if (a === 'claim') { claimSheet(); return; }
@@ -848,6 +909,7 @@ export function mountLive(view, ctx) {
   const onChange = (e) => {
     const el = e.target;
     const st = state();
+    if (st && tab === 'minutes' && ctx.canMinutes() && coachFormEvent(el, st, ctx.coachCfg(st.id), (patch) => saveCoach(st, patch))) return;
     if (!st || !control()) return;
     if (el.dataset.lupos) {
       act({ t: 'lineup', lineup: st.lineup.map((l) => (l.pid === el.dataset.lupos ? { ...l, pos: el.value } : l)) });

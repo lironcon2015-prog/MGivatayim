@@ -11,6 +11,8 @@
  *   מכשיר מאושר     → יכול לקרוא את נתוני העונה ולצפות במשחק החי. לא לכתוב.
  *   מכשיר שולט      → מכשיר מאושר שמימש קוד חד-פעמי מהמנהל: מעדכן את
  *                      המשחק החי הנוכחי בלבד, ורק עד שהוא מסתיים.
+ *   מכשיר מאמן      → מכשיר מאושר שהמנהל סימן כמאמן: קורא גם את דקות
+ *                      המשחק, וכותב רק את נתוני המאמן (רף ונוכחות).
  *   קוד מנהל        → קורא, כותב, ומאשר / דוחה / מבטל גישה.
  *
  * מכשיר מזוהה במפתח אקראי שנוצר בדפדפן ונשמר בו. הגשר לא שומר את המפתח
@@ -42,6 +44,7 @@ const MARKER = 'mgivatayim-root';
 const SEASON_FILE = 'season.json';
 const ACCESS_FILE = 'access.json';
 const LIVE_FILE = 'live.json';
+const COACH_FILE = 'coach.json';
 
 const MIN_ADMIN_CODE = 12;
 const MIN_DEVICE_KEY = 32;
@@ -65,6 +68,11 @@ const FETCH_OPTS = { muteHttpExceptions: true, followRedirects: true, headers: {
 const MIN_LIVE_CODE = 4;
 const MAX_LIVE_CODE = 24;
 const MAX_CODE_ATTEMPTS = 5;
+/* רף הדקות למשחק כשהמאמן עוד לא קבע אחר. */
+const DEFAULT_MIN_MINUTES = 20;
+const MAX_MIN_MINUTES = 200;
+const MAX_ABSENT = 80;
+const ROLES = ['parent', 'coach'];
 
 /* ---------- הכניסה ---------- */
 
@@ -91,6 +99,8 @@ function handle_(req) {
     case 'getLive':       return getLive_(req);
     case 'getPoster':     return getPoster_(req);
     case 'claimLive':     return claimLive_(req);
+    // מאמן או מנהל
+    case 'setCoachMatch': return setCoachMatch_(req);
     // שולט במשחק (מנהל או מכשיר שמימש קוד)
     case 'putLive':       return putLive_(req);
     case 'finishLive':    return finishLive_(req);
@@ -98,6 +108,7 @@ function handle_(req) {
     case 'adminPing':     return adminPing_(req);
     case 'listUsers':     return listUsers_(req);
     case 'setStatus':     return setStatus_(req);
+    case 'setRole':       return setRole_(req);
     case 'removeUser':    return removeUser_(req);
     case 'putSeason':     return putSeason_(req);
     case 'makePoster':    return makePoster_(req);
@@ -164,11 +175,18 @@ function deviceId_(req) {
 
 /* מי פונה: מנהל, או מכשיר מאושר. כל השאר נעצרים כאן. */
 function viewer_(req) {
-  if (isAdmin_(req)) return { admin: true, id: null, name: 'המנהל' };
+  if (isAdmin_(req)) return { admin: true, coach: true, id: null, name: 'המנהל' };
   const id = deviceId_(req);
   const u = access_().users[id];
   if (!u || u.status !== 'approved') throw fail_('אין גישה', 'not_approved');
-  return { admin: false, id: id, name: u.name, user: u };
+  return { admin: false, coach: u.role === 'coach', id: id, name: u.name, user: u };
+}
+
+/* דקות המשחק ונתוני המאמן: למנהל ולמכשיר שהמנהל סימן כמאמן. */
+function requireCoach_(req) {
+  const who = viewer_(req);
+  if (!who.coach) throw fail_('אין הרשאה', 'not_coach');
+  return who;
 }
 
 /* ---------- התיקייה ----------
@@ -276,9 +294,12 @@ function getSeason_(req) {
       } catch (e) { /* "נראה לאחרונה" לא שווה כישלון של קריאה */ }
     }
   }
-  const s = readJson_(SEASON_FILE, null);
-  if (!s) return { version: 0, updatedAt: null, season: null };
-  return who.admin ? s : forParents_(s);
+  const role = who.admin ? 'admin' : who.coach ? 'coach' : 'parent';
+  const s = readJson_(SEASON_FILE, null) || { version: 0, updatedAt: null, season: null };
+  /* מאמן מקבל את העונה המלאה, עם הדקות, ואת נתוני המאמן. הורה לא מקבל
+     אף אחד מהם. */
+  if (!who.coach) return Object.assign(forParents_(s), { role: role });
+  return Object.assign({}, s, { role: role, coach: coach_() });
 }
 
 /* דקות משחק לשחקן — למנהל בלבד. ההסתרה כאן ולא בממשק: מה שמגיע לטלפון
@@ -581,6 +602,63 @@ function clearLive_(req) {
   });
 }
 
+/* ---------- מאמן ----------
+   רף הדקות ונוכחות לכל משחק חי, לפי liveId. קובץ נפרד ולא חלק מ-live.json:
+   הורים קוראים את live.json, המאמן לא שולט במשחק, ועריכה שלו לא צריכה
+   להתנגש בתור של מי שמתעד. הדקות עצמן לא נשמרות — הן מחושבות מהאירועים.
+
+   ברירת המחדל לרף היא מה שהמאמן קבע בפעם האחרונה. כשהיא משתנה, משחקים
+   קודמים שלא נקבע להם רף מקבלים את הערך הקודם — אחרת שינוי היום היה
+   משנה בדיעבד מי "שיחק מתחת לרף" לפני חודש. */
+
+function coach_() {
+  const c = readJson_(COACH_FILE, null);
+  return {
+    minDefault: c && isFinite(Number(c.minDefault)) ? Number(c.minDefault) : DEFAULT_MIN_MINUTES,
+    matches: c && c.matches && typeof c.matches === 'object' && !Array.isArray(c.matches) ? c.matches : {},
+  };
+}
+
+function setCoachMatch_(req) {
+  requireCoach_(req);
+  const liveId = String(req.liveId || '');
+  if (!/^[A-Za-z0-9_-]{1,40}$/.test(liveId)) throw fail_('משחק לא מוכר', 'bad_match');
+  let min = null;
+  if (req.min != null) {
+    min = Number(req.min);
+    if (!isFinite(min) || min !== Math.floor(min) || min < 0 || min > MAX_MIN_MINUTES) throw fail_('רף לא תקין', 'bad_min');
+  }
+  let absent = null;
+  if (req.absent != null) {
+    if (!Array.isArray(req.absent) || req.absent.length > MAX_ABSENT) throw fail_('רשימת נוכחות לא תקינה', 'bad_absent');
+    absent = [];
+    req.absent.forEach((pid) => {
+      const v = String(pid).slice(0, 80);
+      if (v && absent.indexOf(v) < 0) absent.push(v);
+    });
+  }
+  return withLock_(() => {
+    const c = coach_();
+    const entry = c.matches[liveId] || {};
+    if (min != null && min !== c.minDefault) {
+      const s = readJson_(SEASON_FILE, null);
+      const l = live_();
+      const ids = ((s && s.season && s.season.matches) || []).map((m) => m.liveId).concat([l.state && l.state.id]);
+      ids.forEach((id) => {
+        if (!id || id === liveId) return;
+        c.matches[id] = c.matches[id] || {};
+        if (c.matches[id].min == null) c.matches[id].min = c.minDefault;
+      });
+      c.minDefault = min;
+    }
+    if (min != null) entry.min = min;
+    if (absent) entry.absent = absent;
+    c.matches[liveId] = entry;
+    writeJson_(COACH_FILE, c);
+    return c;
+  });
+}
+
 /* ---------- מנהל ---------- */
 
 function adminPing_(req) {
@@ -610,6 +688,22 @@ function setStatus_(req) {
     u.decidedAt = new Date().toISOString();
     writeJson_(ACCESS_FILE, a);
     return { id: req.id, status: status };
+  });
+}
+
+/* תפקיד שייך למכשיר, לא לאדם: מאמן עם טלפון ומחשב = שני מכשירים. */
+function setRole_(req) {
+  requireAdmin_(req);
+  const role = String(req.role || '');
+  if (ROLES.indexOf(role) < 0) throw fail_('תפקיד לא מוכר: ' + role, 'bad_role');
+  return withLock_(() => {
+    const a = access_();
+    const u = a.users[String(req.id || '')];
+    if (!u) throw fail_('המשתמש לא נמצא', 'not_found');
+    if (role === 'coach') u.role = 'coach';
+    else delete u.role;
+    writeJson_(ACCESS_FILE, a);
+    return { id: req.id, role: role };
   });
 }
 

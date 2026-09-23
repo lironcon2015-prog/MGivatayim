@@ -950,3 +950,94 @@ button.match:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px
   margin: 0 0 .2rem; padding: .8rem 1rem; border-radius: var(--r-field); background: var(--well);
   border: 1px solid var(--line); font-size: .86rem; color: #C3CCDA; white-space: pre-line; overflow-wrap: anywhere;
 }
+
+/* ═══ Coach: playing time ══════════════════════════════════════════════ */
+/* Informative only: a shortfall under the coach's minimum is the one thing
+   marked, in gold. Everything else — including a player who played a lot —
+   stays neutral. The minimum is a gold tick on every bar. */
+.live-tabs { margin-top: .9rem; }
+.live-tabs .live-dot { width: 7px; height: 7px; }
+.mn-list { padding: .2rem var(--pad); }
+.mn-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: .35rem .65rem; padding: .7rem 0; }
+.mn-row + .mn-row { border-top: 1px solid var(--line); }
+.mn-row .pick-num { width: 34px; height: 34px; font-size: .85rem; grid-row: span 2; }
+.mn-name { font-weight: 700; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mn-val { font-weight: 600; font-size: 1.05rem; }
+.mn-row.short .mn-val, .mn-row.short .mn-name { color: var(--gold); }
+.mn-state { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-inline-end: .45rem; vertical-align: .08em; border: 1.5px solid var(--faint); }
+.mn-state.on { background: var(--text); border-color: var(--text); }
+.mn-track { grid-column: 2 / 4; position: relative; height: 6px; border-radius: 4px; background: var(--well); }
+.mn-fill, .mn-span { position: absolute; inset-block: 0; inset-inline-start: 0; border-radius: 4px; background: var(--faint); }
+.short .mn-fill { background: var(--gold-fill); }
+.mn-min { position: absolute; top: -4px; bottom: -4px; width: 2px; margin-inline-start: -1px; border-radius: 1px; background: var(--gold); }
+.mn-sub { grid-column: 2 / 4; font-size: .76rem; color: var(--muted); }
+.lu-toggle .mn-sub { flex: none; }
+.lu-toggle:disabled { cursor: default; opacity: .85; }
+
+.mn-alert {
+  display: flex; gap: .75rem; align-items: flex-start; margin: .9rem 0; padding: .85rem 1rem;
+  border-radius: var(--r-tile); background: var(--gold-soft); border: 1px solid var(--gold-line);
+}
+.mn-alert-ic { flex: none; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: var(--gold); color: var(--on-gold); }
+.mn-alert-ic svg { width: 17px; height: 17px; }
+.mn-alert p { margin: 0; font-size: .9rem; }
+.mn-alert p b { color: var(--gold); }
+.mn-alert ul { list-style: none; margin: .55rem 0 0; padding: 0; display: grid; gap: .4rem; }
+.mn-alert li { font-size: .88rem; padding: .45rem .65rem; border-radius: 12px; background: var(--well); }
+.mn-alert li > span:last-child { display: block; font-size: .8rem; color: var(--gold); }
+
+.mn-minbox { padding: 1rem var(--pad); }
+.mn-stepper { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: .8rem; }
+.mn-step {
+  width: 46px; height: 46px; border-radius: 50%; font: inherit; font-size: 1.4rem; font-weight: 700; cursor: pointer;
+  background: var(--surface-2); color: var(--text); border: 1px solid var(--line-strong);
+}
+.mn-step:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.mn-minval { display: flex; align-items: baseline; justify-content: center; gap: .4rem; color: var(--muted); font-size: .85rem; }
+.mn-minval input {
+  width: 4.2ch; font-family: Rubik, sans-serif; font-size: 2rem; font-weight: 600; text-align: center; color: var(--gold);
+  background: var(--well); border: 1px solid rgba(255, 255, 255, .1); border-radius: var(--r-field); padding: .1rem .2rem; color-scheme: dark;
+}
+
+.mn-table-wrap, .mn-map-wrap { padding: .4rem .6rem; overflow-x: auto; }
+.mn-table { width: 100%; border-collapse: collapse; font-size: .86rem; }
+.mn-table th { font-size: .72rem; font-weight: 700; color: var(--muted); padding: .45rem .2rem; border-bottom: 1px solid var(--line-strong); text-align: center; }
+.mn-table td { padding: .55rem .2rem; text-align: center; border-bottom: 1px solid var(--line); }
+.mn-table tr:last-child td { border-bottom: 0; }
+.mn-table .nm { text-align: start; }
+.mn-table td.num:first-child { color: var(--faint); }
+.mn-pl { font: inherit; font-weight: 700; color: var(--text); background: none; border: 0; padding: 0; cursor: pointer; text-align: start; white-space: nowrap; }
+.mn-pl:focus-visible, .mn-col:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; border-radius: 6px; }
+.mn-table tr.short .mn-pl, .mn-table tr.short .mn-below { color: var(--gold); }
+.mn-below { font-weight: 700; color: var(--faint); }
+
+.mn-map { border-collapse: separate; border-spacing: 3px; font-size: .78rem; }
+.mn-map th.nm { text-align: start; padding-inline-end: .35rem; }
+.mn-col { display: grid; justify-items: center; gap: 3px; font: inherit; font-size: .7rem; color: var(--muted); background: none; border: 0; padding: 0 1px; cursor: pointer; }
+.mn-res { width: 7px; height: 7px; border-radius: 50%; background: var(--draw); }
+.mn-res.win { background: var(--win); }
+.mn-res.loss { background: var(--loss); }
+.mn-cell { min-width: 32px; height: 28px; border-radius: 8px; text-align: center; font-weight: 600; background: var(--surface-2); color: var(--text); }
+.mn-cell.short { background: var(--gold-soft); color: var(--gold); box-shadow: inset 0 0 0 1.5px var(--gold-line); }
+.mn-cell.x { background: none; color: var(--faint); box-shadow: inset 0 0 0 1px var(--line-strong); }
+.mn-cell.none { background: none; }
+.mn-legend { display: flex; flex-wrap: wrap; gap: .4rem 1rem; }
+.mn-legend span { display: inline-flex; align-items: center; gap: .35rem; }
+.mn-legend .mn-cell { display: inline-block; min-width: 18px; height: 12px; border-radius: 4px; }
+
+.mn-sheet { margin-top: 1.2rem; }
+.mn-sheet .mn-list { padding: 0; }
+.mn-hist { margin-top: .9rem; }
+.mn-h { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: .3rem .65rem; padding: .65rem 0; }
+.mn-h + .mn-h { border-top: 1px solid var(--line); }
+.mn-d { font-size: .8rem; color: var(--muted); }
+.mn-o { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; }
+.mn-o small { font-weight: 500; color: var(--faint); font-size: .74rem; }
+.mn-o .chip { padding: .05rem .45rem; font-size: .68rem; }
+.mn-v { font-weight: 600; }
+.mn-h.short .mn-v { color: var(--gold); }
+.mn-h .mn-track { grid-column: 1 / 4; }
+.mn-h.short .mn-span { background: var(--gold-fill); }
+.mn-h.absent .mn-o, .mn-h.absent .mn-v { color: var(--faint); font-weight: 500; }
+
+.role-on { color: var(--gold); font-weight: 700; }

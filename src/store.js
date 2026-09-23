@@ -41,6 +41,11 @@ export function setCachedSeason(payload) {
   set('season', payload ? JSON.stringify(payload) : null);
 }
 
+// The last minutes alert shown on this device (match and period), so it
+// comes once and not on every poll.
+export const getAlerted = () => get('alerted') || '';
+export const setAlerted = (k) => set('alerted', k);
+
 export function forgetAccess() {
   setCachedSeason(null);
 }

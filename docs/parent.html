@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#0A1321">
+<title>מדריך להורים</title>
+<meta name="description" content="מכבי גבעתיים · העונה — התקנה, מה יש באפליקציה, צפייה במשחק חי ותיעוד משחק.">
+<meta property="og:type" content="article">
+<meta property="og:locale" content="he_IL">
+<meta property="og:site_name" content="מכבי גבעתיים · העונה">
+<meta property="og:title" content="מדריך להורים">
+<meta property="og:description" content="התקנה, מה יש באפליקציה, צפייה במשחק חי, ותיעוד משחק כשהמנהל לא במגרש.">
+<meta property="og:url" content="https://lironcon2015-prog.github.io/MGivatayim/docs/parent.html">
+<meta property="og:image" content="https://lironcon2015-prog.github.io/MGivatayim/assets/crest.png">
+<meta property="og:image:width" content="256">
+<meta property="og:image:height" content="256">
+<meta name="twitter:card" content="summary">
+<link rel="icon" href="../icons/favicon-32.png" sizes="32x32">
+<link rel="apple-touch-icon" href="../icons/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700;800&family=Rubik:wght@500;600;700&display=swap">
+<style>
+:root{
+  color-scheme:dark;
+  --bg:#0A1321;--surface:rgba(17,27,41,.66);--s2:rgba(255,255,255,.06);--well:rgba(0,0,0,.24);
+  --line:rgba(255,255,255,.08);--line2:rgba(255,255,255,.14);
+  --text:#E8EDF5;--body:#C9D2E0;--muted:#8B98AC;--faint:#66748A;
+  --gold:#E8B931;--gold-hi:#F2CB55;--gold-lo:#DDAA22;--gold-soft:rgba(232,185,49,.12);--gold-line:rgba(232,185,49,.34);--gold-glow:rgba(232,185,49,.4);--on-gold:#1A1204;
+  --blue:#6DB3F5;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.65 Assistant,system-ui,sans-serif;direction:rtl;padding-inline:16px;padding-block:28px 72px}
+body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;background:radial-gradient(150% 46% at 80% 0%,rgba(70,138,236,.3),transparent 75%),radial-gradient(140% 50% at 5% 58%,rgba(36,158,112,.22),transparent 75%),radial-gradient(150% 46% at 95% 100%,rgba(70,138,236,.26),transparent 75%),var(--bg)}
+.wrap{max-width:680px;margin:0 auto}
+.num{font-family:Rubik,system-ui,sans-serif;font-variant-numeric:tabular-nums}
+.ltr{direction:ltr;unicode-bidi:isolate}
+
+header.hero{padding:22px 20px;border-radius:28px;background:linear-gradient(180deg,rgba(31,42,58,.8),rgba(15,23,35,.8));border:1px solid var(--gold-line);box-shadow:0 22px 60px -26px var(--gold-glow);margin-bottom:26px}
+.hero .eyebrow{font-size:13px;font-weight:800;color:var(--gold);letter-spacing:.04em;margin:0 0 4px}
+.hero h1{font-size:30px;line-height:1.2;margin:0 0 10px;text-wrap:balance}
+.hero p{margin:0;color:var(--body)}
+
+nav.toc{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 30px}
+nav.toc a{font-size:13.5px;font-weight:700;color:var(--muted);text-decoration:none;padding:5px 12px;border-radius:999px;background:var(--well);border:1px solid var(--line)}
+nav.toc a:hover,nav.toc a:focus-visible{color:var(--gold);border-color:var(--gold-line);outline:none}
+
+section{margin:0 0 34px;scroll-margin-top:16px}
+h2{display:flex;align-items:center;gap:10px;font-size:21px;margin:0 0 12px}
+h2 svg{width:22px;height:22px;flex:none;color:var(--gold)}
+h3{font-size:16.5px;margin:20px 0 6px}
+p{margin:0 0 10px;color:var(--body)}
+b,strong{color:var(--text)}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:22px;padding:16px 18px}
+ul.list{margin:0;padding:0;list-style:none;display:grid;gap:10px}
+ul.list li{position:relative;padding-inline-start:18px;color:var(--body)}
+ul.list li::before{content:"";position:absolute;inset-inline-start:0;top:.62em;width:7px;height:7px;border-radius:50%;background:var(--gold)}
+ol.steps{margin:0;padding:0;list-style:none;counter-reset:s;display:grid;gap:12px}
+ol.steps li{counter-increment:s;display:grid;grid-template-columns:30px minmax(0,1fr);gap:10px;align-items:start;color:var(--body)}
+ol.steps li::before{content:counter(s);font-family:Rubik,sans-serif;font-weight:600;font-size:14px;width:30px;height:30px;border-radius:50%;display:grid;place-items:center;background:var(--gold-soft);color:var(--gold);border:1px solid var(--gold-line)}
+.screens{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.screen{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:12px 14px}
+.screen b{display:block;margin-bottom:2px}
+.screen span{font-size:14px;color:var(--muted);line-height:1.5}
+.note{font-size:14px;color:var(--muted);margin-top:10px}
+.principle{border-color:var(--gold-line);background:var(--gold-soft)}
+.principle p{color:var(--text);margin:0}
+
+/* mini illustrations, drawn in the app's own language */
+.demo{background:var(--surface);border:1px solid var(--line);border-radius:22px;padding:6px 16px;margin:10px 0 4px}
+.demo-cap{font-size:12.5px;font-weight:800;color:var(--faint);letter-spacing:.03em;margin:14px 0 6px}
+.mrow{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:4px 10px;align-items:center;padding:10px 0}
+.mrow+.mrow{border-top:1px solid var(--line)}
+.mrow .n{font-size:13px;color:var(--faint);grid-row:span 3;align-self:start;padding-top:3px;min-width:1.4em;text-align:center}
+.mrow .nm{font-weight:700}
+.mrow .v{font-weight:600;font-size:17px}
+.mrow.short .nm,.mrow.short .v{color:var(--gold)}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-inline-end:7px;vertical-align:.06em;border:1.5px solid var(--faint)}
+.dot.on{background:var(--text);border-color:var(--text)}
+.track{grid-column:2/4;position:relative;height:6px;border-radius:4px;background:var(--well)}
+.fill{position:absolute;inset-block:0;inset-inline-start:0;border-radius:4px;background:var(--faint)}
+.short .fill{background:linear-gradient(180deg,var(--gold-hi),var(--gold-lo))}
+.min{position:absolute;top:-4px;bottom:-4px;width:2px;margin-inline-start:-1px;border-radius:1px;background:var(--gold)}
+.sub{grid-column:2/4;font-size:13px;color:var(--muted)}
+.key{display:flex;flex-wrap:wrap;gap:4px 16px;font-size:13px;color:var(--muted);margin:2px 0 8px}
+.key span{display:inline-flex;align-items:center}
+.key i.tick{display:inline-block;width:2px;height:12px;background:var(--gold);border-radius:1px;margin-inline-end:6px}
+
+.alert{display:flex;gap:12px;align-items:flex-start;padding:14px 16px;border-radius:20px;background:var(--gold-soft);border:1px solid var(--gold-line);margin:10px 0 4px}
+.alert .ic{flex:none;width:30px;height:30px;border-radius:50%;background:var(--gold);color:var(--on-gold);display:grid;place-items:center}
+.alert .ic svg{width:17px;height:17px}
+.alert p{margin:0;color:var(--text);font-size:15px}
+.alert p b{color:var(--gold)}
+.alert ul{list-style:none;margin:8px 0 0;padding:0;display:grid;gap:6px}
+.alert li{font-size:14.5px;padding:7px 11px;border-radius:12px;background:var(--well);color:var(--text)}
+.alert li span{display:block;font-size:13px;color:var(--gold)}
+.seg{display:flex;gap:4px;padding:3px;border-radius:999px;background:var(--well);border:1px solid var(--line);width:max-content;max-width:100%}
+.seg span{font-size:13.5px;font-weight:700;padding:5px 14px;border-radius:999px;color:var(--muted);border:1px solid transparent}
+.seg span.on{background:var(--gold-soft);color:var(--gold);border-color:var(--gold-line)}
+.seg span.away{background:var(--s2);color:var(--text);border-color:var(--line2)}
+.att{display:flex;align-items:center;gap:10px;padding:10px 0}
+.att+.att{border-top:1px solid var(--line)}
+.att .nm{flex:1;font-weight:700}
+.att.gone .nm{color:var(--faint);text-decoration:line-through}
+.att .n{font-size:13px;color:var(--faint);min-width:1.4em;text-align:center}
+.stepper{display:flex;align-items:center;justify-content:center;gap:16px;padding:10px 0}
+.stepper .b{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;background:var(--s2);border:1px solid var(--line2);font-weight:700;font-size:20px}
+.stepper .val{font-family:Rubik,sans-serif;font-size:30px;font-weight:600;color:var(--gold);padding:0 12px;border-radius:14px;background:var(--well);border:1px solid var(--line)}
+
+table.season{width:100%;border-collapse:collapse;font-size:14px}
+table.season th{font-size:12px;color:var(--muted);font-weight:700;padding:6px 4px;border-bottom:1px solid var(--line2);text-align:center}
+table.season th:nth-child(2),table.season td:nth-child(2){text-align:start}
+table.season td{padding:8px 4px;border-bottom:1px solid var(--line);text-align:center}
+table.season tr:last-child td{border-bottom:0}
+table.season td:first-child{color:var(--faint)}
+table.season tr.short td:nth-child(2),table.season tr.short td:last-child{color:var(--gold);font-weight:700}
+.tablewrap{overflow-x:auto}
+footer{margin-top:40px;text-align:center;font-size:13px;color:var(--faint)}
+@media (max-width:480px){.screens{grid-template-columns:minmax(0,1fr)}.hero h1{font-size:26px}}
+
+.ctl{display:grid;gap:8px;margin:10px 0 4px}
+.ctl-goals{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.ctl-goal{padding:12px 8px;border-radius:18px;text-align:center;font-weight:800;background:linear-gradient(180deg,var(--gold-hi),var(--gold-lo));color:var(--on-gold)}
+.ctl-goal.them{background:var(--s2);color:var(--text);border:1px solid var(--line2)}
+.ctl-row{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+.ctl-btn{padding:9px 4px;border-radius:14px;text-align:center;font-size:13px;font-weight:700;background:var(--s2);border:1px solid var(--line);color:var(--body)}
+.linkish{color:var(--muted);text-decoration:underline;text-underline-offset:3px;font-size:14px}
+.sync{font-size:13.5px;color:var(--muted);text-align:center;margin:6px 0 0}
+.code{display:flex;gap:8px;align-items:center;margin-top:10px}
+.code .in{flex:1;padding:9px 12px;border-radius:14px;background:var(--well);border:1px solid var(--line2);color:var(--muted);font-family:Rubik,sans-serif;direction:ltr;text-align:start}
+.code .go{padding:9px 16px;border-radius:999px;font-weight:800;background:linear-gradient(180deg,var(--gold-hi),var(--gold-lo));color:var(--on-gold)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="hero">
+    <p class="eyebrow">מכבי גבעתיים · העונה</p>
+    <h1>מדריך להורים</h1>
+    <p>האפליקציה של הקבוצה מרכזת במקום אחד את המשחק הבא, התוצאות, נתוני השחקנים, הסרטונים ומשחק חי שמתעדכן בזמן אמת. כך לא צריך לחפש בוואטסאפ מתי ההתכנסות, מה התוצאה ומי הבקיע.</p>
+  </header>
+
+  <nav class="toc" aria-label="תוכן">
+    <a href="#install">התקנה וכניסה</a>
+    <a href="#app">מה יש באפליקציה</a>
+    <a href="#live">משחק חי</a>
+    <a href="#control">תיעוד משחק עם קוד</a>
+    <a href="#faq">שאלות</a>
+  </nav>
+
+  <section id="install">
+    <h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></svg>התקנה וכניסה</h2>
+    <div class="card">
+      <ol class="steps">
+        <li><span>פותחים את הקישור שקיבלתם מהמנהל. אם הוא נפתח בתוך וואטסאפ, בוחרים "פתיחה ב-Safari" (באייפון) או "פתיחה ב-Chrome" (באנדרואיד).</span></li>
+        <li><span><b>קודם מתקינים, ורק אחר כך מבקשים גישה.</b> באייפון: כפתור השיתוף ← "הוספה למסך הבית". באנדרואיד: "התקנה". באייפון האפליקציה שבמסך הבית היא מכשיר נפרד מ-Safari, ולכן בקשה שנשלחה מ-Safari לא עוברת אליה.</span></li>
+        <li><span>פותחים את האפליקציה ממסך הבית, כותבים שם (למשל "אבא של איתי") ושולחים בקשת גישה.</span></li>
+        <li><span>המנהל מאשר, ומאותו רגע העונה פתוחה בפניכם. אין סיסמה ואין צורך בחשבון גוגל: הטלפון מזוהה לבד.</span></li>
+      </ol>
+      <p class="note">כל טלפון מאושר בנפרד. אם יש לכם טלפון וגם טאבלט, שולחים בקשה מכל אחד מהם.</p>
+    </div>
+  </section>
+
+  <section id="app">
+    <h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg>מה יש באפליקציה</h2>
+    <p>ארבע לשוניות בסרגל התחתון:</p>
+    <div class="screens">
+      <div class="screen"><b>בית</b><span>המשחק הבא: ספירה לאחור, שעת התכנסות, תלבושת וניווט ב-Waze למגרש. בנוסף התוצאות האחרונות והעונה במספרים.</span></div>
+      <div class="screen"><b>לייב</b><span>המשחק החי: תוצאה, שעון, כובשים, ההרכב על המגרש, הספסל ומהלך המשחק.</span></div>
+      <div class="screen"><b>נתונים</b><span>אחוז הצלחה, רצפים, בית מול חוץ, טבלת מובילים (שערים, בישולים), לוח המשחקים וכל התוצאות. לחיצה על משחק פותחת את מהלך המשחק שלו.</span></div>
+      <div class="screen"><b>מדיה</b><span>סרטונים וקישורים של הקבוצה.</span></div>
+    </div>
+  </section>
+
+  <section id="live">
+    <h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="2"/><path d="M16.2 7.8a6 6 0 0 1 0 8.4M7.8 16.2a6 6 0 0 1 0-8.4M19 5a10 10 0 0 1 0 14M5 19A10 10 0 0 1 5 5"/></svg>משחק חי</h2>
+    <p>כשמשחק מתחיל, מופיעה נקודה מהבהבת על "לייב" ובאנר בראש מסך הבית. בלייב רואים בזמן אמת:</p>
+    <ul class="list">
+      <li><b>תוצאה ושעון</b>, כולל תוספת זמן. השעון רץ אצל כולם באותו קצב.</li>
+      <li><b>כובשים ומבשלים</b> מתחת לתוצאה.</li>
+      <li><b>ההרכב על המגרש והספסל</b>, מתעדכנים עם כל חילוף.</li>
+      <li><b>מהלך המשחק</b>: שערים, חילופים, פתיחה וסיום של כל חלק.</li>
+    </ul>
+    <p class="note">בסיום המשחק התוצאה, הכובשים והמבשלים נכנסים לבד לתוצאות העונה ולטבלת המובילים.</p>
+  </section>
+
+  <section id="control">
+    <h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="15" r="4"/><path d="M10.8 12.2 20 3M17 6l3 3M14 9l2 2"/></svg>תיעוד משחק כשהמנהל לא במגרש</h2>
+    <div class="card principle"><p><b>המנהל לא יכול להגיע למשחק? הוא יכול למסור להורה שנמצא במגרש קוד שליטה</b>, וההורה מעדכן את המשחק מהטלפון שלו: תוצאה, כובשים וחילופים. כל מי שצופה רואה את העדכונים בזמן אמת.</p></div>
+
+    <h3>איך מקבלים שליטה</h3>
+    <ol class="steps">
+      <li><span>המנהל פותח את המשחק החי (אפשר גם מהבית), בוחר קוד ושולח לכם אותו.</span></li>
+      <li><span>נכנסים ל<b>לייב</b> ולוחצים בתחתית המסך על <b>"יש לי קוד שליטה במשחק"</b>.</span></li>
+      <li><span>מקלידים את הקוד ולוחצים "כניסה". כשמופיעה ההודעה "המשחק בשליטתכם", כפתורי התיעוד מופיעים.</span></li>
+    </ol>
+    <div class="demo" aria-hidden="true">
+      <p class="demo-cap">חלון הקוד</p>
+      <p style="margin:0;font-size:14px">קיבלתם קוד מהמנהל? הקלידו אותו כדי לעדכן את המשחק מהטלפון הזה.</p>
+      <div class="code" style="margin-bottom:12px"><span class="in">4821</span><span class="go">כניסה</span></div>
+    </div>
+    <p class="note">הקוד עובד פעם אחת ורק למשחק הזה. אחרי 5 ניסיונות שגויים הוא ננעל, וצריך לבקש מהמנהל קוד חדש.</p>
+
+    <h3>מה מתעדים</h3>
+    <div class="demo" aria-hidden="true">
+      <p class="demo-cap">הכפתורים במהלך המשחק</p>
+      <div class="ctl" style="margin-bottom:12px">
+        <div class="ctl-goals"><span class="ctl-goal">שער לנו</span><span class="ctl-goal them">שער ליריבה</span></div>
+        <div class="ctl-row"><span class="ctl-btn">חילוף</span><span class="ctl-btn">עצירת שעון</span><span class="ctl-btn">סיום שליש</span><span class="ctl-btn">עוד</span></div>
+        <p class="sync">✓ כולם רואים את העדכון</p>
+      </div>
+    </div>
+    <ul class="list" style="margin-top:12px">
+      <li><b>לפני הפתיחה:</b> מוודאים את ההרכב (ההרכב של המשחק הקודם מסומן מראש) ולוחצים <b>"שריקת פתיחה"</b>. השעון מתחיל לרוץ.</li>
+      <li><b>שער לנו:</b> לוחצים ובוחרים את המבקיע, ואחריו את המבשל (או "ללא בישול"). הדקה נרשמת לפי השעון ברגע הלחיצה, ואם נרשמה באיחור אפשר להזיז אותה בדקה אחורה או קדימה. אם לא יודעים מי הבקיע, בוחרים "לא ידוע".</li>
+      <li><b>שער ליריבה:</b> לחיצה אחת.</li>
+      <li><b>חילוף:</b> לוחצים על השחקן שיוצא, על המגרש. הספסל מסודר לפי העמדה שלו: קודם שחקנים באותה עמדה, אחר כך בעמדות קרובות. אפשר גם להתחיל מהספסל: לוחצים על מי שנכנס ובוחרים במקום מי.</li>
+      <li><b>סוף חלק:</b> "סיום שליש" (או "סיום מחצית"). בהפסקה לוחצים "פתיחת שליש 2" כשהמשחק חוזר. חילוף שנעשה בהפסקה נרשם בתחילת החלק הבא.</li>
+      <li><b>סיום:</b> בסוף החלק האחרון לוחצים <b>"סיום ושמירת המשחק"</b>. התוצאה נכנסת לעונה לבד.</li>
+    </ul>
+
+    <h3>טעיתי</h3>
+    <ul class="list">
+      <li>אחרי כל פעולה קופצת הודעה עם כפתור <b>"ביטול"</b>.</li>
+      <li>לחיצה על שער או חילוף במהלך המשחק פותחת אותו לתיקון: מבקיע, מבשל, דקה, או מחיקה.</li>
+      <li>אם השעון הופעל באיחור, ב<b>"עוד"</b> ← "תיקון שעון" מזיזים אותו בעשר שניות או בדקה.</li>
+    </ul>
+
+    <h3>אין קליטה במגרש?</h3>
+    <p>ממשיכים לתעד כרגיל. כל פעולה נרשמת בטלפון מיד ונשמרת בו, גם אם הוא נסגר. כשהקליטה חוזרת, הפעולות נשלחות לבד. בזמן הזה כתוב על המסך "אין קליטה · N פעולות ממתינות", וכשהכל עבר מופיע "כולם רואים את העדכון".</p>
+    <p class="note">השליטה מסתיימת כשהמשחק נשמר. תיקון של משחק שכבר הסתיים נעשה רק אצל המנהל.</p>
+  </section>
+
+  <section id="faq">
+    <h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>שאלות</h2>
+    <div class="card">
+      <h3 style="margin-top:0">צריך לעדכן את האפליקציה?</h3>
+      <p>לא. עדכונים מגיעים לבד, גם לאפליקציה שבמסך הבית. מספר הגרסה מופיע בתחתית כל מסך.</p>
+      <h3>החלפתי טלפון</h3>
+      <p>הטלפון החדש הוא מכשיר חדש מבחינת האפליקציה. שולחים ממנו בקשת גישה, והמנהל מאשר אותו.</p>
+      <h3>אפשר להעביר את הקישור להורה אחר?</h3>
+      <p>כן. הקישור לבד לא נותן גישה לכלום: כל טלפון שולח בקשה, והמנהל מאשר אותה.</p>
+    </div>
+  </section>
+
+  <footer>מכבי גבעתיים · העונה · גרסה <span class="num" id="app-version">1.16.0</span></footer>
+  <script>
+    // The app's version as the site declares it now; the text above is the fallback.
+    fetch('../version.json', { cache: 'no-store' }).then((r) => r.json())
+      .then((v) => { if (v && v.version) document.getElementById('app-version').textContent = v.version; })
+      .catch(() => {});
+  </script>
+</div>
+</body>
+</html>

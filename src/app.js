@@ -39,6 +39,7 @@ const state = {
   season: null,           // buildSeason(payload.season), ready for the views
   stale: false,           // showing the device cache because the bridge was unreachable
   skipInstall: false,     // a phone that cannot install chose to ask from the browser (this visit only)
+  pending: 0,             // access requests waiting for the manager (manager only)
 };
 
 const isAdmin = () => !!store.getAdminCode();
@@ -82,7 +83,27 @@ function accept(payload) {
   state.stale = false;
   store.setCachedSeason(payload);
   if (!sessionStarted) { sessionStarted = true; session.start(); }
+  checkPending();
 }
+
+// A dot on the manager's tab while access requests wait. Asked on every
+// season load, on coming back to the app and once a minute — never pushed,
+// like everything else here. Drawn in place, so no screen re-renders for it.
+const PENDING_EVERY_MS = 60000;
+async function checkPending() {
+  if (!isAdmin()) return;
+  try { setPending((await call('adminPing', {}, { asAdmin: true })).pending); } catch { /* next time */ }
+}
+function setPending(n) {
+  state.pending = Number(n) || 0;
+  document.querySelectorAll(`#nav a[href="${ADMIN_HASH}"]`).forEach((a) => {
+    a.querySelector('.nav-dot')?.remove();
+    if (state.pending) a.insertAdjacentHTML('beforeend', pendingDot());
+  });
+}
+const pendingDot = () => `<i class="nav-dot" aria-label="${state.pending === 1 ? 'בקשת גישה ממתינה' : `${state.pending} בקשות גישה ממתינות`}"></i>`;
+setInterval(() => { if (document.visibilityState === 'visible') checkPending(); }, PENDING_EVERY_MS);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkPending(); });
 
 /* ---------- talking to the bridge ---------- */
 
@@ -211,7 +232,7 @@ function chrome(team) {
   const nav = state.access === 'approved' && state.season
     ? `<nav class="nav" id="nav" aria-label="ניווט ראשי">
         ${ROUTES.map((r) => tab(r.hash, r.glyph, r.label, r.live && liveActive() ? '<i class="live-dot" aria-label="משחק חי"></i>' : '')).join('')}
-        ${isAdmin() ? tab(ADMIN_HASH, 'shield', 'ניהול') : ''}
+        ${isAdmin() ? tab(ADMIN_HASH, 'shield', 'ניהול', state.pending ? pendingDot() : '') : ''}
       </nav>`
     : '';
   document.body.classList.toggle('with-nav', !!nav);
@@ -263,6 +284,7 @@ function render() {
     teardown = mountAdmin(view, {
       payload: state.payload,
       reload: refresh,
+      onPending: setPending,
       onSaved: (payload) => { accept(payload); },
       logout: () => { store.setAdminCode(null); store.forgetAccess(); location.hash = '#/'; location.reload(); },
     });

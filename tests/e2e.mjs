@@ -512,10 +512,16 @@ await step('a device the manager marks as coach sees playing time; a parent does
   await coach.fill('input[name=name]', 'המאמן');
   await coach.locator('#request-form button').click();
   await waitText(coach, 'ממתינה לאישור');
+  // The manager's tab carries a dot while a request waits, on any screen.
+  const dot = admin.locator('#nav a[href="#/admin"] .nav-dot');
+  await admin.goto(APP + '#/stats');
+  await admin.reload();
+  await dot.waitFor({ timeout: 8000 });
   await admin.goto(APP + '#/admin');
   await admin.click('[data-tab="access"]');
   const row = admin.locator('.user-row', { hasText: 'המאמן' });
   await row.locator('[data-set="approved"]').click();
+  await dot.waitFor({ state: 'detached', timeout: 8000 });
   await row.locator('[data-role="coach"]').click();
   await row.locator('.role-on').waitFor();
   await coach.click('#recheck');

@@ -539,7 +539,7 @@ export function mountAdmin(view, ctx) {
   }
 
   async function loadUsers() {
-    try { users = await call('listUsers', {}, { asAdmin: true }); usersError = ''; }
+    try { users = await call('listUsers', {}, { asAdmin: true }); usersError = ''; ctx.onPending?.(pendingCount()); }
     catch (e) { usersError = e.message; }
     paint();
   }

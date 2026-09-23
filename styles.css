@@ -891,6 +891,12 @@ button.tl-item:focus-visible { outline: 2px solid var(--gold); outline-offset: 2
 .live-banner .lb-score .sep { color: var(--faint); }
 /* On the nav the live dot rides the corner of the tab's icon. */
 .nav a .live-dot { position: absolute; top: 9px; inset-inline-end: calc(50% - 17px); width: 8px; height: 8px; }
+/* Access requests waiting: a still gold dot on the manager's tab. It does
+   not pulse — pulsing means a match is live. */
+.nav a .nav-dot {
+  position: absolute; top: 9px; inset-inline-end: calc(50% - 17px); width: 8px; height: 8px;
+  border-radius: 50%; background: var(--gold); box-shadow: 0 0 8px var(--gold-glow);
+}
 button.match { width: 100%; background: none; border: 0; color: inherit; font: inherit; text-align: start; cursor: pointer; border-radius: 0; }
 button.match + button.match { border-top: 1px solid var(--line); }
 button.match:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }

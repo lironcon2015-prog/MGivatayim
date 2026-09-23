@@ -167,7 +167,7 @@ h1, h2, h3 { margin: 0; font-weight: 800; letter-spacing: -.015em; line-height: 
 section { margin-top: 1.9rem; }
 .sec-head { display: flex; align-items: center; gap: .5rem; margin-bottom: .75rem; }
 .sec-head > svg { width: 22px; height: 22px; flex: none; color: var(--gold); }
-.sec-head h2 { font-size: 1.2rem; }
+.sec-head h2 { font-size: 1.2rem; white-space: nowrap; }
 .sec-head .aside { margin-inline-start: auto; font-size: .8rem; color: var(--faint); font-weight: 600; }
 .sec-head .aside a { color: var(--gold); text-decoration: none; }
 
@@ -493,18 +493,67 @@ section { margin-top: 1.9rem; }
 }
 
 /* ── Admin lists ─────────────────────────────────────────────────────── */
-.edit-item { padding: 0; margin-bottom: 8px; border-radius: 22px; overflow: hidden; }
-.edit-item[open] { border-color: var(--gold-line); }
+/* Five short tabs share one well; they must fit a 360px phone. */
+.admin-tabs { margin-top: .2rem; }
+.admin-tabs button { padding: .55rem .15rem; font-size: .82rem; gap: .3rem; }
+.admin-tabs .count { min-width: 18px; height: 18px; font-size: .68rem; padding: 0 5px; }
+
+.sec-head .h-count {
+  font-size: .75rem; font-weight: 700; color: var(--muted); background: rgba(255, 255, 255, .06);
+  border-radius: var(--r-pill); padding: .1rem .5rem;
+}
+.head-acts { display: flex; gap: 6px; align-items: center; }
+.chip-tool {
+  display: inline-flex; align-items: center; gap: .3rem; font: inherit; font-size: .8rem; font-weight: 700;
+  padding: .38rem .75rem; border-radius: var(--r-pill); cursor: pointer; white-space: nowrap;
+  border: 1px solid var(--line-strong); background: rgba(255, 255, 255, .03); color: var(--muted);
+}
+.chip-tool svg { width: 14px; height: 14px; }
+.chip-tool.is-add, .chip-tool[aria-expanded="true"] { color: var(--gold); border-color: var(--gold-line); background: var(--gold-soft); }
+.chip-tool:focus-visible, .more-row:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.tools-row {
+  display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: .75rem; padding: .7rem;
+  background: var(--well); border: 1px solid var(--line); border-radius: var(--r-tile);
+}
+.tools-row .btn svg { width: 15px; height: 15px; }
+
+/* A list is one card of rows, each opening in place. */
+.edit-list { padding: 0; overflow: hidden; }
+.edit-item + .edit-item, .edit-list > .more-row { border-top: 1px solid var(--line); }
 .edit-item summary {
-  cursor: pointer; list-style: none; padding: .9rem 1.1rem;
-  display: flex; align-items: center; gap: .5rem; font-size: .95rem;
+  cursor: pointer; list-style: none; padding: .72rem 1.05rem;
+  display: flex; align-items: center; gap: .7rem; -webkit-tap-highlight-color: transparent;
 }
 .edit-item summary::-webkit-details-marker { display: none; }
-.edit-item summary::after { content: "›"; margin-inline-start: auto; color: var(--faint); transform: rotate(90deg); transition: transform .15s; }
-.edit-item[open] summary::after { transform: rotate(-90deg); }
+.edit-item summary::after {
+  content: ""; flex: none; width: 7px; height: 7px; margin: 0 .15rem .2rem;
+  border-right: 2px solid var(--faint); border-bottom: 2px solid var(--faint); transform: rotate(45deg); transition: transform .15s;
+}
+.edit-item[open] summary::after { transform: rotate(-135deg); margin-bottom: -.2rem; border-color: var(--gold); }
+.edit-item[open] { background: rgba(255, 255, 255, .025); box-shadow: inset -3px 0 0 var(--gold); }
 .edit-item[open] summary { border-bottom: 1px solid var(--line); }
-.edit-item > .grid-2 { padding: 1rem 1.1rem; }
-.edit-item > .btn { margin: 0 1.1rem 1.1rem; }
+.ei-lead { flex: none; min-width: 1.6rem; text-align: center; color: var(--faint); font-weight: 600; }
+.ei-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.ei-main b { font-size: .93rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ei-main small { font-size: .74rem; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ei-side { flex: none; max-width: 45%; font-size: .78rem; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ei-score { flex: none; font-weight: 600; direction: ltr; unicode-bidi: isolate; color: var(--muted); }
+.ei-score b { color: var(--gold); font-weight: 700; }
+.ei-body { padding: 1rem 1.05rem 1.05rem; }
+.ei-body > .btn { margin-top: 1rem; }
+.more-row {
+  display: block; width: 100%; font: inherit; font-size: .84rem; font-weight: 700; cursor: pointer;
+  background: transparent; border: 0; color: var(--gold); padding: .75rem 1rem;
+}
+.more-row span { color: var(--faint); font-weight: 600; }
+
+/* The next match when it comes from the schedule: a row, not a sentence. */
+.next-auto { display: flex; align-items: center; gap: .7rem; }
+.next-auto .ei-main b { font-size: 1.05rem; }
+.next-auto .ei-main small { font-size: .8rem; }
+.invite-more summary { cursor: pointer; font-size: .82rem; font-weight: 700; color: var(--gold); margin-top: .6rem; }
+.invite-more .invite-preview { margin-top: .6rem; }
+.btn.wide { width: 100%; margin-top: .9rem; }
 
 .user-row { display: flex; align-items: center; gap: .65rem; padding: .85rem 0; }
 .user-row + .user-row { border-top: 1px solid var(--line); }
@@ -518,14 +567,19 @@ section { margin-top: 1.9rem; }
    It floats as a glass panel just above the nav. */
 .savebar {
   position: sticky; bottom: calc(.6rem + env(safe-area-inset-bottom)); z-index: 30; margin: 1.6rem 0 0;
-  padding: .85rem 1rem 1rem; border-radius: 24px;
+  display: flex; align-items: center; gap: .6rem;
+  padding: .6rem .65rem .6rem .6rem; padding-inline-start: 1rem; border-radius: var(--r-pill);
   background: rgba(10, 17, 29, .86); border: 1px solid var(--gold-line);
   -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
   box-shadow: var(--shadow-lift);
 }
 body.with-nav .savebar { bottom: calc(var(--nav-space) + .5rem); }
-.savebar .row-btns { margin-top: .55rem; }
-.save-msg { margin: 0; font-size: .84rem; color: var(--muted); display: flex; align-items: center; gap: .45rem; }
+.savebar .row-btns { margin-top: 0; flex: none; flex-wrap: nowrap; gap: 6px; }
+.savebar .row-btns .btn { flex: none; }
+/* Nothing to save: a quiet line, not two dead buttons over the form. */
+.savebar.idle { border-color: var(--line); box-shadow: none; padding-block: .55rem; }
+.savebar.idle .row-btns { display: none; }
+.save-msg { flex: 1; min-width: 0; margin: 0; line-height: 1.35; font-size: .84rem; color: var(--muted); display: flex; align-items: center; gap: .45rem; }
 .save-msg::before { content: ""; width: 7px; height: 7px; flex: none; border-radius: 50%; background: var(--faint); }
 .save-msg.ok { color: var(--win); }
 .save-msg.ok::before { background: var(--win); }
@@ -918,9 +972,6 @@ button.match:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px
 }
 
 /* ═══ Admin: import & lists ════════════════════════════════════════════ */
-.add-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: .7rem; }
-.add-row .add { margin-bottom: 0; display: inline-flex; align-items: center; gap: .35rem; }
-.add-row .add svg { width: 15px; height: 15px; }
 .list-note { margin: -.2rem 0 .7rem; }
 .paste-box {
   width: 100%; min-height: 150px; font: inherit; font-size: .9rem; color: var(--text); color-scheme: dark; resize: vertical;

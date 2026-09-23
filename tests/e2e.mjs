@@ -58,6 +58,12 @@ async function device(label) {
 }
 // Opens a list item in the editor whether or not it is already open —
 // clicking the summary of an open <details> would close it instead.
+// The admin screen is split into tabs, and import tools fold behind a toggle.
+const adminTab = (page, t) => page.click(`[data-tab="${t}"]`);
+async function adminTools(page, list) {
+  const btn = page.locator(`[data-tools="${list}"]`);
+  if (await btn.getAttribute('aria-expanded') !== 'true') await btn.click();
+}
 const openItem = (page, path) => page.locator(`details[data-item="${path}"]`).evaluate((d) => { d.open = true; });
 const text = (page) => page.locator('#view').innerText();
 const waitText = (page, s, timeout = 5000) => page.locator('#view').getByText(s, { exact: false }).first().waitFor({ timeout });
@@ -126,7 +132,7 @@ await step('a wrong manager code is refused', async () => {
 await step('the right code opens the manager area on an empty season', async () => {
   await admin.fill('input[name=code]', ADMIN);
   await admin.locator('#admin-form button').click();
-  await waitText(admin, 'נתוני העונה');
+  await waitText(admin, 'המשחק הבא');
   await waitText(admin, 'גרסה 0');
 });
 
@@ -143,15 +149,19 @@ await step('saving with a missing required field is blocked with a reason', asyn
 });
 
 await step('manager fills a season and saves it', async () => {
-  await admin.fill('[data-path="team.league"]', 'ליגת ילדים א');
-  await admin.fill('[data-path="team.season"]', '2026/27');
   await admin.fill('[data-path="matches.0.date"]', '2026-09-19');
   await admin.fill('[data-path="matches.0.opponent"]', 'בני לוד');
   await admin.fill('[data-path="matches.0.gf"]', '2');
   await admin.fill('[data-path="matches.0.ga"]', '1');
+  await adminTab(admin, 'team');
+  await admin.fill('[data-path="team.league"]', 'ליגת ילדים א');
+  await admin.fill('[data-path="team.season"]', '2026/27');
+  await adminTab(admin, 'players');
   await admin.click('[data-add="players"]');
   await admin.fill('[data-path="players.0.name"]', 'איתי');
   await admin.fill('[data-path="players.0.goals"]', '2');
+  await adminTab(admin, 'games');
+  expect(await admin.inputValue('[data-path="matches.0.opponent"]') === 'בני לוד', 'switching tabs lost an edit');
   await admin.click('#add-next');
   await admin.fill('[data-path="nextMatch.opponent"]', 'הפועל כוכבים');
   await admin.fill('[data-kick="date"]', '2030-10-05');
@@ -166,9 +176,20 @@ await step('manager fills a season and saves it', async () => {
   expect(!JSON.stringify(saved).includes('__open'), 'UI state leaked into the saved data');
 });
 
+await step('a save blocked by a field on another tab opens that tab', async () => {
+  await adminTab(admin, 'team');
+  await admin.fill('[data-path="team.name"]', '');
+  await adminTab(admin, 'games');
+  await admin.click('#save');
+  await waitText(admin, 'חסר שם הקבוצה');
+  expect(await admin.getAttribute('[data-tab="team"]', 'aria-selected') === 'true', 'the error\'s tab was not opened');
+  await admin.fill('[data-path="team.name"]', 'מכבי גבעתיים');
+  await adminTab(admin, 'games');
+});
+
 await step('the access tab has an invitation with the app\'s address, ready for WhatsApp', async () => {
   await admin.click('[data-tab="access"]');
-  const preview = await admin.locator('.invite-preview').innerText();
+  const preview = await admin.locator('.invite-preview').textContent();
   expect(preview.includes(APP), 'invite lacks the app address: ' + preview);
   const wa = await admin.locator('[data-invite-wa]').getAttribute('href');
   expect(wa.startsWith('https://wa.me/?text=') && decodeURIComponent(wa).includes(APP), 'whatsapp link: ' + wa);
@@ -203,7 +224,7 @@ await step('a parent has no manager tab and cannot open the editor', async () =>
 });
 
 await step('the manager edits a score; the parent sees it after reopening', async () => {
-  await admin.click('[data-tab="season"]');
+  await adminTab(admin, 'games');
   await openItem(admin, 'matches.0');
   await admin.fill('[data-path="matches.0.gf"]', '3');
   await admin.click('#save');
@@ -218,9 +239,11 @@ await step('a save over a version changed elsewhere is refused, not merged', asy
   await other.fill('input[name=code]', ADMIN);
   await other.locator('#admin-form button').click();
   await waitText(other, 'גרסה 2');
+  await adminTab(other, 'team');
   await other.fill('[data-path="team.league"]', 'שינוי ממכשיר שני');
   await other.click('#save');
   await waitText(other, 'גרסה 3');
+  await adminTab(admin, 'team');
   await admin.fill('[data-path="team.league"]', 'שינוי ישן');
   await admin.click('#save');
   await waitText(admin, 'נשמרו בינתיים ממכשיר אחר');
@@ -233,6 +256,7 @@ await step('"the match was played" turns the fixture into a result row', async (
   await admin.click('#discard');
   await waitText(admin, 'גרסה 3');
   expect(await admin.inputValue('[data-path="team.league"]') === 'שינוי ממכשיר שני', 'discard did not load the newer version');
+  await adminTab(admin, 'games');
   await admin.click('#played');
   expect(await admin.inputValue('[data-path="matches.0.opponent"]') === 'הפועל כוכבים', 'opponent not carried over');
   expect(await admin.inputValue('[data-path="matches.0.date"]') === '2030-10-05', 'date not carried over');
@@ -249,7 +273,8 @@ const liveFile = () => JSON.parse(bridge.driveFile('live.json') || '{}').state;
 const seasonFile = () => JSON.parse(bridge.driveFile('season.json')).season;
 
 await step('players are imported by pasting cells from a spreadsheet', async () => {
-  await admin.click('[data-tab="season"]');
+  await adminTab(admin, 'players');
+  await adminTools(admin, 'players');
   await admin.click('[data-import="paste"]');
   await admin.fill('[data-paste]', 'מספר\tשם\tעמדה\n1\tנועם\tשוער\n9\tגיא פרץ\tחלוץ\n10\tדניאל לוי\tקשר קדמי\n14\tתומר עזרא\tבלם\n');
   await admin.click('[data-go]');
@@ -399,6 +424,7 @@ await step('a video link gets a poster in Drive, and the parent sees it', async 
   const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64');
   bridge.web('https://clips.example.com/goal.jpg', 'image/png', [...PNG]);
   await admin.goto(APP + '#/admin');
+  await adminTab(admin, 'media');
   await admin.click('[data-add="videos"]');
   await admin.fill('[data-path="videos.0.title"]', 'השער מול נחלים');
   await admin.fill('[data-path="videos.0.url"]', 'https://clips.example.com/goal');
@@ -413,6 +439,8 @@ await step('a video link gets a poster in Drive, and the parent sees it', async 
 
 await step('a pasted schedule becomes the next match and the list after it', async () => {
   await admin.goto(APP + '#/admin');
+  await adminTab(admin, 'games');
+  await adminTools(admin, 'fixtures');
   await admin.click('[data-import="fixtures-paste"]');
   await admin.fill('[data-paste]', [
     'מחזור\tתאריך\tשעה\tקבוצת בית\tקבוצת חוץ\tשערי בית\tשערי חוץ',
@@ -485,6 +513,8 @@ await step('cancelling a live match saves nothing and returns the fixture to the
 
 await step('deleting the games clears the schedule and typed results, and keeps live ones', async () => {
   await admin.goto(APP + '#/admin');
+  await adminTab(admin, 'games');
+  await adminTools(admin, 'fixtures');
   await admin.click('[data-clear-games]');
   expect(!(await admin.locator('[data-clear="live"]').isChecked()), 'live matches must not be preselected');
   await admin.click('[data-clear-go]');

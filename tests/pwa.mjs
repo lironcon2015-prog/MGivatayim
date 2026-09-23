@@ -111,6 +111,7 @@ await step('unsaved manager work blocks the automatic reload; a bar is offered i
   await admin.goto(`http://localhost:${PORT}/#/admin`);
   await admin.fill('input[name=code]', ADMIN);
   await admin.locator('#admin-form button').click();
+  await admin.click('[data-tab="team"]');
   await admin.locator('[data-path="team.league"]').waitFor({ timeout: 10000 });
   await admin.waitForFunction(() => !!navigator.serviceWorker.controller, null, { timeout: 10000 });
   await admin.fill('[data-path="team.league"]', 'עריכה שלא נשמרה');   // now dirty

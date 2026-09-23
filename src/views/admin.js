@@ -44,10 +44,11 @@ const LISTS = [
   {
     // The season's schedule. The next match is derived from it when none is
     // set by hand; a whole schedule usually arrives as a spreadsheet (importer).
-    path: 'fixtures', title: 'לוח משחקים', glyph: 'calendar', add: 'הוספת משחק ללוח', importer: 'fixtures',
-    note: 'המשחקים שעוד לא נערכו. המשחק הבא נלקח מכאן אוטומטית, ומשחק שהוזנה לו תוצאה יורד מהלוח.',
+    path: 'fixtures', title: 'לוח משחקים', glyph: 'calendar', add: 'משחק', importer: 'fixtures', tab: 'games', limit: 5,
+    note: 'משחקים שעוד לא נערכו. המשחק הבא נלקח מכאן, ומשחק עם תוצאה יורד מהלוח.',
     blank: () => ({ date: today(), time: '', opponent: '', home: true, round: null, venue: { name: '', address: '' } }),
     label: (f) => `${f.date ? shortDate(f.date) + ' · ' : ''}${f.opponent || 'משחק חדש'}`,
+    sum: (f) => ({ title: f.opponent || 'משחק חדש', sub: [f.date && shortDate(f.date), f.time, f.home === false ? 'חוץ' : 'בית'].filter(Boolean).join(' · ') }),
     fields: [
       { key: 'date', label: 'תאריך', type: 'date', required: true },
       { key: 'time', label: 'שעה', type: 'time', hint: 'ריק = טרם נקבעה' },
@@ -59,9 +60,10 @@ const LISTS = [
     ],
   },
   {
-    path: 'matches', title: 'תוצאות משחקים', glyph: 'trophy', add: 'הוספת משחק', prepend: true,
+    path: 'matches', title: 'תוצאות משחקים', glyph: 'trophy', add: 'תוצאה', prepend: true, tab: 'games', limit: 5,
     blank: () => ({ date: today(), opponent: '', home: true, round: null, gf: 0, ga: 0 }),
     label: (m) => `${m.opponent || 'משחק חדש'} · ${m.gf ?? '?'}:${m.ga ?? '?'}`,
+    sum: (m) => ({ title: m.opponent || 'משחק חדש', sub: [m.date && shortDate(m.date), m.home === false ? 'חוץ' : 'בית'].filter(Boolean).join(' · '), score: [m.gf, m.ga] }),
     fields: [
       { key: 'date', label: 'תאריך', type: 'date', required: true },
       { key: 'opponent', label: 'יריבה', required: true },
@@ -72,10 +74,11 @@ const LISTS = [
     ],
   },
   {
-    path: 'players', title: 'שחקנים', glyph: 'user', add: 'הוספת שחקן',
-    note: 'שערים, בישולים ודקות ממשחקים שתועדו בלייב נספרים לבד. בשדות "לפני הלייב" מזינים רק משחקים שלא תועדו.',
+    path: 'players', title: 'סגל', glyph: 'user', add: 'שחקן', importer: 'players', tab: 'players',
+    note: 'שערים, בישולים ודקות ממשחקים שתועדו בלייב נספרים לבד. בשדות "לפני הלייב" — רק משחקים שלא תועדו.',
     blank: () => ({ id: newId(), name: '', number: null, pos: '', pos2: '', goals: 0, assists: 0 }),
     label: (p) => [p.number != null && p.number !== '' ? p.number : null, p.name || 'שחקן חדש', posLabel(p.pos)].filter((x) => x != null && x !== '').join(' · '),
+    sum: (p) => ({ lead: p.number ?? '', title: p.name || 'שחקן חדש', side: [posLabel(p.pos), posLabel(p.pos2)].filter(Boolean).join(' / ') }),
     fields: [
       { key: 'name', label: 'שם', required: true },
       { key: 'number', label: 'מספר', type: 'number' },
@@ -86,9 +89,10 @@ const LISTS = [
     ],
   },
   {
-    path: 'videos', title: 'סרטונים', glyph: 'film', add: 'הוספת סרטון', prepend: true,
+    path: 'videos', title: 'סרטונים', glyph: 'film', add: 'סרטון', prepend: true, tab: 'media', limit: 5,
     blank: () => ({ title: '', round: null, duration: '', url: '', featured: false }),
     label: (v) => v.title || 'סרטון חדש',
+    sum: (v) => ({ title: v.title || 'סרטון חדש', sub: [v.round != null && v.round !== '' ? `מחזור ${v.round}` : '', v.duration, v.featured ? 'נבחר' : ''].filter(Boolean).join(' · ') }),
     fields: [
       { key: 'title', label: 'כותרת', required: true },
       { key: 'url', label: 'קישור (YouTube / Drive)', type: 'url' },
@@ -98,7 +102,7 @@ const LISTS = [
     ],
   },
   {
-    path: 'links', title: 'קישורים', glyph: 'link', add: 'הוספת קישור',
+    path: 'links', title: 'קישורים', glyph: 'link', add: 'קישור', tab: 'media',
     blank: () => ({ title: '', desc: '', url: '', icon: 'chat' }),
     label: (l) => l.title || 'קישור חדש',
     fields: [
@@ -109,7 +113,7 @@ const LISTS = [
     ],
   },
   {
-    path: 'analysis.items', title: 'תמונת מצב', glyph: 'bulb', add: 'הוספת תובנה',
+    path: 'analysis.items', title: 'תמונת מצב', glyph: 'bulb', add: 'תובנה', tab: 'media',
     blank: () => ({ label: '', text: '' }),
     label: (i) => i.label || 'תובנה חדשה',
     fields: [
@@ -187,11 +191,14 @@ const grid = (fields, base, obj) =>
 /* ── Validation ────────────────────────────────────────────────────────── */
 
 function validate(d) {
+  // The tab of the first error rides along: the save bar is on every tab,
+  // and a reason about a field the manager cannot see sends them hunting.
   const errs = [];
-  if (!d.team?.name?.trim()) errs.push('חסר שם הקבוצה.');
+  const at = (t) => { errs.tab ??= t; };
+  if (!d.team?.name?.trim()) { errs.push('חסר שם הקבוצה.'); at('team'); }
   const nm = d.nextMatch;
   if (nm && (nm.opponent || nm.kickoff) && !(nm.opponent && nm.kickoff)) {
-    errs.push('במשחק הבא חסרים יריבה או מועד. אפשר גם ללחוץ "אין משחק קרוב".');
+    errs.push('במשחק הבא חסרים יריבה או מועד. אפשר גם ללחוץ "אין משחק קרוב".'); at('games');
   }
   for (const list of LISTS) {
     (getPath(d, list.path) || []).forEach((item, i) => {
@@ -202,12 +209,13 @@ function validate(d) {
         if (f.type === 'url' && v && !safeUrl(v)) errs.push(`${where}: הקישור חייב להתחיל ב-https://`);
         if (f.type === 'date' && v && !/^\d{4}-\d{2}-\d{2}$/.test(v)) errs.push(`${where}: תאריך לא תקין.`);
       }
+      if (errs.length) at(list.tab);
       void i;
     });
   }
   for (const f of NEXT_FIELDS) {
     const v = nm && getPath(nm, f.key);
-    if (f.type === 'url' && v && !safeUrl(v)) errs.push(`המשחק הבא: ${f.label} חייב להתחיל ב-https://`);
+    if (f.type === 'url' && v && !safeUrl(v)) { errs.push(`המשחק הבא: ${f.label} חייב להתחיל ב-https://`); at('games'); }
   }
   return errs;
 }
@@ -219,7 +227,22 @@ function validate(d) {
 let draft = null;
 let baseVersion = 0;
 let dirty = false;
-let tab = 'season';
+let tab = 'games';
+// Long lists open on their first rows; these are the ones the manager asked
+// to see whole, and the lists whose import tools are showing.
+const expanded = new Set();
+const toolsOpen = new Set();
+
+/* The screen is split by how often a part is touched: the weekly work
+   (next match, results) first, the roster, the rarely edited content, and
+   the one-time setup last — not one page of everything. */
+const TABS = [
+  ['games', 'משחקים'],
+  ['players', 'שחקנים'],
+  ['media', 'תוכן'],
+  ['team', 'הגדרות'],
+  ['access', 'גישה'],
+];
 
 const blankSeason = () => ({
   team: { name: 'מכבי גבעתיים', league: '', season: '' },
@@ -271,9 +294,8 @@ export function mountAdmin(view, ctx) {
       <section>
         <div class="sec-head">${icon('shield')}<h2>ניהול</h2>
           <span class="aside"><button type="button" class="linkish" id="logout">יציאה ממצב מנהל</button></span></div>
-        <div class="seg" role="tablist">
-          <button type="button" role="tab" data-tab="season" aria-selected="${tab === 'season'}">נתוני העונה</button>
-          <button type="button" role="tab" data-tab="access" aria-selected="${tab === 'access'}">גישה${pendingCount() ? ` <b class="count">${pendingCount()}</b>` : ''}</button>
+        <div class="seg admin-tabs" role="tablist" aria-label="אזורי ניהול">
+          ${TABS.map(([id, label]) => `<button type="button" role="tab" data-tab="${id}" aria-selected="${tab === id}">${label}${id === 'access' && pendingCount() ? ` <b class="count">${pendingCount()}</b>` : ''}</button>`).join('')}
         </div>
       </section>
       ${tab === 'access' ? accessHtml() : draft ? seasonHtml() : '<section><div class="card"><div class="empty">טוען…</div></div></section>'}`;
@@ -487,11 +509,12 @@ export function mountAdmin(view, ctx) {
     return `<section>
       <div class="sec-head">${icon('link')}<h2>הזמנת הורים</h2></div>
       <div class="card">
-        <p class="sheet-text">הודעה מוכנה עם הקישור לאפליקציה והסבר קצר. מעתיקים ומדביקים בקבוצת הוואטסאפ.</p>
-        <p class="invite-preview" dir="auto">${esc(inviteText())}</p>
+        <p class="sheet-text">הודעה מוכנה עם הקישור לאפליקציה והסבר קצר, לקבוצת הוואטסאפ.</p>
+        <details class="invite-more"><summary>הצגת ההודעה</summary>
+          <p class="invite-preview" dir="auto">${esc(inviteText())}</p></details>
         <div class="row-btns">
-          <button type="button" class="btn" data-invite-copy>${icon('copy')} העתקת הודעת הזמנה</button>
-          <a class="btn secondary" data-invite-wa href="https://wa.me/?text=${encodeURIComponent(inviteText())}" target="_blank" rel="noopener noreferrer">${icon('whatsapp')} שליחה בוואטסאפ</a>
+          <button type="button" class="btn secondary small" data-invite-copy>${icon('copy')} העתקה</button>
+          <a class="btn secondary small" data-invite-wa href="https://wa.me/?text=${encodeURIComponent(inviteText())}" target="_blank" rel="noopener noreferrer">${icon('whatsapp')} וואטסאפ</a>
         </div>
       </div>
     </section>`;
@@ -511,12 +534,13 @@ export function mountAdmin(view, ctx) {
     toast(ok ? 'ההודעה הועתקה — הדביקו אותה בוואטסאפ.' : 'ההעתקה לא הצליחה. אפשר ללחוץ "שליחה בוואטסאפ".', ok ? {} : { kind: 'err' });
   }
 
+  // What needs an answer first; the invitation is sent once a season.
   function accessHtml() {
-    return inviteHtml() + usersHtml();
+    return usersHtml();
   }
 
   function usersHtml() {
-    if (usersError) return `<section><div class="card"><p class="form-error">${esc(usersError)}</p></div></section>`;
+    if (usersError) return `<section><div class="card"><p class="form-error">${esc(usersError)}</p></div></section>` + inviteHtml();
     if (!users) return `<section><div class="card"><div class="empty">טוען…</div></div></section>`;
     const by = (st) => users.filter((u) => st.includes(u.status))
       .sort((a, b) => String(b.requestedAt).localeCompare(String(a.requestedAt)));
@@ -536,14 +560,16 @@ export function mountAdmin(view, ctx) {
           `<button type="button" class="btn small ${cls || ''}" data-user="${esc(u.id)}" data-set="${st}">${label}</button>`).join('')}</span>
       </div>`;
     const block = (title, glyph, list, actions, empty, note = '') => `<section>
-        <div class="sec-head">${icon(glyph)}<h2>${title}</h2><span class="aside">${list.length}</span></div>
+        <div class="sec-head">${icon(glyph)}<h2>${title}</h2>${list.length ? `<span class="h-count num">${list.length}</span>` : ''}</div>
         <div class="card rows">${list.length ? list.map((u) => row(u, actions)).join('') : `<div class="empty">${empty}</div>`}</div>
         ${note && list.length ? `<p class="note">${note}</p>` : ''}
       </section>`;
+    const gone = by(['rejected', 'revoked']);
     return block('ממתינים לאישור', 'user', by(['pending']), [['approved', 'אישור'], ['rejected', 'דחייה', 'secondary']], 'אין בקשות חדשות.')
-      + block('בעלי גישה', 'check', by(['approved']), [['revoked', 'ביטול גישה', 'danger']], 'עוד לא אושר אף אחד.',
+      + block('בעלי גישה', 'check', by(['approved']), [['revoked', 'ביטול', 'danger']], 'עוד לא אושר אף אחד.',
         'מאמן רואה גם דקות משחק. התפקיד שייך למכשיר ולא לאדם: מאמן עם טלפון ומחשב מסומן בכל אחד מהם.')
-      + block('נדחו / בוטלו', 'shield', by(['rejected', 'revoked']), [['approved', 'אישור'], ['remove', 'מחיקה', 'secondary']], 'אין.');
+      + inviteHtml()
+      + (gone.length ? block('נדחו / בוטלו', 'shield', gone, [['approved', 'אישור'], ['remove', 'מחיקה', 'secondary']], '') : '');
   }
 
   async function loadUsers() {
@@ -568,43 +594,58 @@ export function mountAdmin(view, ctx) {
 
   /* ---- season ---- */
 
+  // One card per list, one row per item: the summary says enough to find
+  // the row (name, date, score) and the fields open under it.
+  function summaryHtml(list, item) {
+    const m = list.sum ? list.sum(item) : { title: list.label(item) };
+    return `${m.lead !== undefined ? `<span class="ei-lead num">${esc(m.lead ?? '')}</span>` : ''}`
+      + `<span class="ei-main"><b>${esc(m.title)}</b>${m.sub ? `<small>${esc(m.sub)}</small>` : ''}</span>`
+      + (m.side ? `<span class="ei-side">${esc(m.side)}</span>` : '')
+      + (m.score ? `<span class="ei-score num"><b>${esc(m.score[0] ?? '?')}</b>:${esc(m.score[1] ?? '?')}</span>` : '');
+  }
+
+  function toolsHtml(kind) {
+    const games = (draft.fixtures || []).length || (draft.matches || []).length;
+    return kind === 'fixtures'
+      ? `<button type="button" class="btn secondary small" data-import="fixtures-file">${icon('upload')} ייבוא לוח מקובץ</button>
+        <button type="button" class="btn secondary small" data-import="fixtures-paste">${icon('clipboard')} הדבקה מאקסל</button>
+        ${games ? `<button type="button" class="btn danger small" data-clear-games>${icon('trash')} מחיקת כל המשחקים</button>` : ''}
+        <input type="file" data-import-fixtures accept="${IMPORT_ACCEPT}" hidden />`
+      : `<button type="button" class="btn secondary small" data-import="file">${icon('upload')} ייבוא מקובץ</button>
+        <button type="button" class="btn secondary small" data-import="paste">${icon('clipboard')} הדבקה מאקסל</button>
+        <input type="file" data-import-file accept="${IMPORT_ACCEPT}" hidden />`;
+  }
+
   function listHtml(list) {
     const items = getPath(draft, list.path) || [];
+    // A list one row over its limit shows whole: "one more" is not worth a tap.
+    const whole = !list.limit || expanded.has(list.path) || items.length <= list.limit + 1;
+    const shown = items.map((item, i) => [item, i]).filter(([item, i]) => whole || i < list.limit || item.__open);
+    const hidden = items.length - shown.length;
+    const tools = list.importer && toolsOpen.has(list.path);
     return `<section>
-      <div class="sec-head">${icon(list.glyph)}<h2>${esc(list.title)}</h2><span class="aside">${items.length}</span></div>
+      <div class="sec-head">${icon(list.glyph)}<h2>${esc(list.title)}</h2>${items.length ? `<span class="h-count num">${items.length}</span>` : ''}
+        <span class="aside head-acts">
+          ${list.importer ? `<button type="button" class="chip-tool" data-tools="${list.path}" aria-expanded="${tools}">${icon('upload')} ייבוא</button>` : ''}
+          <button type="button" class="chip-tool is-add" data-add="${list.path}">+ ${esc(list.add)}</button>
+        </span></div>
+      ${tools ? `<div class="tools-row">${toolsHtml(list.importer)}</div>` : ''}
       ${list.note ? `<p class="note list-note">${esc(list.note)}</p>` : ''}
-      <div class="add-row">
-        <button type="button" class="btn secondary small add" data-add="${list.path}">+ ${esc(list.add)}</button>
-        ${list.path === 'players' ? `<button type="button" class="btn secondary small add" data-import="file">${icon('upload')} ייבוא מקובץ</button>
-          <button type="button" class="btn secondary small add" data-import="paste">${icon('clipboard')} הדבקה מאקסל</button>
-          <input type="file" data-import-file accept="${IMPORT_ACCEPT}" hidden />` : ''}
-        ${list.importer === 'fixtures' ? `<button type="button" class="btn secondary small add" data-import="fixtures-file">${icon('upload')} ייבוא לוח מקובץ</button>
-          <button type="button" class="btn secondary small add" data-import="fixtures-paste">${icon('clipboard')} הדבקה מאקסל</button>
-          ${(draft.fixtures || []).length || (draft.matches || []).length ? `<button type="button" class="btn danger small add" data-clear-games>${icon('trash')} מחיקת כל המשחקים</button>` : ''}
-          <input type="file" data-import-fixtures accept="${IMPORT_ACCEPT}" hidden />` : ''}
-      </div>
-      ${items.map((item, i) => `<details class="card edit-item"${item.__open ? ' open' : ''} data-item="${list.path}.${i}">
-          <summary><b>${esc(list.label(item))}</b></summary>
-          ${grid(list.fields, `${list.path}.${i}.`, item)}
-          <button type="button" class="btn small danger" data-remove="${list.path}.${i}">מחיקה</button>
+      ${items.length ? `<div class="card edit-list">${shown.map(([item, i]) => `<details class="edit-item"${item.__open ? ' open' : ''} data-item="${list.path}.${i}">
+          <summary>${summaryHtml(list, item)}</summary>
+          <div class="ei-body">${grid(list.fields, `${list.path}.${i}.`, item)}
+          <button type="button" class="btn small danger" data-remove="${list.path}.${i}">${icon('trash')} מחיקה</button></div>
         </details>`).join('')}
+        ${hidden ? `<button type="button" class="more-row" data-more="${list.path}">הצגת כל ה-${items.length} <span>(עוד ${hidden})</span></button>`
+          : list.limit && expanded.has(list.path) && items.length > list.limit + 1 ? `<button type="button" class="more-row" data-more="${list.path}">הצגת פחות</button>` : ''}
+      </div>` : `<div class="card"><div class="empty">עוד אין כאן כלום.</div></div>`}
     </section>`;
   }
 
-  function seasonHtml() {
+  function nextMatchHtml() {
     const nm = draft.nextMatch;
     const nextFixture = nm ? null : upcomingFixtures(draft.fixtures, draft.matches)[0];
-    return `
-      <section>
-        <div class="sec-head">${icon('shield')}<h2>הקבוצה</h2></div>
-        <div class="card">${grid(TEAM_FIELDS, 'team.', draft.team)}</div>
-      </section>
-      <section>
-        <div class="sec-head">${icon('clock')}<h2>מבנה משחק</h2></div>
-        <div class="card" data-format-editor>${formatEditorHtml(cleanFormat(draft.settings?.format), cleanSize(draft.settings?.size))}
-          <p class="note">ברירת המחדל לכל משחק חי. אפשר לשנות גם בפתיחת משחק מסוים.</p></div>
-      </section>
-      <section>
+    return `<section>
         <div class="sec-head">${icon('calendar')}<h2>המשחק הבא</h2></div>
         <div class="card">
           ${nm ? `${grid(NEXT_FIELDS, 'nextMatch.', nm)}
@@ -613,23 +654,46 @@ export function mountAdmin(view, ctx) {
               <button type="button" class="btn small secondary" id="no-next">אין משחק קרוב</button>
             </div>`
           : `${nextFixture
-              ? `<p class="sheet-text">מלוח המשחקים: <b>${esc(nextFixture.opponent)}</b> · <span class="num">${esc(shortDate(nextFixture.date))}</span>${nextFixture.time ? ` · <span class="num">${esc(nextFixture.time)}</span>` : ''}. ההורים רואים אותו כמשחק הבא.</p>`
+              ? `<div class="next-auto"><span class="ei-main"><b>${esc(nextFixture.opponent)}</b><small><span class="num">${esc(shortDate(nextFixture.date))}</span>${nextFixture.time ? ` · <span class="num">${esc(nextFixture.time)}</span>` : ' · שעה טרם נקבעה'}</small></span><span class="chip">מהלוח</span></div>
+                 <p class="note">ההורים רואים אותו כמשחק הבא. התכנסות ותלבושת מוסיפים כאן.</p>`
               : '<div class="empty">אין משחק קרוב בלוח.</div>'}
-             <button type="button" class="btn small" id="add-next">+ ${nextFixture ? 'הוספת פרטים (התכנסות, תלבושת)' : 'קביעת משחק הבא'}</button>`}
+             <button type="button" class="btn small secondary wide" id="add-next">+ ${nextFixture ? 'הוספת פרטים (התכנסות, תלבושת)' : 'קביעת משחק הבא'}</button>`}
         </div>
-      </section>
-      ${LISTS.map(listHtml).join('')}
-      <section>
-        <div class="card">
-          <label class="field" for="f-note"><span>הערה מתחת לתמונת המצב</span>
-            <textarea id="f-note" data-path="analysis.note" rows="2">${esc(draft.analysis?.note ?? '')}</textarea></label>
-        </div>
-      </section>
-      <div class="savebar" role="region" aria-label="שמירה">
-        <p class="save-msg ${messageKind}" role="status">${esc(message || (dirty ? 'יש שינויים שלא נשמרו.' : `גרסה ${baseVersion}`))}</p>
+      </section>`;
+  }
+
+  function seasonHtml() {
+    const lists = (t) => LISTS.filter((l) => l.tab === t).map(listHtml).join('');
+    const list = (path) => listHtml(LISTS.find((l) => l.path === path));
+    const body = {
+      // Results before the schedule: the score is the weekly edit.
+      games: () => nextMatchHtml() + list('matches') + list('fixtures'),
+      players: () => lists('players'),
+      media: () => `${lists('media')}
+        <section>
+          <div class="card">
+            <label class="field" for="f-note"><span>הערה מתחת לתמונת המצב</span>
+              <textarea id="f-note" data-path="analysis.note" rows="2">${esc(draft.analysis?.note ?? '')}</textarea></label>
+          </div>
+        </section>`,
+      team: () => `
+        <section>
+          <div class="sec-head">${icon('shield')}<h2>הקבוצה</h2></div>
+          <div class="card">${grid(TEAM_FIELDS, 'team.', draft.team)}</div>
+        </section>
+        <section>
+          <div class="sec-head">${icon('clock')}<h2>מבנה משחק</h2></div>
+          <div class="card" data-format-editor>${formatEditorHtml(cleanFormat(draft.settings?.format), cleanSize(draft.settings?.size))}
+            <p class="note">ברירת המחדל לכל משחק חי. אפשר לשנות גם בפתיחת משחק מסוים.</p></div>
+        </section>`,
+    }[tab]();
+    const idle = !dirty && !saving && !message;
+    return `${body}
+      <div class="savebar${idle ? ' idle' : ''}" role="region" aria-label="שמירה">
+        <p class="save-msg ${messageKind}" role="status">${esc(message || (dirty ? 'יש שינויים שלא נשמרו.' : `הכל שמור · גרסה ${baseVersion}`))}</p>
         <div class="row-btns">
-          <button type="button" class="btn" id="save"${!dirty || saving ? ' disabled' : ''}>${saving ? 'שומר…' : 'שמירה'}</button>
-          <button type="button" class="btn secondary" id="discard"${!dirty || saving ? ' disabled' : ''}>ביטול שינויים</button>
+          <button type="button" class="btn secondary small" id="discard"${!dirty || saving ? ' disabled' : ''}>ביטול</button>
+          <button type="button" class="btn small" id="save"${!dirty || saving ? ' disabled' : ''}>${saving ? 'שומר…' : 'שמירה'}</button>
         </div>
       </div>`;
   }
@@ -637,6 +701,7 @@ export function mountAdmin(view, ctx) {
   function touch() {
     dirty = true;
     message = ''; messageKind = '';
+    view.querySelector('.savebar')?.classList.remove('idle');
     const msg = view.querySelector('.save-msg');
     if (msg) { msg.textContent = 'יש שינויים שלא נשמרו.'; msg.className = 'save-msg'; }
     view.querySelector('#save')?.removeAttribute('disabled');
@@ -648,6 +713,7 @@ export function mountAdmin(view, ctx) {
     if (errs.length) {
       message = errs.slice(0, 4).join(' ') + (errs.length > 4 ? ` (ועוד ${errs.length - 4})` : '');
       messageKind = 'err';
+      if (errs.tab) tab = errs.tab;
       paint();
       return;
     }
@@ -696,8 +762,8 @@ export function mountAdmin(view, ctx) {
       // Keep the summary line of an open item in step with what is typed.
       if (list) {
         const idx = Number(path.slice(list.path.length + 1).split('.')[0]);
-        const sum = el.closest('details')?.querySelector('summary b');
-        if (sum) sum.textContent = list.label(getPath(draft, list.path)[idx]);
+        const sum = el.closest('details')?.querySelector('summary');
+        if (sum) sum.innerHTML = summaryHtml(list, getPath(draft, list.path)[idx]);
       }
     }
     touch();
@@ -716,7 +782,18 @@ export function mountAdmin(view, ctx) {
     if (t.dataset.tab) {
       tab = t.dataset.tab;
       paint();
+      window.scrollTo(0, 0);
       if (tab === 'access') loadUsers();
+      return;
+    }
+    if (t.dataset.more) {
+      if (expanded.has(t.dataset.more)) expanded.delete(t.dataset.more); else expanded.add(t.dataset.more);
+      paint();
+      return;
+    }
+    if (t.dataset.tools) {
+      if (toolsOpen.has(t.dataset.tools)) toolsOpen.delete(t.dataset.tools); else toolsOpen.add(t.dataset.tools);
+      paint();
       return;
     }
     if (t.id === 'logout') {

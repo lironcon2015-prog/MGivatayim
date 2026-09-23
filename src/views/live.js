@@ -3,7 +3,7 @@ import { serverNow } from '../live/sync.js';
 import { esc, splitKickoff, shortName } from '../format.js';
 import { icon } from '../icons.js';
 import { crestImg } from '../components.js';
-import { POSITIONS, posLabel, isKeeper, layout } from '../positions.js';
+import { POSITIONS, posLabel, isKeeper, layout, subGroups } from '../positions.js';
 import { openSheet, confirmSheet, toast, buzz } from '../ui/sheet.js';
 import { liveMinutesHtml, hasShortfall, coachFormEvent, coachSheet, matchMinutesHtml } from './minutes.js';
 import { alertKey } from '../minutes.js';
@@ -551,9 +551,9 @@ export function mountLive(view, ctx) {
     }
   }
 
-  // Tap a player on the pitch: the bench players who play that position come
-  // first, then those for whom it is a second position, then everyone — and
-  // a search box finds anyone by name or number.
+  // Tap a player on the pitch: the bench in the owner's order for that
+  // position (subGroups) — same position, the positions beside it, then the
+  // lines — and a search box finds anyone by name or number.
   function subSheet({ outPid = null, inPid = null } = {}) {
     const st = state();
     const field = M.onField(st);
@@ -570,9 +570,8 @@ export function mountLive(view, ctx) {
     const slot = field.find((f) => f.pid === outPid);
     const pos = slot?.pos || '';
     const benchP = M.bench(st);
-    const primary = benchP.filter((p) => pos && p.pos === pos).sort(byNumber);
-    const second = benchP.filter((p) => pos && p.pos !== pos && p.pos2 === pos).sort(byNumber);
-    const others = benchP.filter((p) => !primary.includes(p) && !second.includes(p)).map((p) => ({ ...p, note: posLabel(p.pos) })).sort(byNumber);
+    const note = (p) => [posLabel(p.pos), posLabel(p.pos2)].filter(Boolean).join(' / ');
+    const groups = subGroups(pos, [...benchP].sort(byNumber)).map((g) => ({ ...g, players: g.players.map((p) => ({ ...p, note: note(p) })) }));
     const timing = timingState(st);
     const out = who(st, outPid);
 
@@ -581,11 +580,7 @@ export function mountLive(view, ctx) {
       subtitle: `יוצא: ${esc(out.number != null ? `${out.number} · ` : '')}${esc(out.name)}${pos ? ` · ${esc(posLabel(pos))}` : ''}`,
       tall: true,
       body: timingHtml(st, timing) + pickerHtml({
-        groups: [
-          { label: pos ? `בעמדה: ${posLabel(pos)}` : 'מתאימים', players: primary },
-          { label: 'עמדה נוספת', players: second.map((p) => ({ ...p, note: `עמדה נוספת · ${posLabel(p.pos)}` })) },
-          { label: primary.length || second.length ? 'שאר הספסל' : 'הספסל', players: others },
-        ],
+        groups,
         placeholder: 'חיפוש שחקן מהספסל',
       }) + (benchP.length ? '' : '<p class="sheet-text">אין שחקנים על הספסל.</p>'),
       onMount: ({ body }) => {
@@ -605,11 +600,14 @@ export function mountLive(view, ctx) {
     const st = state();
     const p = M.playerById(st, inPid);
     const field = M.onField(st).map((f) => ({ ...M.playerById(st, f.pid), pos: f.pos })).filter((x) => x.id);
-    const fits = field.filter((f) => f.pos && (f.pos === p.pos || f.pos === p.pos2)).sort(byNumber);
-    const rest = field.filter((f) => !fits.includes(f)).sort(byNumber);
+    // The same order from the other side: the players on the field in the
+    // incoming player's position, then in their second position, then the
+    // positions beside it and the lines. A field player has one slot.
+    const groups = subGroups(p.pos || p.pos2 || '', [...field].sort(byNumber),
+      { second: () => '', also: p.pos ? p.pos2 : '', rest: 'שאר המגרש', all: 'על המגרש' });
     const sh = openSheet({
       title: 'חילוף', subtitle: `נכנס: ${esc(whoText(st, inPid))} · במקום מי?`, tall: true,
-      body: pickerHtml({ groups: [{ label: 'באותה עמדה', players: fits }, { label: 'על המגרש', players: rest }] }),
+      body: pickerHtml({ groups }),
       onMount: ({ body }) => wirePicker(body, (pid) => { if (!pid) return; sh.close('next'); subSheetDirect(pid, inPid); }),
     });
   }

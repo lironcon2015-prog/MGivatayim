@@ -1,6 +1,7 @@
 // The live-match model. Run through tests/units.mjs.
 import assert from 'node:assert/strict';
 import * as M from '../src/live/model.js';
+import { subGroups } from '../src/positions.js';
 
 const P = (id, number, pos, pos2 = '') => ({ id, name: 'שחקן ' + id, number, pos, pos2 });
 const squad = [P('g', 1, 'GK'), P('a', 7, 'LB', 'LW'), P('b', 10, 'AM', 'CM'), P('c', 9, 'ST'), P('d', 12, 'LW', 'LB'), P('e', 14, 'CB', 'DM')];
@@ -202,5 +203,60 @@ export async function run(test) {
     assert.deepEqual(M.cleanFormat([0, -3]), M.DEFAULT_FORMAT);
     assert.equal(M.describeFormat([30, 30, 20]), '3 שלישים · 30/30/20');
     assert.equal(M.describeFormat([25, 25]), '2 מחציות · 25 דק׳');
+  });
+
+  // The owner's order for who comes on: same position (first, then second),
+  // the positions beside it, then whole lines in an order that depends on
+  // the line being replaced. Keepers are not defenders.
+  const B = (id, pos, pos2 = '') => ({ id, name: id, number: null, pos, pos2 });
+  const bench = [B('gk', 'GK', 'CB'), B('st', 'ST'), B('rb', 'RB'), B('cm', 'CM'), B('lw2', 'CM', 'LW'), B('lw', 'LW'),
+    B('rw', 'RW'), B('cb', 'CB'), B('am', 'AM'), B('dm', 'DM'), B('cb2', 'ST', 'CB'), B('dm2', 'RB', 'DM'), B('cm2', 'ST', 'CM'), B('none', '')];
+  const order = (pos, opts) => subGroups(pos, bench, opts).map((g) => [g.label, g.players.map((p) => p.id)]);
+
+  await test('left wing: left wing first, then as a second position, then attack, midfield, defence', () => {
+    assert.deepEqual(order('LW'), [
+      ['בעמדה: כנף שמאל', ['lw']],
+      ['כנף שמאל כעמדה נוספת', ['lw2']],
+      ['התקפה', ['st', 'rw', 'cb2', 'cm2']],
+      ['קישור', ['cm', 'am', 'dm', 'dm2']],
+      ['הגנה', ['rb', 'cb', 'gk']],
+      ['שאר הספסל', ['none']],
+    ]);
+  });
+
+  await test('centre back: centre backs, then defence without the keeper, midfield, attack', () => {
+    assert.deepEqual(order('CB'), [
+      ['בעמדה: בלם', ['cb']],
+      ['בלם כעמדה נוספת', ['gk', 'cb2']],
+      ['הגנה', ['rb', 'dm2']],
+      // cm2 is a striker who also plays central midfield: midfield, by his
+      // second position, comes before attack.
+      ['קישור', ['cm', 'lw2', 'am', 'dm', 'cm2']],
+      ['התקפה', ['st', 'lw', 'rw']],
+      ['שאר הספסל', ['none']],
+    ]);
+  });
+
+  await test('defensive midfield: DM, DM as second, central midfielders (first and second), attack, defence', () => {
+    assert.deepEqual(order('DM'), [
+      ['בעמדה: קשר אחורי', ['dm']],
+      ['קשר אחורי כעמדה נוספת', ['dm2']],
+      ['קשר מרכזי', ['cm', 'lw2', 'cm2']],
+      ['קישור', ['am']],
+      ['התקפה', ['st', 'lw', 'rw', 'cb2']],
+      ['הגנה', ['rb', 'cb', 'gk']],
+      ['שאר הספסל', ['none']],
+    ]);
+  });
+
+  await test('a keeper is replaced by keepers, then anyone', () => {
+    assert.deepEqual(order('GK').map(([l]) => l), ['בעמדה: שוער', 'שאר הספסל']);
+  });
+
+  await test('from the bench: the field players in the incoming first position, then his second, then the lines', () => {
+    const field = [B('f1', 'ST'), B('f2', 'CB'), B('f3', 'LW'), B('f4', 'CM'), B('f5', 'GK')];
+    const g = subGroups('LW', field, { second: () => '', also: 'CM', rest: 'שאר המגרש', all: 'על המגרש' })
+      .map((x) => [x.label, x.players.map((p) => p.id)]);
+    assert.deepEqual(g, [['בעמדה: כנף שמאל', ['f3']], ['בעמדה: קשר מרכזי', ['f4']], ['התקפה', ['f1']], ['הגנה', ['f2']], ['שאר המגרש', ['f5']]]);
   });
 }

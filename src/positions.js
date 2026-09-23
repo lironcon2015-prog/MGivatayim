@@ -44,6 +44,49 @@ export function matchPosition(text) {
   return '';
 }
 
+// Who comes on for whom — the owner's order. The same position first (as a
+// player's first position, then as their second), then the positions next to
+// it, then whole lines in the order that suits the one being replaced: a
+// defender is replaced from defence, then midfield, then attack; an attacker
+// the other way round; a midfielder from midfield, then attack, then
+// defence. A keeper is not a defender — keepers come only for a keeper.
+const LINE = { RB: 'def', CB: 'def', LB: 'def', DM: 'mid', CM: 'mid', AM: 'mid', RW: 'att', LW: 'att', ST: 'att' };
+const LINE_ORDER = { def: ['def', 'mid', 'att'], mid: ['mid', 'att', 'def'], att: ['att', 'mid', 'def'] };
+const LINE_LABEL = { def: 'הגנה', mid: 'קישור', att: 'התקפה' };
+const NEAR = { DM: ['CM'], AM: ['CM'] };
+
+// `list` in the order to show it, as groups for the picker. `second` reads a
+// candidate's second position; field players have one slot, so none. `also`
+// is the other way round — choosing who goes off for a bench player: the
+// field players in the incoming player's second position come right after
+// those in his first.
+export function subGroups(pos, list, { second = secondaryPos, also = '', rest = 'שאר הספסל', all = 'הספסל' } = {}) {
+  const left = [...list];
+  const groups = [];
+  const take = (label, test) => {
+    const players = left.filter(test);
+    for (const p of players) left.splice(left.indexOf(p), 1);
+    if (players.length) groups.push({ label, players });
+  };
+  const first = (p) => primaryPos(p);
+  if (pos) {
+    take(`בעמדה: ${posLabel(pos)}`, (p) => first(p) === pos);
+    take(`${posLabel(pos)} כעמדה נוספת`, (p) => second(p) === pos);
+    if (also && also !== pos) take(`בעמדה: ${posLabel(also)}`, (p) => first(p) === also);
+    for (const n of NEAR[pos] || []) take(posLabel(n), (p) => first(p) === n || second(p) === n);
+    for (const line of LINE_ORDER[LINE[pos]] || []) {
+      // A line's first-position players come before its second-position ones.
+      const ofLine = (id) => LINE[id] === line;
+      const players = [...left.filter((p) => ofLine(first(p))), ...left.filter((p) => !ofLine(first(p)) && ofLine(second(p)))];
+      take(LINE_LABEL[line], (p) => players.includes(p));
+      const g = groups.at(-1);
+      if (g?.label === LINE_LABEL[line]) g.players.sort((a, b) => players.indexOf(a) - players.indexOf(b));
+    }
+  }
+  take(groups.length ? rest : all, () => true);
+  return groups;
+}
+
 // Players from before positions existed carry a free-text `position`; read
 // it once so nobody has to re-enter what the data already says.
 export const primaryPos = (p) => p?.pos || matchPosition(p?.position) || '';

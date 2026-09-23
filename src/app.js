@@ -17,6 +17,7 @@ import { LiveSession } from './live/sync.js';
 import * as LM from './live/model.js';
 import { mountLive, openMatchSheet, showMinutesTab } from './views/live.js';
 import { cleanCoach, coachFor, shortfall, alertKey } from './minutes.js';
+import { homeAlertHtml } from './views/minutes.js';
 import { toast, buzz } from './ui/sheet.js';
 
 const ROUTES = [
@@ -352,11 +353,19 @@ function render() {
     });
     return;
   }
-  view.innerHTML = (route.hash === '#/' ? liveBanner() : '') + route.render(s)
+  view.innerHTML = (route.hash === '#/' ? liveBanner() + minutesAlert() : '') + route.render(s)
     + (state.stale ? '<p class="note stale">מוצגים הנתונים האחרונים שנשמרו במכשיר — אין כרגע חיבור לשרת.</p>' : '')
     + `<p class="foot">${esc(s.team.name)} · ${esc(seasonLabel(s.team))}${isAdmin() ? '' : ' · <a href="#/admin">כניסת מנהל</a>'}</p>`;
   teardown = route.wire ? route.wire(view, s) || (() => {}) : () => {};
   hydratePosters(view);
+}
+
+// The coach's alert stays on the home screen for the whole break, unless
+// they folded it with "got it" on the minutes tab.
+function minutesAlert() {
+  const st = session.state;
+  if (!st || !canMinutes() || store.getFolded() === alertKey(st)) return '';
+  return homeAlertHtml(st, coachCfg(st.id));
 }
 
 function liveBanner() {
@@ -397,6 +406,9 @@ session.subscribe(() => {
     if (liveActive()) a.insertAdjacentHTML('beforeend', '<i class="live-dot" aria-label="משחק חי"></i>');
   });
 });
+
+// "To the minutes list" lands on the live screen's minutes tab.
+document.addEventListener('click', (e) => { if (e.target.closest('[data-mn-go]')) showMinutesTab(); });
 
 // History rows open the match: score, scorers, assists, subs.
 document.addEventListener('click', (e) => {

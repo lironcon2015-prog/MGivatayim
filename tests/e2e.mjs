@@ -519,11 +519,12 @@ await step('a device the manager marks as coach sees playing time; a parent does
   await dot.waitFor({ timeout: 8000 });
   await admin.goto(APP + '#/admin');
   await admin.click('[data-tab="access"]');
-  const row = admin.locator('.user-row', { hasText: 'המאמן' });
+  // By the exact name: every row's role switch reads "הורה מאמן".
+  const row = admin.locator('.user-row').filter({ has: admin.locator('.who b', { hasText: /^המאמן$/ }) });
   await row.locator('[data-set="approved"]').click();
   await dot.waitFor({ state: 'detached', timeout: 8000 });
   await row.locator('[data-role="coach"]').click();
-  await row.locator('.role-on').waitFor();
+  await row.locator('[data-role="coach"][aria-pressed="true"]').waitFor();
   await coach.click('#recheck');
   await coach.goto(APP + '#/stats');
   await coach.locator('#minutes .mn-table').waitFor({ timeout: 8000 });
@@ -556,11 +557,13 @@ await step('before kick-off the coach sets the minimum and who came; a parent se
   await until(() => coachFile().matches?.[id]?.min === 25, 'the minimum to reach Drive');
   expect(coachFile().minDefault === 25, 'the new minimum is the default for the next match');
   const benched = liveFile().players.find((p) => !liveFile().lineup.some((l) => l.pid === p.id));
-  await coach.locator(`[data-mn-present="${benched.id}"]`).click();
+  const away = coach.locator(`[data-mn-present="${benched.id}"][data-mn-state="away"]`);
+  await away.click();
   await until(() => (coachFile().matches[id].absent || []).includes(benched.id), 'the absence to reach Drive');
-  expect(await coach.locator(`[data-mn-present="${benched.id}"]`).getAttribute('aria-pressed') === 'false', 'still shown as present');
+  await coach.locator('.mn-att.away', { hasText: benched.name }).waitFor();
+  expect(await away.getAttribute('aria-pressed') === 'true', 'not shown as absent');
   // They turned up after all: the one player on the bench, for the alert.
-  await coach.locator(`[data-mn-present="${benched.id}"]`).click();
+  await coach.locator(`[data-mn-present="${benched.id}"][data-mn-state="here"]`).click();
   await until(() => !coachFile().matches[id].absent.includes(benched.id), 'the correction to reach Drive');
   await parent.goto(APP + '#/live');
   await parent.locator('.score-card').waitFor({ timeout: 8000 });
@@ -583,15 +586,23 @@ await step('at the break before the last period the coach is alerted once, where
   }
   const toastEl = coach.locator('.toast', { hasText: 'בספסל מתחת' });
   await toastEl.waitFor({ timeout: 8000 });
+  // The home screen keeps it for the whole break, not just while the toast is up.
+  await coach.locator('.mn-home').waitFor();
   await toastEl.locator('button').click();
-  await coach.locator('.mn-alert').waitFor();
-  const alert = await coach.locator('.mn-alert').innerText();
+  // The live tab's alert, not the home card's (which also reads .mn-alert).
+  await coach.locator('[data-mn-host] .mn-alert').waitFor();
+  const alert = await coach.locator('[data-mn-host] .mn-alert').innerText();
   expect(alert.includes(coach.benchName), 'the benched player is not in the alert: ' + alert);
+  expect(/השליש האחרון|המחצית האחרונה/.test(alert), 'the alert does not name the last period: ' + alert);
   expect(await coach.locator('.mn-row').count() > 0, 'no minutes list');
+  // "Got it" folds it to one line — on the tab and off the home screen.
+  await coach.click('[data-mn="fold"]');
+  await coach.locator('.mn-alert.folded').waitFor();
   await coach.goto(APP + '#/');
   await coach.reload();
   await new Promise((r) => setTimeout(r, 2000));
   expect(await coach.locator('.toast', { hasText: 'בספסל מתחת' }).count() === 0, 'the alert came twice');
+  expect(await coach.locator('.mn-home').count() === 0, 'a folded alert is still on the home screen');
   await parent.goto(APP + '#/live');
   await parent.locator('.score-card').waitFor();
   await new Promise((r) => setTimeout(r, 1500));

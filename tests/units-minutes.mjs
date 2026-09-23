@@ -51,6 +51,10 @@ export async function run(test) {
     const e = live.find((r) => r.id === 'e');
     assert.equal(e.on, true);
     assert.equal(bare(e.reachAt), "75'", 'e (10\', on the field) reaches 25\' at 75\'');
+    const by = Object.fromEntries(live.map((r) => [r.id, r]));
+    assert.deepEqual(by.a.ranges, [[0, 20]], 'a started and went off at 20\'');
+    assert.deepEqual(by.d.ranges, [[20, 50]], 'd came on at 20\' and off at 50\'');
+    assert.equal(e.ranges, undefined, 'no range for a player still on the field');
   });
 
   await test('a player who can no longer reach the minimum says so', () => {

@@ -68,16 +68,25 @@ function reachMinute(state, now, missing) {
 
 // One row per player present: minutes so far, on the field or not, and
 // whether they are short of the minimum. Fewest minutes first.
+// A player off the field who played: when, as match-clock minutes —
+// [[30, 42]] reads "played 30'–42'". Stoppage folds into the period's end.
+function ranges(format, list) {
+  const at = (p, ms) => offsetMin(format, p) + Math.round(Math.min(ms, format[p] * 60000) / 60000);
+  return (list || []).map((s) => [at(s.p, s.from), at(s.toP, s.to)]);
+}
+
 export function liveRows(state, now, { min, absent }) {
   const mins = M.minutesPlayed(state, now);
   const field = new Set(M.onField(state).map((f) => f.pid));
   const started = state.status !== 'setup';
+  const spans = started ? stints(state) : new Map();
   return presentPlayers(state, absent).map((p) => {
     const minutes = mins[p.id] || 0;
     const on = started && field.has(p.id);
     const short = minutes < min;
     const row = { id: p.id, name: p.name, number: p.number, minutes, on, short };
     if (short && on && ['running', 'break'].includes(state.status)) row.reachAt = reachMinute(state, now, min - minutes);
+    if (!on && minutes > 0) row.ranges = ranges(state.format, spans.get(p.id));
     return row;
   }).sort((a, b) => a.minutes - b.minutes || (a.number ?? 999) - (b.number ?? 999) || a.name.localeCompare(b.name, 'he'));
 }
@@ -172,7 +181,7 @@ export function seasonMinutes(season, coach) {
       if (c.short) below++;
       if (c.started) starts++;
     }
-    return { id: p.id, name: p.name, number: p.number ?? null, pos: p.pos || '', posText: p.posText || '', games, total, below, starts, avg: games ? total / games : 0 };
+    return { id: p.id, name: p.name, number: p.number ?? null, pos: p.pos || '', pos2: p.pos2 || '', posText: p.posText || '', games, total, below, starts, avg: games ? total / games : 0 };
   });
   players.sort((a, b) => (a.games ? 0 : 1) - (b.games ? 0 : 1) || a.avg - b.avg || (a.number ?? 999) - (b.number ?? 999));
   return {

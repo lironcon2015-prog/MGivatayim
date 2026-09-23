@@ -45,6 +45,9 @@ export function setCachedSeason(payload) {
 // comes once and not on every poll.
 export const getAlerted = () => get('alerted') || '';
 export const setAlerted = (k) => set('alerted', k);
+// The alert the coach folded with "got it" (same key): it stays one line.
+export const getFolded = () => get('folded') || '';
+export const setFolded = (k) => set('folded', k || null);
 
 export function forgetAccess() {
   setCachedSeason(null);

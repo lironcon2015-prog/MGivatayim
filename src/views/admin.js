@@ -523,18 +523,26 @@ export function mountAdmin(view, ctx) {
     // A coach is an approved device the manager marked: it sees playing time
     // too. The role belongs to the device — a coach's phone and laptop are
     // marked one by one.
-    const coach = (u) => u.status === 'approved';
+    // A switch, not a button that renames itself: the current role and the
+    // other one are both in view.
+    const roleSwitch = (u) => {
+      const coach = u.role === 'coach';
+      const opt = (role, label, on) => `<button type="button" data-user="${esc(u.id)}" data-role="${role}" aria-pressed="${on}"${on ? ' disabled' : ''}>${label}</button>`;
+      return `<span class="role-tg" role="group" aria-label="${esc(`תפקיד של ${u.name}`)}">${opt('parent', 'הורה', !coach)}${opt('coach', 'מאמן', coach)}</span>`;
+    };
     const row = (u, actions) => `<div class="user-row">
-        <span class="who"><b>${esc(u.name)}</b><span>${u.role === 'coach' ? '<span class="role-on">מאמן</span> · ' : ''}ביקש ${esc(stamp(u.requestedAt))}${u.lastSeen ? ` · נראה ${esc(stamp(u.lastSeen))}` : ''}</span></span>
-        <span class="acts">${coach(u) ? `<button type="button" class="btn small secondary" data-user="${esc(u.id)}" data-role="${u.role === 'coach' ? 'parent' : 'coach'}">${u.role === 'coach' ? 'ביטול מאמן' : 'מאמן'}</button>` : ''}${actions.map(([st, label, cls]) =>
+        <span class="who"><b>${esc(u.name)}</b><span>ביקש ${esc(stamp(u.requestedAt))}${u.lastSeen ? ` · נראה ${esc(stamp(u.lastSeen))}` : ''}</span></span>
+        <span class="acts">${u.status === 'approved' ? roleSwitch(u) : ''}${actions.map(([st, label, cls]) =>
           `<button type="button" class="btn small ${cls || ''}" data-user="${esc(u.id)}" data-set="${st}">${label}</button>`).join('')}</span>
       </div>`;
-    const block = (title, glyph, list, actions, empty) => `<section>
+    const block = (title, glyph, list, actions, empty, note = '') => `<section>
         <div class="sec-head">${icon(glyph)}<h2>${title}</h2><span class="aside">${list.length}</span></div>
         <div class="card rows">${list.length ? list.map((u) => row(u, actions)).join('') : `<div class="empty">${empty}</div>`}</div>
+        ${note && list.length ? `<p class="note">${note}</p>` : ''}
       </section>`;
     return block('ממתינים לאישור', 'user', by(['pending']), [['approved', 'אישור'], ['rejected', 'דחייה', 'secondary']], 'אין בקשות חדשות.')
-      + block('בעלי גישה', 'check', by(['approved']), [['revoked', 'ביטול גישה', 'danger']], 'עוד לא אושר אף אחד.')
+      + block('בעלי גישה', 'check', by(['approved']), [['revoked', 'ביטול גישה', 'danger']], 'עוד לא אושר אף אחד.',
+        'מאמן רואה גם דקות משחק. התפקיד שייך למכשיר ולא לאדם: מאמן עם טלפון ומחשב מסומן בכל אחד מהם.')
       + block('נדחו / בוטלו', 'shield', by(['rejected', 'revoked']), [['approved', 'אישור'], ['remove', 'מחיקה', 'secondary']], 'אין.');
   }
 

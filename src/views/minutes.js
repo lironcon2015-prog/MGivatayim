@@ -11,13 +11,26 @@ import * as MN from '../minutes.js';
 import { esc, shortName } from '../format.js';
 import { icon } from '../icons.js';
 import { openSheet } from '../ui/sheet.js';
-import { sectionHead, tile } from '../components.js';
+import { sectionHead } from '../components.js';
 import { outcomeOf } from '../season.js';
+import { posLabel } from '../positions.js';
 
 const mins = (n) => M.ltr(`${n}'`);
 const total = (format) => format.reduce((a, b) => a + b, 0) || 1;
 const pct = (n, of) => Math.max(0, Math.min(100, (n / of) * 100)).toFixed(1);
-const dm = (date) => esc(String(date).split('-').reverse().slice(0, 2).join('.'));
+const dm = (date) => esc(String(date).split('-').reverse().slice(0, 2).map(Number).join('.'));
+// The shirt number as quiet text: gold in these lists belongs to a shortfall.
+const shirt = (n) => `<span class="mn-num num">${n ?? '·'}</span>`;
+// Small figures in a row — the lists are the point of these screens, and the
+// big tiles pushed them below the fold.
+const kpis = (items) => `<div class="mn-kpis">${items.map(([v, label, gold]) =>
+  `<div class="mn-kpi"><b class="num${gold ? ' gold' : ''}">${v}</b><span>${esc(label)}</span></div>`).join('')}</div>`;
+
+// "The last third (20')" — the alert says how much time is left to play.
+export function lastPeriodText(format) {
+  const word = M.periodWord(format);
+  return `ה${word} ${word === 'מחצית' ? 'האחרונה' : 'האחרון'} (<span class="num">${mins(format[format.length - 1])}</span>)`;
+}
 
 function appeared(state) {
   const ids = new Set(state.lineup.map((l) => l.pid));
@@ -27,12 +40,21 @@ function appeared(state) {
 
 /* ── Rows: the live match and a finished one ─────────────────────────── */
 
+// When a player off the field played: "started · off at 30'", or
+// "played 30'–42'" (several stints joined).
+function rangesText(ranges) {
+  return ranges.map(([a, b], i) => (i === 0 && a === 0
+    ? `פתח · ירד ב-<span class="num">${mins(b)}</span>`
+    : `שיחק <span class="num">${M.ltr(`${a}'–${b}'`)}</span>`)).join(' · ');
+}
+
 function rowsHtml(state, rows, min) {
   const of = total(state.format);
   return rows.length ? rows.map((r) => {
-    const sub = r.reachAt ? `<span class="mn-sub">על המגרש · יגיע לרף בדקה <span class="num">${r.reachAt}</span></span>` : '';
+    const sub = r.reachAt ? `<span class="mn-sub">על המגרש · יגיע לרף בדקה <span class="num">${r.reachAt}</span></span>`
+      : r.ranges?.length ? `<span class="mn-sub">${rangesText(r.ranges)}</span>` : '';
     return `<div class="mn-row${r.short ? ' short' : ''}" data-mn-row="${esc(r.id)}">
-      <span class="pick-num num">${r.number ?? '·'}</span>
+      ${shirt(r.number)}
       <span class="mn-name">${state.status !== 'ended' ? `<i class="mn-state${r.on ? ' on' : ''}" aria-label="${r.on ? 'על המגרש' : 'בספסל'}"></i>` : ''}${esc(r.name)}</span>
       <span class="mn-val num">${mins(r.minutes)}</span>
       <span class="mn-track" aria-hidden="true"><i class="mn-fill" style="width:${pct(r.minutes, of)}%"></i><i class="mn-min" style="inset-inline-start:${pct(min, of)}%"></i></span>
@@ -41,8 +63,14 @@ function rowsHtml(state, rows, min) {
   }).join('') : '<div class="empty">אין שחקנים שהגיעו למשחק.</div>';
 }
 
-function alertHtml(state, short, min) {
+function alertHtml(state, short, min, folded) {
   if (!short.length) return '';
+  const count = short.length === 1 ? 'שחקן אחד בספסל' : `${short.length} שחקנים בספסל`;
+  if (folded) {
+    return `<button type="button" class="mn-alert folded" data-mn="unfold">
+        <span class="mn-alert-ic">${icon('clock')}</span><span>${count} מתחת ל-<span class="num">${mins(min)}</span></span><span class="linkish">הצגה</span>
+      </button>`;
+  }
   const lastLen = state.format[state.format.length - 1];
   const items = short.map((r) => `<li><b>${esc(r.name)}</b> · <span class="num">${mins(r.minutes)}</span>
       <span>${r.cannot ? 'כבר לא יגיע לרף'
@@ -50,22 +78,38 @@ function alertHtml(state, short, min) {
           : `חסרות <span class="num">${mins(r.missing)}</span> · יגיע לרף אם ייכנס עד דקה <span class="num">${r.latest}</span>`}</span></li>`).join('');
   return `<div class="mn-alert" role="alert">
       <span class="mn-alert-ic">${icon('clock')}</span>
-      <div><p><b>לפני ${esc(M.periodName(state.format, state.period))}:</b> ${short.length === 1 ? 'שחקן אחד בספסל' : `${short.length} שחקנים בספסל`} עדיין מתחת ל-<span class="num">${mins(min)}</span></p>
-      <ul>${items}</ul></div>
+      <div><p><b>לפני ${lastPeriodText(state.format)}:</b> ${count} עדיין מתחת ל-<span class="num">${mins(min)}</span></p>
+      <ul>${items}</ul>
+      <button type="button" class="btn small secondary mn-ok" data-mn="fold">הבנתי</button></div>
     </div>`;
 }
 
-// The minutes tab of the live screen.
-export function liveMinutesHtml(state, now, cfg) {
+// The minutes tab of the live screen. `folded` — the coach pressed "got it"
+// on this break's alert: it shrinks to one line, still there to reopen.
+export function liveMinutesHtml(state, now, cfg, { folded = false } = {}) {
   if (state.status === 'setup') return coachFormHtml(state, cfg);
   const rows = MN.liveRows(state, now, cfg);
   const short = MN.shortfall(state, cfg);
   return `<section data-minutes>
-      ${alertHtml(state, short, cfg.min)}
-      <div class="sec-head">${icon('clock')}<h2>דקות משחק</h2><span class="aside">רף <span class="num">${mins(cfg.min)}</span> · <button type="button" class="linkish" data-mn="edit">נוכחות ורף</button></span></div>
+      ${alertHtml(state, short, cfg.min, folded)}
+      <div class="sec-head">${icon('clock')}<h2>דקות משחק</h2><span class="aside"><button type="button" class="linkish" data-mn="edit">נוכחות ורף</button></span></div>
+      <p class="mn-key"><span><i class="mn-state on"></i>על המגרש</span><span><i class="mn-state"></i>בספסל</span><span><i class="mn-key-min"></i>רף <span class="num">${mins(cfg.min)}</span></span></p>
       <div class="card mn-list">${rowsHtml(state, rows, cfg.min)}</div>
-      <p class="note">ממוין מהכי מעט דקות. הפס הוא כל המשחק, והקו הזהוב הוא הרף.</p>
+      <p class="note">ממוין מהכי מעט דקות. הפס הוא כל המשחק.</p>
     </section>`;
+}
+
+// The same alert on the home screen, for the whole break: a toast is gone
+// in seconds, and at the break the coach is busy.
+export function homeAlertHtml(state, cfg) {
+  const short = MN.shortfall(state, cfg);
+  if (!short.length) return '';
+  return `<section><div class="mn-alert mn-home">
+      <span class="mn-alert-ic">${icon('clock')}</span>
+      <div><p><b>${short.length === 1 ? 'שחקן אחד בספסל' : `${short.length} שחקנים בספסל`} מתחת ל-<span class="num">${mins(cfg.min)}</span></b> לפני ${lastPeriodText(state.format)}</p>
+      <p class="mn-home-names">${short.map((r) => esc(shortName(r.name))).join(' · ')}</p></div>
+      <a class="btn small" href="#/live" data-mn-go>לרשימת הדקות</a>
+    </div></section>`;
 }
 
 export const hasShortfall = (state, cfg) => MN.shortfall(state, cfg).length > 0;
@@ -98,16 +142,16 @@ export function coachFormHtml(state, cfg) {
     </section>
     <section>
       ${sectionHead('מי הגיע', `<span class="num">${here}</span> מתוך <span class="num">${players.length}</span>`, 'user')}
-      <div class="card lu">${players.map((p) => {
+      <div class="card mn-list">${players.map((p) => {
         const played = took.has(p.id);
         const on = played || !cfg.absent.has(p.id);
-        return `<div class="lu-row${on ? ' on' : ''}">
-          <button type="button" class="lu-toggle" data-mn-present="${esc(p.id)}" aria-pressed="${on}"${played ? ' disabled' : ''}>
-            <span class="pick-num num">${p.number ?? '·'}</span>
-            <span class="lu-name">${esc(p.name)}</span>
-            ${played && state.status !== 'setup' ? '<span class="mn-sub">שיחק</span>' : ''}
-            <span class="lu-check">${icon('check')}</span>
-          </button></div>`;
+        const opt = (here, label) => `<button type="button" data-mn-present="${esc(p.id)}" data-mn-state="${here ? 'here' : 'away'}" aria-pressed="${on === here}"${played ? ' disabled' : ''}>${label}</button>`;
+        return `<div class="mn-att${on ? '' : ' away'}">
+          ${shirt(p.number)}
+          <span class="mn-name">${esc(p.name)}</span>
+          ${played && state.status !== 'setup' ? '<span class="mn-played">שיחק</span>'
+            : `<span class="mn-tg" role="group" aria-label="${esc(`הגעה של ${p.name}`)}">${opt(true, 'הגיע')}${opt(false, 'חסר')}</span>`}
+        </div>`;
       }).join('') || '<div class="empty">אין שחקנים בסגל.</div>'}</div>
       <p class="note">מי שלא הגיע לא נספר: לא ברשימת הדקות, לא בהתראה ולא בעונה. מי ששיחק נחשב כמי שהגיע.</p>
     </section>`;
@@ -126,8 +170,10 @@ export function coachFormEvent(target, state, cfg, save) {
   const t = target.closest?.('[data-mn-present]');
   if (t && !t.disabled) {
     const pid = t.dataset.mnPresent;
+    const away = t.dataset.mnState === 'away';
+    if (away === cfg.absent.has(pid)) return true;
     const absent = new Set(cfg.absent);
-    if (absent.has(pid)) absent.delete(pid); else absent.add(pid);
+    if (away) absent.add(pid); else absent.delete(pid);
     save({ absent: [...absent] });
     return true;
   }
@@ -167,16 +213,12 @@ export function seasonMinutesHtml(s) {
   }
   return `<section id="minutes">
     ${sectionHead('דקות משחק', `<span class="num">${sm.matches.length}</span> משחקים מתועדים`, 'clock')}
-    <div class="tiles three">
-      ${tile({ value: sm.matches.length, label: 'משחקים', sub: 'שתועדו בלייב' })}
-      ${tile({ value: sm.belowTotal, label: 'מתחת לרף', sub: 'פעמים', tone: sm.belowTotal ? 'accent' : '' })}
-      ${tile({ value: sm.playersBelow, label: 'שחקנים', sub: 'שהיו מתחת לרף' })}
-    </div>
-    <div class="seg" role="tablist" id="mn-tabs" style="margin-top:.8rem">
+    <div class="seg" role="tablist" id="mn-tabs">
       <button role="tab" type="button" data-mnview="table" aria-selected="true">טבלה</button>
       <button role="tab" type="button" data-mnview="map" aria-selected="false">מפה</button>
     </div>
-    <div id="mn-body" style="margin-top:.7rem">${tableHtml(sm)}</div>
+    ${kpis([[sm.matches.length, 'משחקים'], [sm.belowTotal, 'פעמים מתחת לרף', sm.belowTotal > 0], [sm.playersBelow, 'שחקנים']])}
+    <div id="mn-body">${tableHtml(sm)}</div>
   </section>`;
 }
 
@@ -224,24 +266,24 @@ function playerSheet(sm, s, pid) {
     if (c.absent) {
       return `<div class="mn-h absent"><span class="num mn-d">${dm(x.match.date)}</span><span class="mn-o">${esc(x.match.opponent)} ${where}</span><span class="mn-v">לא הגיע</span></div>`;
     }
-    return `<div class="mn-h${c.short ? ' short' : ''}">
+    return `<div class="mn-h${c.short ? ' short' : ''}${c.started ? ' started' : ''}">
         <span class="num mn-d">${dm(x.match.date)}</span>
         <span class="mn-o">${esc(x.match.opponent)} ${where}${c.started ? ' <span class="chip">פתח</span>' : ''}</span>
         <span class="mn-v num">${mins(c.minutes)}</span>
         <span class="mn-track" aria-hidden="true">${c.spans.map(([a, w]) => `<i class="mn-span" style="inset-inline-start:${(a * 100).toFixed(1)}%;width:${(w * 100).toFixed(1)}%"></i>`).join('')}<i class="mn-min" style="inset-inline-start:${pct(x.min, of)}%"></i></span>
       </div>`;
   }).join('');
+  const positions = [p.posText, posLabel(p.pos2)].filter(Boolean).join(' · ');
   openSheet({
-    title: p.name,
-    subtitle: esc([p.number != null ? `#${p.number}` : '', p.posText].filter(Boolean).join(' · ')),
+    label: p.name,
     tall: true,
-    body: `<div class="tiles three">
-        ${tile({ value: p.total, label: 'סה״כ דקות' })}
-        ${tile({ value: p.games ? Math.round(p.avg) : '—', label: 'ממוצע', sub: 'למשחק' })}
-        ${tile({ value: `${p.below}/${p.games}`, label: 'מתחת לרף', sub: 'משחקים', tone: p.below ? 'accent' : '' })}
+    body: `<div class="mn-ph">
+        <span class="mn-avatar num">${p.number ?? '·'}</span>
+        <span><b>${esc(p.name)}</b>${positions ? `<small>${esc(positions)}</small>` : ''}</span>
       </div>
+      ${kpis([[`${mins(p.total)}`, 'סה״כ'], [p.games ? mins(Math.round(p.avg)) : '—', 'ממוצע למשחק'], [`${p.below}/${p.games}`, 'מתחת לרף', p.below > 0]])}
       <div class="mn-hist">${list || '<div class="empty">אין משחקים מתועדים.</div>'}</div>
-      <p class="note">הפס מראה מתי השחקן היה על המגרש לאורך המשחק. הקו הזהוב הוא הרף באותו משחק.</p>`,
+      <p class="note">הפס מראה מתי השחקן היה על המגרש לאורך המשחק. כחול = פתח בהרכב. הקו הזהוב הוא הרף באותו משחק.</p>`,
   });
 }
 

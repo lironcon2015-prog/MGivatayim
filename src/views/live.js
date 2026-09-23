@@ -6,6 +6,8 @@ import { crestImg } from '../components.js';
 import { POSITIONS, posLabel, isKeeper, layout } from '../positions.js';
 import { openSheet, confirmSheet, toast, buzz } from '../ui/sheet.js';
 import { liveMinutesHtml, hasShortfall, coachFormEvent, coachSheet, matchMinutesHtml } from './minutes.js';
+import { alertKey } from '../minutes.js';
+import * as store from '../store.js';
 
 // Which half of the live screen the coach is looking at: the match, or the
 // minutes. Kept across visits to the screen, so the alert's "to the minutes"
@@ -369,7 +371,7 @@ export function mountLive(view, ctx) {
       </div>` : '';
 
     if (tab === 'minutes') {
-      view.innerHTML = `${scoreboard(st)}${tabs}<div data-mn-host>${liveMinutesHtml(st, now(), cfg)}</div>`;
+      view.innerHTML = `${scoreboard(st)}${tabs}<div data-mn-host>${liveMinutesHtml(st, now(), cfg, { folded: store.getFolded() === alertKey(st) })}</div>`;
       lastMinute = minuteKey(st);
       window.scrollTo(0, scroll);
       tick();
@@ -420,7 +422,7 @@ export function mountLive(view, ctx) {
     if (!st) return;
     if (tab === 'minutes' && st.status !== 'setup' && minuteKey(st) !== lastMinute) {
       const host = view.querySelector('[data-mn-host]');
-      if (host) { host.innerHTML = liveMinutesHtml(st, now(), ctx.coachCfg(st.id)); lastMinute = minuteKey(st); }
+      if (host) { host.innerHTML = liveMinutesHtml(st, now(), ctx.coachCfg(st.id), { folded: store.getFolded() === alertKey(st) }); lastMinute = minuteKey(st); }
     }
     const c = view.querySelector('[data-clock]');
     const x = view.querySelector('[data-extra]');
@@ -848,6 +850,7 @@ export function mountLive(view, ctx) {
     if (t.dataset.goto) { goToEvent(t.dataset.goto); return; }
     if (t.dataset.tab) { tab = t.dataset.tab; render(); return; }
     if (st && tab === 'minutes' && ctx.canMinutes()) {
+      if (t.dataset.mn === 'fold' || t.dataset.mn === 'unfold') { store.setFolded(t.dataset.mn === 'fold' ? alertKey(st) : ''); render(); return; }
       if (t.dataset.mn === 'edit') { coachSheet(st, () => ctx.coachCfg(st.id), (patch) => saveCoach(st, patch)); return; }
       if (coachFormEvent(t, st, ctx.coachCfg(st.id), (patch) => saveCoach(st, patch))) return;
     }

@@ -966,7 +966,8 @@ button.match:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px
 .mn-list { padding: .2rem var(--pad); }
 .mn-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: .35rem .65rem; padding: .7rem 0; }
 .mn-row + .mn-row { border-top: 1px solid var(--line); }
-.mn-row .pick-num { width: 34px; height: 34px; font-size: .85rem; grid-row: span 2; }
+.mn-num { min-width: 1.6em; text-align: center; font-size: .8rem; color: var(--faint); }
+.mn-row .mn-num { grid-row: span 3; align-self: start; padding-top: .15rem; }
 .mn-name { font-weight: 700; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mn-val { font-weight: 600; font-size: 1.05rem; }
 .mn-row.short .mn-val, .mn-row.short .mn-name { color: var(--gold); }
@@ -977,8 +978,39 @@ button.match:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px
 .short .mn-fill { background: var(--gold-fill); }
 .mn-min { position: absolute; top: -4px; bottom: -4px; width: 2px; margin-inline-start: -1px; border-radius: 1px; background: var(--gold); }
 .mn-sub { grid-column: 2 / 4; font-size: .76rem; color: var(--muted); }
-.lu-toggle .mn-sub { flex: none; }
-.lu-toggle:disabled { cursor: default; opacity: .85; }
+.mn-key { display: flex; flex-wrap: wrap; gap: .3rem 1rem; margin: -.3rem 0 .6rem; font-size: .78rem; color: var(--muted); }
+.mn-key span { display: inline-flex; align-items: center; }
+.mn-key-min { display: inline-block; width: 2px; height: 12px; border-radius: 1px; background: var(--gold); margin-inline-end: .4rem; }
+
+/* Attendance: a two-way switch per player; an absentee's name is struck. */
+.mn-att { display: flex; align-items: center; gap: .65rem; min-height: 54px; }
+.mn-att + .mn-att { border-top: 1px solid var(--line); }
+.mn-att .mn-name { flex: 1; }
+.mn-att.away .mn-name { color: var(--faint); text-decoration: line-through; text-decoration-color: var(--line-strong); }
+.mn-played { font-size: .78rem; color: var(--muted); }
+.mn-tg, .role-tg { display: inline-flex; flex: none; padding: 2px; border-radius: var(--r-pill); background: var(--well); border: 1px solid var(--line); }
+.mn-tg button, .role-tg button {
+  font: inherit; font-size: .78rem; font-weight: 700; padding: .3rem .75rem; border: 0; border-radius: var(--r-pill);
+  background: none; color: var(--muted); cursor: pointer;
+}
+.mn-tg button:focus-visible, .role-tg button:focus-visible { outline: 2px solid var(--gold); outline-offset: 1px; }
+.mn-tg button[aria-pressed="true"][data-mn-state="here"], .role-tg button[aria-pressed="true"] { background: var(--gold-soft); color: var(--gold); }
+.mn-tg button[aria-pressed="true"][data-mn-state="away"] { background: var(--surface-2); color: var(--text); }
+.role-tg button:disabled { cursor: default; }
+
+.mn-kpis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: .75rem 0; }
+.mn-kpi { text-align: center; padding: .55rem .4rem; border-radius: 16px; background: var(--surface-2); border: 1px solid var(--line); }
+.mn-kpi b { display: block; font-size: 1.3rem; font-weight: 600; line-height: 1.3; }
+.mn-kpi b.gold { color: var(--gold); }
+.mn-kpi span { font-size: .74rem; color: var(--muted); }
+
+.mn-ph { display: flex; align-items: center; gap: .8rem; }
+.mn-ph b { display: block; font-size: 1.15rem; }
+.mn-ph small { display: block; font-size: .8rem; color: var(--muted); }
+.mn-avatar {
+  flex: none; width: 48px; height: 48px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--surface-2); border: 1px solid var(--gold-line); color: var(--gold); font-size: 1.15rem; font-weight: 600;
+}
 
 .mn-alert {
   display: flex; gap: .75rem; align-items: flex-start; margin: .9rem 0; padding: .85rem 1rem;
@@ -991,6 +1023,15 @@ button.match:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px
 .mn-alert ul { list-style: none; margin: .55rem 0 0; padding: 0; display: grid; gap: .4rem; }
 .mn-alert li { font-size: .88rem; padding: .45rem .65rem; border-radius: 12px; background: var(--well); }
 .mn-alert li > span:last-child { display: block; font-size: .8rem; color: var(--gold); }
+.mn-alert .mn-ok { margin-top: .6rem; }
+.mn-alert.folded { width: 100%; align-items: center; padding: .55rem .9rem; font: inherit; color: var(--text); text-align: start; cursor: pointer; }
+.mn-alert.folded > span:nth-child(2) { flex: 1; font-size: .88rem; }
+.mn-alert.folded .mn-alert-ic { width: 24px; height: 24px; }
+.mn-alert.folded .mn-alert-ic svg { width: 14px; height: 14px; }
+.mn-home { margin: 0; flex-wrap: wrap; }
+.mn-home > div { flex: 1; min-width: 12rem; }
+.mn-home .mn-home-names { margin-top: .2rem; font-size: .82rem; color: var(--muted); }
+.mn-home .btn { flex: none; margin: 0; align-self: center; }
 
 .mn-minbox { padding: 1rem var(--pad); }
 .mn-stepper { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: .8rem; }
@@ -1025,7 +1066,7 @@ button.match:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px
 .mn-res.loss { background: var(--loss); }
 .mn-cell { min-width: 32px; height: 28px; border-radius: 8px; text-align: center; font-weight: 600; background: var(--surface-2); color: var(--text); }
 .mn-cell.short { background: var(--gold-soft); color: var(--gold); box-shadow: inset 0 0 0 1.5px var(--gold-line); }
-.mn-cell.x { background: none; color: var(--faint); box-shadow: inset 0 0 0 1px var(--line-strong); }
+.mn-cell.x { background: none; color: var(--faint); outline: 1px dashed var(--line-strong); outline-offset: -1px; }
 .mn-cell.none { background: none; }
 .mn-legend { display: flex; flex-wrap: wrap; gap: .4rem 1rem; }
 .mn-legend span { display: inline-flex; align-items: center; gap: .35rem; }
@@ -1043,7 +1084,6 @@ button.match:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px
 .mn-v { font-weight: 600; }
 .mn-h.short .mn-v { color: var(--gold); }
 .mn-h .mn-track { grid-column: 1 / 4; }
-.mn-h.short .mn-span { background: var(--gold-fill); }
+.mn-h.started .mn-span { background: var(--blue); }
 .mn-h.absent .mn-o, .mn-h.absent .mn-v { color: var(--faint); font-weight: 500; }
 
-.role-on { color: var(--gold); font-weight: 700; }

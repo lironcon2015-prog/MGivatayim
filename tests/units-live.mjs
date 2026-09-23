@@ -181,6 +181,22 @@ export async function run(test) {
     assert.equal(M.previousLineup(m, eleven, 11).length, 11);
   });
 
+  await test('a match is dated by its kick-off, not by the schedule', () => {
+    const fixture = { date: '2030-11-08', opponent: 'בני לוח' };
+    const s0 = M.newLive({ id: 'F', opponent: 'בני לוח', date: '2030-11-08', players: squad, fixture });
+    assert.deepEqual(s0.fixture, fixture);
+    const kick = Date.parse('2026-09-23T21:30:00Z');          // 00:30 on the 24th in Israel
+    const s1 = M.reduce(s0, { t: 'start', at: kick });
+    assert.equal(s1.date, '2026-09-24', 'Israel\'s calendar day at kick-off');
+    const brk = M.reduce(s1, { t: 'end', period: 0, at: kick + 60000 });
+    assert.equal(brk.status, 'break');
+    const s2 = M.reduce(brk, { t: 'start', at: kick + 86400000 * 3 });
+    assert.equal(s2.status, 'running');
+    assert.equal(s2.period, 1);
+    assert.equal(s2.date, '2026-09-24', 'the second half does not move it again');
+    assert.equal(M.newLive({ id: 'N', players: squad }).fixture, null);
+  });
+
   await test('format presets and cleaning', () => {
     assert.deepEqual(M.cleanFormat(['25', 25]), [25, 25]);
     assert.deepEqual(M.cleanFormat([0, -3]), M.DEFAULT_FORMAT);

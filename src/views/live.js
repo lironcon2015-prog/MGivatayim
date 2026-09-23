@@ -280,18 +280,54 @@ export function mountLive(view, ctx) {
     </section>`;
   }
 
+  // The fixture behind the next match: the schedule's first row, or the row
+  // matching a next match set by hand (same day, same opponent).
+  function nextFixture() {
+    const nm = ctx.nextMatch;
+    if (!nm?.opponent) return null;
+    const day = nm.kickoff ? splitKickoff(nm.kickoff).date : '';
+    return ctx.schedule().find((f) => f.date === day && f.opponent === nm.opponent) || null;
+  }
+
   function noLive() {
     const nm = ctx.nextMatch;
-    const next = nm?.opponent ? `<p class="gate-lead">המשחק הבא: <b>${esc(nm.opponent)}</b>${nm.kickoff ? ` · ${esc(splitKickoff(nm.kickoff).date.split('-').reverse().slice(0, 2).join('.'))}` : ''}</p>` : '';
+    const when = (d) => esc(d.split('-').reverse().slice(0, 2).join('.'));
+    const next = nm?.opponent ? `<p class="gate-lead">המשחק הבא: <b>${esc(nm.opponent)}</b>${nm.kickoff ? ` · ${when(splitKickoff(nm.kickoff).date)}` : ''}</p>` : '';
     if (ctx.isAdmin()) {
+      const others = ctx.schedule().length > (nextFixture() ? 1 : 0);
       return `<section><div class="card gate">
         <h2>אין משחק חי כרגע</h2>${next}
-        <p class="note">פתיחת משחק חי מציגה אותו לכל מי שיש לו גישה, עם שעון, תוצאה והרכב שמתעדכנים בזמן אמת.</p>
-        <button type="button" class="btn" data-act="new">${icon('play')} פתיחת משחק חי</button>
+        <p class="note">פתיחת משחק חי מציגה אותו לכל מי שיש לו גישה, עם שעון, תוצאה והרכב שמתעדכנים בזמן אמת. התאריך נקבע בשריקת הפתיחה — גם אם המשחק הוקדם או נדחה.</p>
+        <button type="button" class="btn" data-act="new">${icon('play')} ${nm?.opponent ? `פתיחת משחק חי מול ${esc(nm.opponent)}` : 'פתיחת משחק חי'}</button>
+        ${others || nm?.opponent ? `<button type="button" class="btn secondary" data-act="pick">${icon('calendar')} משחק אחר מהלוח…</button>` : ''}
       </div></section>`;
     }
     return `<section><div class="card gate"><h2>אין משחק חי כרגע</h2>${next}
       <p class="note">כשהמשחק יתחיל, הוא יופיע כאן בזמן אמת.</p></div></section>`;
+  }
+
+  // Any fixture in the schedule can go live now, whatever its date — games
+  // move. Or a match that is not on the schedule at all.
+  function pickFixtureSheet() {
+    const list = ctx.schedule();
+    const sh = openSheet({
+      title: 'איזה משחק מתחיל?',
+      tall: list.length > 5,
+      body: `<p class="sheet-text">המשחק יתועד בתאריך שבו תשרקו לפתיחה, וירד מהלוח כשתסיימו. ביטול מחזיר אותו ללוח.</p>
+        <div class="pick-list">${list.map((f, i) => `<button type="button" class="pick" data-fx="${i}">
+            <span class="pick-num num">${esc(f.date.split('-').reverse().slice(0, 2).join('.'))}</span>
+            <span class="pick-name">${esc(f.opponent)}</span>
+            <span class="pick-pos">${f.home !== false ? 'בית' : 'חוץ'}${f.round != null ? ` · מחזור ${esc(f.round)}` : ''}</span>
+          </button>`).join('')}
+          <button type="button" class="pick pick-plain" data-fx="none">משחק שלא בלוח</button>
+        </div>`,
+      onMount: ({ el }) => {
+        el.querySelectorAll('[data-fx]').forEach((b) => { b.onclick = () => {
+          sh.close('done');
+          newMatch(b.dataset.fx === 'none' ? { none: true } : list[Number(b.dataset.fx)]);
+        }; });
+      },
+    });
   }
 
   function render() {
@@ -680,7 +716,7 @@ export function mountLive(view, ctx) {
         el.querySelector('[data-m="finish"]')?.addEventListener('click', () => { sh.close('next'); finish(); });
         el.querySelector('[data-m="cancel"]')?.addEventListener('click', async () => {
           sh.close('next');
-          if (!(await confirmSheet({ title: 'לבטל את המשחק החי?', text: 'המשחק יוסר מהמסך של כולם ולא יישמר בתוצאות.', ok: 'ביטול המשחק', cancel: 'חזרה', danger: true }))) return;
+          if (!(await confirmSheet({ title: 'לבטל את המשחק החי?', text: `המשחק יוסר מהמסך של כולם, ושום דבר ממנו לא יישמר — גם לא שערים, בישולים או חילופים שכבר תועדו.${st.fixture ? ' הוא יחזור ללוח המשחקים בתאריך המקורי.' : ''}`, ok: 'ביטול המשחק', cancel: 'חזרה', danger: true }))) return;
           try { await S.admin('clearLive'); toast('המשחק החי בוטל'); } catch (err) { toast(esc(err.message), { kind: 'err' }); }
         });
       },
@@ -721,13 +757,23 @@ export function mountLive(view, ctx) {
     });
   }
 
-  async function newMatch() {
-    const nm = ctx.nextMatch;
+  // `from`: a schedule row, { none: true } for a match not on the schedule,
+  // or nothing for the next match.
+  async function newMatch(from) {
     const players = ctx.players();
+    let base;
+    if (from?.none) base = { opponent: '', home: true, round: null, date: new Date().toISOString().slice(0, 10), fixture: null };
+    else if (from) base = { opponent: from.opponent, home: from.home !== false, round: from.round ?? null, date: from.date, fixture: from };
+    else {
+      const nm = ctx.nextMatch;
+      base = {
+        opponent: nm?.opponent || '', home: nm ? nm.home !== false : true, round: nm?.round ?? null,
+        date: nm?.kickoff ? splitKickoff(nm.kickoff).date : new Date().toISOString().slice(0, 10),
+        fixture: nextFixture(),
+      };
+    }
     const state0 = M.newLive({
-      id: 'm' + Date.now().toString(36),
-      opponent: nm?.opponent || '', home: nm ? nm.home !== false : true, round: nm?.round ?? null,
-      date: nm?.kickoff ? splitKickoff(nm.kickoff).date : new Date().toISOString().slice(0, 10),
+      id: 'm' + Date.now().toString(36), ...base,
       format: ctx.format(), size: ctx.size(), players,
       lineup: M.previousLineup(ctx.matches(), players, ctx.size()),
     });
@@ -747,6 +793,7 @@ export function mountLive(view, ctx) {
     const a = t.dataset.act;
     if (t.dataset.goto) { goToEvent(t.dataset.goto); return; }
     if (a === 'new') { t.disabled = true; newMatch(); return; }
+    if (a === 'pick') { pickFixtureSheet(); return; }
     if (a === 'claim') { claimSheet(); return; }
     if (!st) return;
     if (a === 'start') {

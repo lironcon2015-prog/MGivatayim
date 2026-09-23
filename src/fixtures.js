@@ -188,11 +188,16 @@ export function todayInIsrael(now = new Date()) {
 
 // Fixtures from today on, minus any whose date already has a result: once
 // the manager enters the score, the next fixture moves up by itself.
+// A fixture is done when a match sits on its date, or when a match was
+// opened from it (match.fixture) — played early or late, on another day.
+export const fixtureKey = (f) => `${f.date}|${String(f.opponent || '').trim()}`;
+
 export function upcomingFixtures(fixtures, matches, now = new Date()) {
   const today = todayInIsrael(now);
   const played = new Set((matches || []).map((m) => m.date));
+  const opened = new Set((matches || []).filter((m) => m.fixture).map((m) => fixtureKey(m.fixture)));
   return (fixtures || [])
-    .filter((f) => f && f.date >= today && !played.has(f.date))
+    .filter((f) => f && f.date >= today && !played.has(f.date) && !opened.has(fixtureKey(f)))
     .sort((a, b) => a.date.localeCompare(b.date) || (a.time || '').localeCompare(b.time || ''));
 }
 

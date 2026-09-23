@@ -262,6 +262,7 @@ function render() {
       format: () => LM.cleanFormat(s.settings?.format),
       size: () => LM.cleanSize(s.settings?.size),
       matches: () => s.recent,
+      schedule: () => s.schedule,
     });
     return;
   }

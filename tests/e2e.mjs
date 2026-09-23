@@ -416,6 +416,54 @@ await step('a pasted schedule becomes the next match and the list after it', asy
   expect((await parent.locator('.fixture-row', { hasText: 'בני לוח' }).innerText()).includes('טרם נקבע'), 'a missing time should say so');
 });
 
+const israelToday = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem' }).format(new Date());
+
+await step('a later fixture can go live now; finishing dates it today and takes it off the schedule', async () => {
+  await admin.goto(APP + '#/live');
+  await admin.reload();
+  // The setup left open by an earlier step is cancelled first.
+  if (await admin.locator('[data-act="more"]').count()) {
+    await admin.click('[data-act="more"]');
+    await admin.click('[data-m="cancel"]');
+    await admin.click('[data-ok]');
+  }
+  await admin.click('[data-act="pick"]');
+  await admin.locator('.pick', { hasText: 'בני לוח' }).click();
+  await admin.locator('[data-meta="opponent"]').waitFor();
+  expect(await admin.inputValue('[data-meta="opponent"]') === 'בני לוח', 'opponent not taken from the fixture');
+  await admin.click('[data-act="start"]');
+  await admin.click('[data-act="end"]');
+  await admin.click('[data-ok]');
+  await admin.locator('[data-act="finish"]').first().click();
+  await admin.click('[data-ok]');
+  await waitText(admin, 'נשמר בתוצאות');
+  await new Promise((r) => setTimeout(r, 600));
+  const m = JSON.parse(bridge.driveFile('season.json')).season.matches.find((x) => x.opponent === 'בני לוח');
+  expect(m && m.date === israelToday(), 'dated ' + (m && m.date) + ', expected today');
+  expect(m.fixture && m.fixture.date === '2030-11-08', 'fixture link: ' + JSON.stringify(m && m.fixture));
+  await parent.goto(APP + '#/stats');
+  await parent.reload();
+  await parent.locator('.fixture-row', { hasText: 'הפועל לוח' }).waitFor();
+  expect(await parent.locator('.fixture-row', { hasText: 'בני לוח' }).count() === 0, 'the played fixture is still on the schedule');
+});
+
+await step('cancelling a live match saves nothing and returns the fixture to the schedule', async () => {
+  await admin.click('[data-act="clear"]');
+  await admin.click('[data-ok]');
+  await admin.click('[data-act="pick"]');
+  await admin.locator('.pick', { hasText: 'הפועל לוח' }).click();
+  await admin.click('[data-act="start"]');
+  await admin.click('[data-act="goal-them"]');
+  await admin.click('[data-act="more"]');
+  await admin.click('[data-m="cancel"]');
+  await admin.click('[data-ok]');
+  await admin.locator('[data-act="pick"]').waitFor();
+  const season = JSON.parse(bridge.driveFile('season.json')).season;
+  expect(!season.matches.some((x) => x.opponent === 'הפועל לוח'), 'a cancelled match was saved');
+  await parent.reload();
+  await parent.locator('.fixture-row', { hasText: 'הפועל לוח' }).waitFor();
+});
+
 await step('deleting the games clears the schedule and typed results, and keeps live ones', async () => {
   await admin.goto(APP + '#/admin');
   await admin.click('[data-clear-games]');

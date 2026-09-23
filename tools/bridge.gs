@@ -496,6 +496,9 @@ function finishLive_(req) {
       liveId: st.id, date: String(st.date || new Date().toISOString().slice(0, 10)), opponent: String(st.opponent || ''),
       home: st.home !== false, round: st.round == null ? null : st.round, gf: gf, ga: ga,
       format: st.format, lineup: st.lineup, events: st.events, players: st.players,
+      // The schedule row this match was opened from: it takes the row off the
+      // schedule even when the match was played on another day.
+      fixture: st.fixture && st.fixture.date ? { date: String(st.fixture.date), opponent: String(st.fixture.opponent || '') } : null,
     };
 
     const s = readJson_(SEASON_FILE, null) || { version: 0, season: { team: { name: 'מכבי גבעתיים' } } };

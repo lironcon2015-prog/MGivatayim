@@ -277,11 +277,13 @@ console.log('live:');
 
   test('finishing again after a correction replaces the row, never duplicates it', () => {
     const v = L.post({ action: 'getLive', adminCode: ADMIN }).result.version;
-    const ended = state({ status: 'ended', events: [{ id: 'a', type: 'goal', side: 'us' }] });
+    const ended = state({ status: 'ended', events: [{ id: 'a', type: 'goal', side: 'us' }], fixture: { date: '2030-11-08', opponent: 'בני לוד', extra: 'x' } });
     L.post({ action: 'finishLive', adminCode: ADMIN, baseVersion: v, state: ended });
     const season = L.post({ action: 'getSeason', adminCode: ADMIN }).result.season;
     assert.equal(season.matches.length, 1);
     assert.deepEqual([season.matches[0].gf, season.matches[0].ga], [1, 0]);
+    assert.deepEqual(season.matches[0].fixture, { date: '2030-11-08', opponent: 'בני לוד' }, 'the schedule row it came from, and nothing else from the client');
+    assert.equal(season.matches[0].date, '2026-10-03', 'dated by the match, not by the schedule');
   });
 
   test('after the match ends the parent\'s control ends with it', () => {

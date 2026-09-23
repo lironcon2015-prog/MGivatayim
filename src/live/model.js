@@ -97,7 +97,18 @@ export const inStoppage = (state, now) =>
 
 /* ── State ─────────────────────────────────────────────────────────────── */
 
-export function newLive({ id, opponent, home = true, round = null, date, format, size, lineup, players }) {
+// Calendar date in Israel for a timestamp — from the operation's own time,
+// so the reducer stays pure.
+export function israelDate(ms) {
+  const p = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem', year: 'numeric', month: '2-digit', day: '2-digit' })
+    .formatToParts(new Date(ms)).reduce((o, x) => ({ ...o, [x.type]: x.value }), {});
+  return `${p.year}-${p.month}-${p.day}`;
+}
+
+// `fixture` names the schedule row this match was opened from ({date,
+// opponent}); the finished match carries it, and that is what takes the row
+// off the schedule even when the match was played on another day.
+export function newLive({ id, opponent, home = true, round = null, date, format, size, lineup, players, fixture = null }) {
   const squad = (players || []).map((p) => ({ id: p.id, name: p.name, number: p.number ?? null, pos: p.pos || '', pos2: p.pos2 || '' }));
   return {
     id,
@@ -108,6 +119,7 @@ export function newLive({ id, opponent, home = true, round = null, date, format,
     date: date || '',
     format: cleanFormat(format),
     size: cleanSize(size),
+    fixture: fixture && fixture.date ? { date: fixture.date, opponent: fixture.opponent || '' } : null,
     period: 0,
     clock: { running: false, startedAt: null, accMs: 0 },
     lineup: (lineup || []).filter((l) => squad.some((p) => p.id === l.pid)).map((l) => ({ pid: l.pid, pos: l.pos || '' })),
@@ -148,6 +160,9 @@ export function reduce(state, op) {
       return s;
     case 'start':
       if (!(s.status === 'setup' || s.status === 'break')) return state;
+      // The match is dated by its kick-off, not by the schedule: fixtures
+      // move, and a match started from a later fixture happened today.
+      if (s.status === 'setup' && op.at) s.date = israelDate(op.at);
       s.status = 'running';
       s.clock = { running: true, startedAt: op.at, accMs: 0 };
       s.events.push({ id: `start-${s.period}`, type: 'period_start', period: s.period, atMs: 0 });

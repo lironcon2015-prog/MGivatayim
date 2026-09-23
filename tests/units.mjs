@@ -302,6 +302,15 @@ await test('the Waze link searches the address alone', async () => {
   assert.equal(wazeLink('  '), null);
 });
 
+await test('a fixture played live on another day leaves the schedule', async () => {
+  const F = await import('../src/fixtures.js');
+  const now = new Date('2026-09-23T09:00:00+03:00');
+  const fixtures = [{ date: '2030-11-08', opponent: 'בני לוח' }, { date: '2030-11-15', opponent: 'אחרת' }];
+  const matches = [{ date: '2026-09-23', opponent: 'בני לוח', gf: 1, ga: 0, liveId: 'm1', fixture: { date: '2030-11-08', opponent: 'בני לוח' } }];
+  assert.deepEqual(F.upcomingFixtures(fixtures, matches, now).map((f) => f.opponent), ['אחרת']);
+  assert.equal(F.upcomingFixtures(fixtures, [], now).length, 2, 'a cancelled live match left nothing, so the row is back');
+});
+
 export { test, failures };
 export const done = () => passed;
 

@@ -66,6 +66,8 @@
 }
 
 * { box-sizing: border-box; }
+/* display: flex on .btn and friends would otherwise beat the hidden attribute. */
+[hidden] { display: none !important; }
 html, body { margin: 0; padding: 0; }
 
 /* The glows are pinned to the screen, not the page: a fixed layer behind
@@ -933,3 +935,24 @@ button.match:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px
 .imp-kind.k-new { background: var(--gold-soft); color: var(--gold); }
 .imp-kind.k-upd { background: rgba(255, 255, 255, .1); color: var(--text); }
 .imp-missing { margin-top: .9rem; font-weight: 600; font-size: .86rem; }
+
+/* ═══ Install help & invitation ════════════════════════════════════════ */
+.install .card-head h2 { display: flex; align-items: center; gap: .45rem; }
+.install .card-head svg { width: 20px; height: 20px; color: var(--gold); }
+.install [data-install-now] { margin: .2rem 0 .8rem; }
+.install-os { border-top: 1px solid var(--line); }
+.install-os summary {
+  cursor: pointer; list-style: none; padding: .75rem 0; font-weight: 800; font-size: .95rem;
+  display: flex; align-items: center; gap: .5rem;
+}
+.install-os summary::-webkit-details-marker { display: none; }
+.install-os summary::after { content: "›"; margin-inline-start: auto; color: var(--faint); transform: rotate(90deg); transition: transform .15s; }
+.install-os[open] summary::after { transform: rotate(-90deg); }
+.steps { margin: 0 0 .9rem; padding-inline-start: 1.3rem; display: grid; gap: .45rem; font-size: .9rem; color: #C3CCDA; }
+.steps li::marker { color: var(--gold); font-weight: 800; }
+.steps b { color: var(--text); }
+.steps svg { width: 17px; height: 17px; vertical-align: -.2em; color: var(--gold); }
+.invite-preview {
+  margin: 0 0 .2rem; padding: .8rem 1rem; border-radius: var(--r-field); background: var(--well);
+  border: 1px solid var(--line); font-size: .86rem; color: #C3CCDA; white-space: pre-line; overflow-wrap: anywhere;
+}

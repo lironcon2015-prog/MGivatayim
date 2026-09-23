@@ -1,4 +1,5 @@
 import { esc } from '../format.js';
+import { installHelp } from '../install.js';
 
 // Screens shown before the season: every state a device can be in toward the
 // bridge gets its own plain explanation and exactly one thing to do next.
@@ -19,7 +20,7 @@ export function setupScreen() {
 }
 
 export function requestScreen(name = '', error = '') {
-  return card('בקשת גישה',
+  return installHelp() + card('בקשת גישה',
     `<p class="gate-lead">הנתונים של הקבוצה פתוחים להורים ולשחקנים באישור המנהל. שלחו בקשה פעם אחת מהמכשיר הזה.</p>
      <form id="request-form" class="form-stack" novalidate>
        <label class="field"><span>איך המנהל יזהה אתכם?</span>
@@ -36,7 +37,7 @@ export function pendingScreen(name) {
     `<p class="gate-lead">${name ? `<b>${esc(name)}</b>, ה` : 'ה'}בקשה ממתינה לאישור המנהל. אחרי האישור האפליקציה תיפתח מהמכשיר הזה.</p>
      <button class="btn" type="button" id="recheck">בדיקה חוזרת</button>
      <p class="form-error" id="recheck-msg" role="status"></p>
-     ${adminLink}`);
+     ${adminLink}`) + installHelp();
 }
 
 export function deniedScreen(status) {

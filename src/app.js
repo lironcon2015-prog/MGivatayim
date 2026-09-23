@@ -12,6 +12,7 @@ import * as gate from './views/gate.js';
 import { mountAdmin, hasUnsavedWork } from './views/admin.js';
 import { startUpdater, appVersion } from './updater.js';
 import { hydratePosters } from './posters.js';
+import { wireInstall } from './install.js';
 import { LiveSession } from './live/sync.js';
 import * as LM from './live/model.js';
 import { mountLive, openMatchSheet } from './views/live.js';
@@ -215,6 +216,7 @@ function render() {
       return;
     case 'none':
       view.innerHTML = gate.requestScreen(state.name, state.formError);
+      teardown = wireInstall(view);
       view.querySelector('#request-form').addEventListener('submit', (e) => {
         e.preventDefault();
         const name = new FormData(e.target).get('name').trim();
@@ -225,6 +227,7 @@ function render() {
       return;
     case 'pending':
       view.innerHTML = gate.pendingScreen(state.name);
+      teardown = wireInstall(view);
       view.querySelector('#recheck').addEventListener('click', async (e) => {
         e.target.disabled = true;
         view.querySelector('#recheck-msg').textContent = 'בודק…';

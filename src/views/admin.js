@@ -473,7 +473,48 @@ export function mountAdmin(view, ctx) {
 
   /* ---- access ---- */
 
+  // The invitation parents get in WhatsApp: the app's address and what to do
+  // with it. Only the address — nothing in a link can grant access; that is
+  // the manager's approval, here on this tab.
+  function inviteText() {
+    const url = new URL('./', location.href).href;
+    const team = draft?.team?.name || 'מכבי גבעתיים';
+    return `הצטרפות לאפליקציית העונה של ${team}:\n${url}\n\nפותחים את הקישור, מתקינים במסך הבית (ההסבר מופיע בפתיחה), ושולחים בקשת גישה. אחרי שאאשר — הכל שם: המשחק הבא, תוצאות, משחק חי וסרטונים.`;
+  }
+
+  function inviteHtml() {
+    return `<section>
+      <div class="sec-head">${icon('link')}<h2>הזמנת הורים</h2></div>
+      <div class="card">
+        <p class="sheet-text">הודעה מוכנה עם הקישור לאפליקציה והסבר קצר. מעתיקים ומדביקים בקבוצת הוואטסאפ.</p>
+        <p class="invite-preview" dir="auto">${esc(inviteText())}</p>
+        <div class="row-btns">
+          <button type="button" class="btn" data-invite-copy>${icon('copy')} העתקת הודעת הזמנה</button>
+          <a class="btn secondary" data-invite-wa href="https://wa.me/?text=${encodeURIComponent(inviteText())}" target="_blank" rel="noopener noreferrer">${icon('whatsapp')} שליחה בוואטסאפ</a>
+        </div>
+      </div>
+    </section>`;
+  }
+
+  async function copyInvite() {
+    const text = inviteText();
+    let ok = false;
+    try { await navigator.clipboard.writeText(text); ok = true; } catch {
+      // Older iOS without clipboard permission: the textarea route still works.
+      const ta = document.createElement('textarea');
+      ta.value = text; ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      try { ok = document.execCommand('copy'); } catch { ok = false; }
+      ta.remove();
+    }
+    toast(ok ? 'ההודעה הועתקה — הדביקו אותה בוואטסאפ.' : 'ההעתקה לא הצליחה. אפשר ללחוץ "שליחה בוואטסאפ".', ok ? {} : { kind: 'err' });
+  }
+
   function accessHtml() {
+    return inviteHtml() + usersHtml();
+  }
+
+  function usersHtml() {
     if (usersError) return `<section><div class="card"><p class="form-error">${esc(usersError)}</p></div></section>`;
     if (!users) return `<section><div class="card"><div class="empty">טוען…</div></div></section>`;
     const by = (st) => users.filter((u) => st.includes(u.status))
@@ -668,6 +709,7 @@ export function mountAdmin(view, ctx) {
     if (t.dataset.set) { t.disabled = true; setStatus(t.dataset.user, t.dataset.set); return; }
     if (t.dataset.import === 'file') { view.querySelector('[data-import-file]')?.click(); return; }
     if (t.dataset.clearGames !== undefined) { clearGamesSheet(); return; }
+    if (t.dataset.inviteCopy !== undefined) { copyInvite(); return; }
     if (t.dataset.import === 'fixtures-file') { view.querySelector('[data-import-fixtures]')?.click(); return; }
     if (t.dataset.import === 'fixtures-paste') { pasteSheet('fixtures'); return; }
     if (t.dataset.import === 'paste') { pasteSheet(); return; }

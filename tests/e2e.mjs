@@ -72,6 +72,13 @@ await step('a new device lands on the access request, not on data', async () => 
   await waitText(parent, 'בקשת גישה');
 });
 
+await step('the first screen explains installing on iPhone and Android', async () => {
+  await waitText(parent, 'התקנה במסך הבית');
+  const t = await text(parent);
+  expect(t.includes('אייפון') && t.includes('אנדרואיד'), 'both systems should be explained');
+  expect(await parent.locator('[data-install-now]').isHidden(), 'the install button shows only when Chrome offers it');
+});
+
 await step('an empty name is refused on the page', async () => {
   await parent.locator('#request-form button').click();
   await waitText(parent, 'צריך למלא שם');
@@ -136,6 +143,15 @@ await step('manager fills a season and saves it', async () => {
   expect(saved.season.nextMatch.kickoff === '2030-10-05T10:30:00+03:00', 'kickoff stored as ' + saved.season.nextMatch.kickoff);
   expect(saved.season.matches[0].gf === 2 && typeof saved.season.matches[0].gf === 'number', 'score not stored as a number');
   expect(!JSON.stringify(saved).includes('__open'), 'UI state leaked into the saved data');
+});
+
+await step('the access tab has an invitation with the app\'s address, ready for WhatsApp', async () => {
+  await admin.click('[data-tab="access"]');
+  const preview = await admin.locator('.invite-preview').innerText();
+  expect(preview.includes(APP), 'invite lacks the app address: ' + preview);
+  const wa = await admin.locator('[data-invite-wa]').getAttribute('href');
+  expect(wa.startsWith('https://wa.me/?text=') && decodeURIComponent(wa).includes(APP), 'whatsapp link: ' + wa);
+  expect(!preview.includes('#'), 'the invitation must not carry a route or anything after the address');
 });
 
 await step('manager approves the parent', async () => {

@@ -295,6 +295,13 @@ await test('the demo schedule in docs/fixtures imports as documented', async () 
   assert.equal(F.rowsToFixtures(tpl, F.detectFixtureColumns(tpl), 'מכבי גבעתיים').fixtures.length, 1);
 });
 
+await test('the Waze link searches the address alone', async () => {
+  const { wazeLink } = await import('../src/format.js');
+  assert.equal(wazeLink('שדרות ירושלים 24, גבעתיים'), 'https://www.waze.com/ul?q=' + encodeURIComponent('שדרות ירושלים 24, גבעתיים'));
+  assert.ok(!wazeLink('x').includes('navigate='), 'navigate=yes needs coordinates; with q it opened Waze empty');
+  assert.equal(wazeLink('  '), null);
+});
+
 export { test, failures };
 export const done = () => passed;
 

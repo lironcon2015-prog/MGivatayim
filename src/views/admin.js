@@ -371,6 +371,43 @@ export function mountAdmin(view, ctx) {
     }
   }
 
+  // "Delete the file": the schedule and the results, in one step. Results
+  // from a file and results typed by hand look the same in the data, so the
+  // manager chooses by group, with counts. Matches recorded live carry their
+  // goals, subs and lineup and are left unchecked: they cannot be typed back.
+  function clearGamesSheet() {
+    const fixtures = (draft.fixtures || []).length;
+    const typed = (draft.matches || []).filter((m) => !m.liveId).length;
+    const live = (draft.matches || []).filter((m) => m.liveId).length;
+    const opt = (key, label, n, on) => n ? `<label class="field check"><input type="checkbox" data-clear="${key}"${on ? ' checked' : ''} /><span>${label} (<span class="num">${n}</span>)</span></label>` : '';
+    const sh = openSheet({
+      title: 'מחיקת משחקים',
+      body: `<p class="sheet-text">המחיקה נכנסת לתוקף אחרי "שמירה". עד אז אפשר לבטל ב"ביטול שינויים".</p>
+        <div class="form-stack">
+          ${opt('fixtures', 'לוח המשחקים', fixtures, true)}
+          ${opt('typed', 'תוצאות שהוזנו ידנית או יובאו מקובץ', typed, true)}
+          ${opt('live', 'משחקים שתועדו בלייב — עם השערים, החילופים וההרכב', live, false)}
+        </div>
+        <div class="sheet-actions"><button type="button" class="btn danger-solid" data-clear-go>מחיקה</button></div>`,
+      onMount: ({ el }) => {
+        el.querySelector('[data-clear-go]').addEventListener('click', () => {
+          const on = (k) => !!el.querySelector(`[data-clear="${k}"]`)?.checked;
+          let n = 0;
+          if (on('fixtures')) { n += fixtures; draft.fixtures = []; }
+          if (on('typed') || on('live')) {
+            const before = (draft.matches || []).length;
+            draft.matches = (draft.matches || []).filter((m) => (m.liveId ? !on('live') : !on('typed')));
+            n += before - draft.matches.length;
+          }
+          sh.close('done');
+          if (!n) return;
+          touch(); paint();
+          toast(`נמחקו <span class="num">${n}</span> משחקים. לחצו "שמירה" כדי שזה יחול אצל כולם.`, { ms: 6000 });
+        });
+      },
+    });
+  }
+
   // Shows what will happen before anything happens: which rows are new,
   // which update an existing player, which are unchanged, and which current
   // players are not in the file (kept unless the manager says otherwise).
@@ -483,6 +520,7 @@ export function mountAdmin(view, ctx) {
           <input type="file" data-import-file accept="${IMPORT_ACCEPT}" hidden />` : ''}
         ${list.importer === 'fixtures' ? `<button type="button" class="btn secondary small add" data-import="fixtures-file">${icon('upload')} ייבוא לוח מקובץ</button>
           <button type="button" class="btn secondary small add" data-import="fixtures-paste">${icon('clipboard')} הדבקה מאקסל</button>
+          ${(draft.fixtures || []).length || (draft.matches || []).length ? `<button type="button" class="btn danger small add" data-clear-games>${icon('trash')} מחיקת כל המשחקים</button>` : ''}
           <input type="file" data-import-fixtures accept="${IMPORT_ACCEPT}" hidden />` : ''}
       </div>
       ${items.map((item, i) => `<details class="card edit-item"${item.__open ? ' open' : ''} data-item="${list.path}.${i}">
@@ -629,6 +667,7 @@ export function mountAdmin(view, ctx) {
     }
     if (t.dataset.set) { t.disabled = true; setStatus(t.dataset.user, t.dataset.set); return; }
     if (t.dataset.import === 'file') { view.querySelector('[data-import-file]')?.click(); return; }
+    if (t.dataset.clearGames !== undefined) { clearGamesSheet(); return; }
     if (t.dataset.import === 'fixtures-file') { view.querySelector('[data-import-fixtures]')?.click(); return; }
     if (t.dataset.import === 'fixtures-paste') { pasteSheet('fixtures'); return; }
     if (t.dataset.import === 'paste') { pasteSheet(); return; }

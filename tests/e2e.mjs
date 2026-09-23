@@ -379,6 +379,18 @@ await step('a pasted schedule becomes the next match and the list after it', asy
   expect((await parent.locator('.fixture-row', { hasText: 'בני לוח' }).innerText()).includes('טרם נקבע'), 'a missing time should say so');
 });
 
+await step('deleting the games clears the schedule and typed results, and keeps live ones', async () => {
+  await admin.goto(APP + '#/admin');
+  await admin.click('[data-clear-games]');
+  expect(!(await admin.locator('[data-clear="live"]').isChecked()), 'live matches must not be preselected');
+  await admin.click('[data-clear-go]');
+  await admin.click('#save');
+  await waitText(admin, 'נשמר');
+  const season = JSON.parse(bridge.driveFile('season.json')).season;
+  expect(season.fixtures.length === 0, 'fixtures left: ' + season.fixtures.length);
+  expect(season.matches.length > 0 && season.matches.every((m) => m.liveId), 'typed results left, or the live one lost: ' + JSON.stringify(season.matches.map((m) => m.opponent)));
+});
+
 await step('revoking locks the parent out and drops their cached copy', async () => {
   await admin.goto(APP + '#/admin');
   await admin.click('[data-tab="access"]');

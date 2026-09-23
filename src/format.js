@@ -114,3 +114,14 @@ export function currentSeasonLabel(now = new Date()) {
   return `${start}/${String((start + 1) % 100).padStart(2, '0')}`;
 }
 export const seasonLabel = (team, now) => String(team?.season || '').trim() || currentSeasonLabel(now);
+
+// Waze's documented search link: the address alone in q. The venue name used
+// to be joined in front of it, together with navigate=yes — but navigate=yes
+// starts a route only to coordinates (ll), and with a text query the app
+// opened on its home screen with no destination. www., because the bare host
+// redirects first, and a universal link that arrives through a redirect can
+// lose its query on iOS.
+export const wazeLink = (address) => {
+  const a = String(address || '').trim();
+  return a ? `https://www.waze.com/ul?q=${encodeURIComponent(a)}` : null;
+};

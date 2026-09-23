@@ -831,14 +831,21 @@ button.tl-item:focus-visible { outline: 2px solid var(--gold); outline-offset: 2
 .lu-pos:disabled { opacity: .3; }
 
 /* ═══ Format editor ════════════════════════════════════════════════════ */
-.fmt-presets { display: flex; flex-wrap: wrap; gap: 7px; }
+.fmt-presets { display: flex; flex-wrap: wrap; gap: 4px; padding: 3px; background: var(--well); border: 1px solid var(--line); border-radius: 22px; }
+.fmt-presets:not(.fmt-sizes) { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.fmt-presets:not(.fmt-sizes) .chip-btn { padding-inline: .3rem; white-space: nowrap; }
+.fmt-sizes { border-radius: var(--r-pill); }
+.fmt-sizes .chip-btn { flex: 1; }
 .fmt-label { font-size: .78rem; font-weight: 800; color: var(--muted); margin: 0 0 .5rem; }
 .fmt-sizes + .fmt-label { margin-top: 1.1rem; }
+/* The match format's choices are switches too: the same well and the same
+   soft-gold chosen option as .seg, wrapping onto a second line when needed. */
 .chip-btn {
-  font: inherit; font-size: .8rem; font-weight: 700; padding: .5rem .8rem; border-radius: 999px; cursor: pointer;
-  border: 1px solid var(--line-strong); background: transparent; color: var(--muted);
+  font: inherit; font-size: .8rem; font-weight: 700; padding: .5rem .8rem; border-radius: var(--r-pill); cursor: pointer;
+  border: 1px solid transparent; background: transparent; color: var(--muted); transition: background .15s, color .15s, border-color .15s;
 }
-.chip-btn.on { background: var(--gold-soft); color: var(--gold); border-color: rgba(232, 185, 49, .45); box-shadow: 0 0 14px rgba(232, 185, 49, .2); }
+.chip-btn:focus-visible { outline: 2px solid var(--gold); outline-offset: 1px; }
+.chip-btn.on { background: var(--gold-soft); color: var(--gold); border-color: var(--gold-line); }
 .fmt-custom { margin-top: 1.1rem; }
 .fmt-count { display: flex; align-items: center; gap: .6rem; font-size: .86rem; font-weight: 700; color: var(--muted); }
 .fmt-count span { flex: 1; }

@@ -2,7 +2,7 @@
    CACHE_VERSION must equal version.json and window._BUNDLE_VERSION in
    index.html. `node tools/bump.mjs` writes all three; tests/pwa.mjs fails if
    they drift apart. */
-const CACHE_VERSION = '1.10.0';
+const CACHE_VERSION = '1.10.1';
 const CACHE_NAME = 'mgivatayim-' + CACHE_VERSION;
 
 /* Everything the shell needs to open with no network. tests/pwa.mjs fails if

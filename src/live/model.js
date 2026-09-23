@@ -131,6 +131,68 @@ export function newLive({ id, opponent, home = true, round = null, date, format,
   };
 }
 
+/* ── State from the wire ───────────────────────────────────────────────
+   The bridge takes live state from any device holding control, and that
+   device need not be running this app. The views print numbers and ids
+   straight into markup (only text is escaped), so whatever arrives is
+   rebuilt field by field with its type forced: a "shirt number" that is a
+   string of HTML would otherwise run in every viewer's browser, the
+   manager's included. tests/e2e.mjs feeds such a state to every screen. */
+
+const num = (v, d = null) => (v != null && v !== '' && Number.isFinite(Number(v)) ? Number(v) : d);
+const str = (v) => (v == null ? '' : String(v));
+const STATUSES = ['setup', 'running', 'break', 'fulltime', 'ended'];
+
+const cleanPlayers = (list) => (Array.isArray(list) ? list : [])
+  .filter((p) => p && p.id != null)
+  .map((p) => ({ id: str(p.id), name: str(p.name), number: num(p.number), pos: str(p.pos), pos2: str(p.pos2) }));
+const cleanLineup = (list) => (Array.isArray(list) ? list : [])
+  .filter((l) => l && l.pid != null)
+  .map((l) => ({ pid: str(l.pid), pos: str(l.pos) }));
+
+function cleanEvent(e) {
+  const out = { id: str(e.id), type: str(e.type), period: num(e.period, 0), atMs: num(e.atMs, 0) };
+  if (e.atStart) out.atStart = true;
+  if (e.type === 'goal') {
+    out.side = e.side === 'them' ? 'them' : 'us';
+    if (out.side === 'us') { out.scorer = e.scorer == null ? null : str(e.scorer); out.assist = e.assist == null ? null : str(e.assist); }
+  } else if (e.type === 'sub') {
+    out.out = str(e.out); out.in = str(e.in); out.pos = str(e.pos);
+  }
+  return out;
+}
+const cleanEvents = (list) => (Array.isArray(list) ? list : []).filter((e) => e && typeof e === 'object').map(cleanEvent);
+
+export function cleanLive(s) {
+  if (!s || typeof s !== 'object') return null;
+  const clock = s.clock && typeof s.clock === 'object' ? s.clock : {};
+  return {
+    id: str(s.id),
+    status: STATUSES.includes(s.status) ? s.status : 'setup',
+    opponent: str(s.opponent), home: s.home !== false, round: num(s.round), date: str(s.date),
+    format: cleanFormat(s.format), size: cleanSize(s.size),
+    fixture: s.fixture && s.fixture.date ? { date: str(s.fixture.date), opponent: str(s.fixture.opponent) } : null,
+    period: num(s.period, 0),
+    clock: { running: !!clock.running, startedAt: num(clock.startedAt), accMs: num(clock.accMs, 0) },
+    lineup: cleanLineup(s.lineup),
+    events: cleanEvents(s.events),
+    players: cleanPlayers(s.players),
+  };
+}
+
+// A played match in the season: a live one carries the same parts, written
+// by the bridge from what the controlling device sent. Hand-entered fields
+// pass through; only what a controller could have written is retyped.
+export function cleanPlayedMatch(m) {
+  const out = { ...m, date: str(m.date), opponent: str(m.opponent), round: num(m.round) };
+  if ('events' in m) out.events = cleanEvents(m.events);
+  if ('lineup' in m) out.lineup = cleanLineup(m.lineup);
+  if ('players' in m) out.players = cleanPlayers(m.players);
+  if ('format' in m) out.format = cleanFormat(m.format);
+  if (m.fixture) out.fixture = m.fixture.date ? { date: str(m.fixture.date), opponent: str(m.fixture.opponent) } : null;
+  return out;
+}
+
 const clone = (o) => JSON.parse(JSON.stringify(o));
 
 function endPeriod(s, at) {

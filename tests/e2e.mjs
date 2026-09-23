@@ -23,10 +23,10 @@ const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/cs
 const app = createServer(async (req, res) => {
   const path = normalize(decodeURIComponent(new URL(req.url, APP).pathname)).replace(/^(\.\.[/\\])+/, '');
   const file = join(ROOT, path.endsWith('/') ? path + 'index.html' : path);
-  try {
-    res.writeHead(200, { 'Content-Type': TYPES[extname(file)] || 'application/octet-stream' });
-    res.end(await readFile(file));
-  } catch { res.writeHead(404); res.end(); }
+  let body;
+  try { body = await readFile(file); } catch { res.writeHead(404); res.end(); return; }
+  res.writeHead(200, { 'Content-Type': TYPES[extname(file)] || 'application/octet-stream' });
+  res.end(body);
 }).listen(APP_PORT);
 
 const bridge = createBridge({ adminCode: ADMIN });
@@ -322,6 +322,25 @@ await step('a wrong live code is refused; the right one hands the parent control
 await step('the parent in control records a goal against; the manager sees it', async () => {
   await parent.click('[data-act="goal-them"]');
   await admin.locator('.sc-score [data-them]', { hasText: '1' }).waitFor({ timeout: 8000 });
+});
+
+// Control lets a device write the whole live state, and nothing obliges it
+// to use this app to do so. Numbers are printed into markup unescaped, so a
+// "shirt number" of HTML is the way in; the page must retype it on arrival.
+await step('a controlling device that writes HTML into the live state runs nothing anywhere', async () => {
+  const live = (page, action, params = {}) =>
+    page.evaluate(([url, a, p]) => import(url).then((m) => m.call(a, p)), [APP + 'src/bridge.js', action, params]);
+  const PWN = (n) => `<img src=x onerror="window.__pwn=${n}">`;
+  const original = (await live(parent, 'getLive')).state;
+  const bad = { ...original, round: PWN(1), players: original.players.map((p) => ({ ...p, number: PWN(2) })) };
+  await live(parent, 'putLive', { state: bad, baseVersion: (await live(parent, 'getLive')).version });
+  for (const page of [parent, admin]) await page.goto(APP + '#/live');
+  await new Promise((r) => setTimeout(r, 1500));
+  for (const page of [parent, admin]) {
+    expect(await page.evaluate(() => window.__pwn) === undefined, 'injected markup ran on the ' + (page === admin ? 'manager' : 'parent') + '\'s page');
+  }
+  await live(parent, 'putLive', { state: original, baseVersion: (await live(parent, 'getLive')).version });
+  await new Promise((r) => setTimeout(r, 1000));
 });
 
 await step('finishing saves the result and the scorers into the season', async () => {

@@ -12,7 +12,7 @@
 // replayed on top of it (model.js makes that replay exact). A goal entered
 // with no reception at the edge of the pitch is sent when the signal returns.
 import { call } from '../bridge.js';
-import { reduce } from './model.js';
+import { reduce, cleanLive } from './model.js';
 
 /* ── Server time ─────────────────────────────────────────────────────────
    Every reply carries the bridge's clock. The offset is taken at the
@@ -104,7 +104,7 @@ export class LiveSession {
       this.control = r.control || null;
       this.loaded = true;
       if (!r.unchanged) {
-        this.confirmed = r.state || null;
+        this.confirmed = cleanLive(r.state);
         this.version = r.version;
         changed = true;
         this.adoptSaved();

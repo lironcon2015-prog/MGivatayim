@@ -3,7 +3,7 @@
 // totals drift from the fixtures they summarise, and the mockups this app was
 // built from already disagreed with themselves that way.
 
-import { minutesPlayed } from './live/model.js';
+import { minutesPlayed, cleanPlayedMatch } from './live/model.js';
 import { primaryPos, posLabel } from './positions.js';
 import { upcomingFixtures, fixtureAsNext } from './fixtures.js';
 
@@ -53,7 +53,7 @@ export function buildSeason(input, now = new Date()) {
   const raw = {
     ...input,
     team: { name: 'מכבי גבעתיים', ...(input.team ?? {}) },
-    matches: input.matches ?? [],
+    matches: (input.matches ?? []).filter(Boolean).map(cleanPlayedMatch),
     fixtures: input.fixtures ?? [],
     players: input.players ?? [],
     videos: input.videos ?? [],

@@ -407,7 +407,8 @@ function live_() {
 
 /* מכשיר שמימש קוד שולט רק עד שהמשחק מסתיים. `allowEnded` קיים בשביל
    finishLive בלבד: סיום שנשלח שוב אחרי ניתוק — כשהראשון דווקא הגיע —
-   חייב להצליח, ולא ליפול על "המשחק כבר הסתיים". עריכה של משחק שהסתיים
+   צריך לקבל "conflict" ולא "אין הרשאה", כדי שהלקוח יביא את הגרסה ויוותר
+   על התור בשקט (שם, ב-finishLive, הוא גם נעצר). עריכה של משחק שהסתיים
    נשארת בידי המנהל. */
 function canControl_(who, l, allowEnded) {
   if (who.admin) return true;
@@ -485,16 +486,22 @@ function finishLive_(req) {
   if (req.state.status !== 'ended') throw fail_('המשחק עוד לא הסתיים', 'bad_live');
   return withLock_(() => {
     const l = live_();
-    requireControl_(req, l, true);
+    const who = requireControl_(req, l, true);
     if (!l.state || l.state.id !== req.state.id) throw fail_('המשחק הוחלף בינתיים', 'conflict');
     if (Number(req.baseVersion) !== Number(l.version)) throw fail_('המשחק עודכן ממכשיר אחר', 'conflict');
+    /* משחק שכבר נשמר נפתח לתיקון רק בידי המנהל. בלי זה מכשיר שולט היה יכול
+       לשכתב את התוצאה בעונה עד שהמשחק הבא נפתח. "conflict" ולא "אין הרשאה":
+       הלקוח מביא את הגרסה, רואה שהמשחק הסתיים ומוותר על התור בשקט. */
+    if (!who.admin && l.state.status === 'ended') throw fail_('המשחק כבר נשמר', 'conflict');
 
     const st = req.state;
+    const round = Number(st.round);
+    const date = /^\d{4}-\d{2}-\d{2}$/.test(String(st.date)) ? String(st.date) : new Date().toISOString().slice(0, 10);
     let gf = 0, ga = 0;
     (st.events || []).forEach((e) => { if (e.type === 'goal') { if (e.side === 'them') ga++; else gf++; } });
     const match = {
-      liveId: st.id, date: String(st.date || new Date().toISOString().slice(0, 10)), opponent: String(st.opponent || ''),
-      home: st.home !== false, round: st.round == null ? null : st.round, gf: gf, ga: ga,
+      liveId: st.id, date: date, opponent: String(st.opponent || ''),
+      home: st.home !== false, round: st.round == null || st.round === '' || !isFinite(round) ? null : round, gf: gf, ga: ga,
       format: st.format, lineup: st.lineup, events: st.events, players: st.players,
       // The schedule row this match was opened from: it takes the row off the
       // schedule even when the match was played on another day.

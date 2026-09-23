@@ -265,13 +265,14 @@ console.log('live:');
   test('finishing writes the result into the season, counted from the events', () => {
     L.post({ action: 'putSeason', adminCode: ADMIN, baseVersion: 0, season: { team: { name: 'מכבי גבעתיים' }, nextMatch: { opponent: 'בני לוד' }, matches: [] } });
     const v = L.post({ action: 'getLive', adminCode: ADMIN }).result.version;
-    const ended = state({ status: 'ended', events: [
+    const ended = state({ status: 'ended', round: '<img src=x>', events: [
       { id: 'a', type: 'goal', side: 'us', scorer: 'p1' }, { id: 'b', type: 'goal', side: 'us' }, { id: 'c', type: 'goal', side: 'them' }] });
     const r = L.post({ action: 'finishLive', deviceKey: parent, baseVersion: v, state: ended }).result;
     assert.deepEqual([r.gf, r.ga], [2, 1]);
     const season = L.post({ action: 'getSeason', deviceKey: parent }).result.season;
     assert.equal(season.matches.length, 1);
     assert.equal(season.matches[0].liveId, 'M1');
+    assert.equal(season.matches[0].round, null, 'a round that is not a number is not stored');
     assert.equal(season.nextMatch, null);
   });
 
@@ -289,6 +290,10 @@ console.log('live:');
   test('after the match ends the parent\'s control ends with it', () => {
     const v = L.post({ action: 'getLive', adminCode: ADMIN }).result.version;
     assert.equal(err(L.post({ action: 'putLive', deviceKey: parent, baseVersion: v, state: state({ status: 'ended' }) })), 'not_controller');
+    const rewrite = state({ status: 'ended', events: Array.from({ length: 9 }, (_, i) => ({ id: 'x' + i, type: 'goal', side: 'us' })) });
+    assert.equal(err(L.post({ action: 'finishLive', deviceKey: parent, baseVersion: v, state: rewrite })), 'conflict',
+      'a finished match is not the parent\'s to rewrite');
+    assert.equal(L.post({ action: 'getSeason', adminCode: ADMIN }).result.season.matches[0].gf, 1);
     assert.equal(L.post({ action: 'getLive', deviceKey: parent }).result.canControl, false);
   });
 

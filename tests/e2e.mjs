@@ -77,6 +77,7 @@ await step('the first screen explains installing on iPhone and Android', async (
   const t = await text(parent);
   expect(t.includes('אייפון') && t.includes('אנדרואיד'), 'both systems should be explained');
   expect(await parent.locator('[data-install-now]').isHidden(), 'the install button shows only when Chrome offers it');
+  expect(await parent.locator('details.install-os[open]').count() === 0, 'both systems start folded');
 });
 
 await step('an empty name is refused on the page', async () => {

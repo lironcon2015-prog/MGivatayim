@@ -40,20 +40,19 @@ const ANDROID = `<ol class="steps">
     <li>בוחרים <b>"התקנת אפליקציה"</b> או <b>"הוספה למסך הבית"</b>.</li>
   </ol>`;
 
-// The help card. The phone's own system is open; the other one is folded.
+// The help card. Both systems start folded (the owner's choice: the card
+// stays short above the request form); the phone's own system is listed first.
 export function installHelp() {
   if (isStandalone()) return '';
   const p = platform();
-  const block = (title, steps, open) =>
-    `<details class="install-os"${open ? ' open' : ''}><summary>${title}</summary>${steps}</details>`;
+  const block = (title, steps) =>
+    `<details class="install-os"><summary>${title}</summary>${steps}</details>`;
   return `<section class="install" data-install>
     <div class="card">
       <div class="card-head"><h2>${icon('download')} התקנה במסך הבית</h2></div>
       <p class="sheet-text">כך האפליקציה נפתחת כמו כל אפליקציה, במסך מלא ובלחיצה אחת.${p === 'ios' ? ' <b>באייפון: קודם מתקינים, ורק אחר כך שולחים בקשת גישה מתוך האפליקציה</b> — בקשה מ-Safari לא עוברת לאייקון.' : ''}</p>
       <button type="button" class="btn" data-install-now hidden>${icon('download')} התקנה</button>
-      ${p === 'android'
-        ? block('אנדרואיד', ANDROID, true) + block('אייפון', IOS, false)
-        : block('אייפון', IOS, p === 'ios') + block('אנדרואיד', ANDROID, false)}
+      ${p === 'android' ? block('אנדרואיד', ANDROID) + block('אייפון', IOS) : block('אייפון', IOS) + block('אנדרואיד', ANDROID)}
     </div>
   </section>`;
 }

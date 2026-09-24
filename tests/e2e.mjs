@@ -60,6 +60,14 @@ async function device(label) {
 // clicking the summary of an open <details> would close it instead.
 // The admin screen is split into tabs, and import tools fold behind a toggle.
 const adminTab = (page, t) => page.click(`[data-tab="${t}"]`);
+// Adds a row to a manager's list and returns its path: the new row opens
+// first in the list, whatever its place in the data.
+async function newRow(page, list) {
+  await page.click(`[data-add="${list}"]`);
+  const first = page.locator(`details[data-item^="${list}."]`).first();
+  expect(await first.getAttribute('open') !== null, `the new ${list} row did not open at the top`);
+  return first.getAttribute('data-item');
+}
 async function adminTools(page, list) {
   const btn = page.locator(`[data-tools="${list}"]`);
   if (await btn.getAttribute('aria-expanded') !== 'true') await btn.click();
@@ -447,9 +455,9 @@ await step('a video link gets a poster in Drive, and the parent sees it', async 
   bridge.web('https://clips.example.com/goal.jpg', 'image/png', [...PNG]);
   await admin.goto(APP + '#/admin');
   await adminTab(admin, 'media');
-  await admin.click('[data-add="videos"]');
-  await admin.fill('[data-path="videos.0.title"]', 'השער מול נחלים');
-  await admin.fill('[data-path="videos.0.url"]', 'https://clips.example.com/goal');
+  const at = await newRow(admin, 'videos');
+  await admin.fill(`[data-path="${at}.title"]`, 'השער מול נחלים');
+  await admin.fill(`[data-path="${at}.url"]`, 'https://clips.example.com/goal');
   await admin.click('#save');
   await waitText(admin, 'נשמר');
   const v = JSON.parse(bridge.driveFile('season.json')).season.videos[0];
@@ -459,16 +467,43 @@ await step('a video link gets a poster in Drive, and the parent sees it', async 
   await parent.locator('.thumb-img[src^="blob:"]').first().waitFor({ timeout: 10000 });
 });
 
+await step('a player added by hand opens first, and is saved in shirt-number order', async () => {
+  await admin.goto(APP + '#/admin');
+  await adminTab(admin, 'players');
+  for (const [name, num] of [['תשע', '9'], ['שלוש', '3']]) {
+    const at = await newRow(admin, 'players');
+    await admin.fill(`[data-path="${at}.name"]`, name);
+    await admin.fill(`[data-path="${at}.number"]`, num);
+  }
+  await admin.click('#save');
+  await waitText(admin, 'נשמר');
+  const saved = JSON.parse(bridge.driveFile('season.json')).season.players;
+  const nums = saved.map((p) => p.number ?? 999);
+  expect(nums.every((n, i) => !i || nums[i - 1] <= n), 'the squad was saved out of number order: ' + saved.map((p) => `${p.number}:${p.name}`).join(', '));
+  const rows = await admin.locator('details[data-item^="players."] .ei-lead').allInnerTexts();
+  expect(rows.join(',') === [...rows].sort((a, b) => (Number(a) || 999) - (Number(b) || 999)).join(','), 'the list on screen is out of order: ' + rows.join(','));
+  // Out again, so the steps after this one see the squad they expect.
+  for (const name of ['תשע', 'שלוש']) {
+    admin.once('dialog', (d) => d.accept());
+    const row = admin.locator('details[data-item^="players."]', { has: admin.locator('.ei-main b', { hasText: new RegExp(`^${name}$`) }) });
+    const at = await row.getAttribute('data-item');
+    await row.locator('summary').click();
+    await admin.click(`[data-remove="${at}"]`);
+  }
+  await admin.click('#save');
+  await waitText(admin, 'נשמר');
+  const left = JSON.parse(bridge.driveFile('season.json')).season.players.map((p) => p.name);
+  expect(!left.includes('תשע') && !left.includes('שלוש'), 'test players left behind: ' + left.join(', '));
+});
+
 await step('a game added by hand is saved in date order, and saving closes the open rows', async () => {
   await admin.goto(APP + '#/admin');
   await adminTab(admin, 'games');
   for (const [date, opp] of [['2031-03-20', 'מאוחר'], ['2031-03-06', 'מוקדם']]) {
-    await admin.click('[data-add="fixtures"]');
-    // The new row opens first in the list, not after the rest of the season.
-    expect(await admin.locator('details[data-item^="fixtures."]').first().getAttribute('open') !== null, 'the new row did not open at the top');
-    await admin.fill('[data-path="fixtures.0.date"]', date);
-    await admin.fill('[data-path="fixtures.0.opponent"]', opp);
-    if (opp === 'מוקדם') await admin.selectOption('[data-path="fixtures.0.round"]', 'f');
+    const at = await newRow(admin, 'fixtures');
+    await admin.fill(`[data-path="${at}.date"]`, date);
+    await admin.fill(`[data-path="${at}.opponent"]`, opp);
+    if (opp === 'מוקדם') await admin.selectOption(`[data-path="${at}.round"]`, 'f');
   }
   expect(await admin.locator('details[data-item^="fixtures."][open]').count() === 1, 'opening a new row left the previous one open');
   await admin.click('#save');

@@ -11,6 +11,10 @@ const TZ = 'Asia/Jerusalem';
 // A played match is a calendar date, not an instant, so it is never routed
 // through Date(). Parsing 'YYYY-MM-DD' and re-formatting it is precisely how
 // a day and a month end up swapped a timezone away from home.
+// The squad's order everywhere it is listed: shirt number, players without
+// one last, then name.
+export const byNumber = (a, b) => (a.number ?? 999) - (b.number ?? 999) || String(a.name || '').localeCompare(String(b.name || ''), 'he');
+
 // With the year's last two digits: a season crosses a new year, and the
 // owner asked for the year on every game's date.
 export function shortDate(iso) {

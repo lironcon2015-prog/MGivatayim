@@ -7,7 +7,12 @@ import { sectionHead, videoCard, roundText } from '../components.js';
    gallery's videos tab. Until the gallery is switched on (Cloudinary keys in
    the bridge) the linked videos show on their own, as before. */
 
-export const sortedVideos = (s) => [...s.videos].sort((a, b) => (b.featured ? 1 : 0) - (a.featured ? 1 : 0) || b.round - a.round);
+// The featured video first, then by round, latest first; a video with no
+// round after those with one (`b.round - a.round` on a missing round was NaN,
+// and a sort with NaN in it has no order at all).
+const roundOf = (v) => (v.round != null && v.round !== '' && isFinite(v.round) ? Number(v.round) : -1);
+export const videoOrder = (a, b) => (b.featured ? 1 : 0) - (a.featured ? 1 : 0) || roundOf(b) - roundOf(a);
+export const sortedVideos = (s) => [...s.videos].sort(videoOrder);
 
 // The linked videos as a block: the featured one first, then the rest.
 export function linkedVideosHtml(s) {

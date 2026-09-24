@@ -365,6 +365,15 @@ await test('a training match is listed with the results but counts in no figure'
   assert.equal(F.fixtureAsNext(out.fixtures[0]).friendly, true, 'the next-match card lost the flag');
 });
 
+await test('lists keep one order: squad by number, videos as parents see them even without a round', async () => {
+  const { byNumber } = await import('../src/format.js');
+  const { videoOrder } = await import('../src/views/media.js');
+  const squad = [{ name: 'ב', number: 9 }, { name: 'א' }, { name: 'ג', number: 3 }, { name: 'ד', number: 9 }];
+  assert.deepEqual(squad.sort(byNumber).map((p) => p.name), ['ג', 'ב', 'ד', 'א']);
+  const vids = [{ title: 'x' }, { title: 'r2', round: 2 }, { title: 'f', featured: true }, { title: 'r5', round: 5 }, { title: 'y', round: '' }];
+  assert.deepEqual(vids.sort(videoOrder).map((v) => v.title), ['f', 'r5', 'r2', 'x', 'y']);
+});
+
 await test('a game date carries its year', async () => {
   const { shortDate } = await import('../src/format.js');
   const { roundText } = await import('../src/components.js');

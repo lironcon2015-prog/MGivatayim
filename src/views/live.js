@@ -1,6 +1,6 @@
 import * as M from '../live/model.js';
 import { serverNow } from '../live/sync.js';
-import { esc, splitKickoff, shortName, shortDate } from '../format.js';
+import { esc, splitKickoff, shortName, shortDate, byNumber } from '../format.js';
 import { icon } from '../icons.js';
 import { crestImg, roundText } from '../components.js';
 import { POSITIONS, posLabel, isKeeper, layout, subGroups } from '../positions.js';
@@ -18,7 +18,6 @@ export const showMinutesTab = () => { tab = 'minutes'; };
 /* ── Small pieces shared by the live screen and the match sheet ────────── */
 
 const uid = () => Math.random().toString(36).slice(2, 10);
-const byNumber = (a, b) => (a.number ?? 999) - (b.number ?? 999) || a.name.localeCompare(b.name, 'he');
 
 function who(state, pid) {
   const p = M.playerById(state, pid);

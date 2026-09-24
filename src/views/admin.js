@@ -1,9 +1,10 @@
 import { call } from '../bridge.js';
-import { esc, safeUrl, israelIso, splitKickoff, stamp, currentSeasonLabel, shortDate } from '../format.js';
+import { esc, safeUrl, israelIso, splitKickoff, stamp, currentSeasonLabel, shortDate, byNumber } from '../format.js';
 import { POSITIONS, primaryPos, posLabel } from '../positions.js';
 import { readRows, parseDelimited, detectColumns, rowsToPlayers, planImport, applyImport, FIELDS } from '../importer.js';
 import { DEFAULT_FORMAT, DEFAULT_SIZE, cleanFormat, cleanSize } from '../live/model.js';
 import { formatEditorHtml, wireFormatEditor } from './live.js';
+import { videoOrder } from './media.js';
 import { openSheet, toast } from '../ui/sheet.js';
 import { icon } from '../icons.js';
 import { roundText } from '../components.js';
@@ -48,11 +49,14 @@ const NEXT_FIELDS = [
   { key: 'kit', label: 'תלבושת', placeholder: 'כחול / לבן / כחול' },
 ];
 
+const gameKey = (g) => `${g?.date || ''} ${g?.time || ''}`;
+
 const LISTS = [
   {
     // The season's schedule. The next match is derived from it when none is
     // set by hand; a whole schedule usually arrives as a spreadsheet (importer).
     path: 'fixtures', title: 'לוח משחקים', glyph: 'calendar', add: 'משחק', importer: 'fixtures', tab: 'games', limit: 5,
+    order: (a, b) => gameKey(a).localeCompare(gameKey(b)),   // soonest first
     note: 'משחקים שעוד לא נערכו. המשחק הבא נלקח מכאן, ומשחק עם תוצאה יורד מהלוח.',
     blank: () => ({ date: today(), time: '', opponent: '', home: true, round: null, venue: { name: '', address: '' } }),
     label: (f) => `${f.date ? shortDate(f.date) + ' · ' : ''}${f.opponent || 'משחק חדש'}`,
@@ -69,6 +73,7 @@ const LISTS = [
   },
   {
     path: 'matches', title: 'תוצאות משחקים', glyph: 'trophy', add: 'תוצאה', tab: 'games', limit: 5,
+    order: (a, b) => gameKey(b).localeCompare(gameKey(a)),   // latest first
     blank: () => ({ date: today(), opponent: '', home: true, round: null, gf: 0, ga: 0 }),
     label: (m) => `${m.opponent || 'משחק חדש'} · ${m.gf ?? '?'}:${m.ga ?? '?'}`,
     sum: (m) => ({ title: m.opponent || 'משחק חדש', sub: [m.date && shortDate(m.date), m.home === false ? 'חוץ' : 'בית', roundText(m.round, m.friendly)].filter(Boolean).join(' · '), score: [m.gf, m.ga] }),
@@ -83,6 +88,7 @@ const LISTS = [
   },
   {
     path: 'players', title: 'סגל', glyph: 'user', add: 'שחקן', importer: 'players', tab: 'players',
+    order: byNumber,
     note: 'שערים, בישולים ודקות ממשחקים שתועדו בלייב נספרים לבד. בשדות "לפני הלייב" — רק משחקים שלא תועדו.',
     blank: () => ({ id: newId(), name: '', number: null, pos: '', pos2: '', goals: 0, assists: 0 }),
     label: (p) => [p.number != null && p.number !== '' ? p.number : null, p.name || 'שחקן חדש', posLabel(p.pos)].filter((x) => x != null && x !== '').join(' · '),
@@ -98,6 +104,7 @@ const LISTS = [
   },
   {
     path: 'videos', title: 'סרטונים', glyph: 'film', add: 'סרטון', tab: 'media', limit: 5,
+    order: videoOrder,   // as parents see them
     blank: () => ({ title: '', round: null, duration: '', url: '', featured: false }),
     label: (v) => v.title || 'סרטון חדש',
     sum: (v) => ({ title: v.title || 'סרטון חדש', sub: [v.round != null && v.round !== '' ? `מחזור ${v.round}` : '', v.duration, v.featured ? 'נבחר' : ''].filter(Boolean).join(' · ') }),
@@ -272,16 +279,22 @@ const blankSeason = () => ({
   analysis: { items: [], note: '' },
 });
 
-// Games in the order of their dates: the schedule soonest first, results
-// newest first. A game added by hand went to the end of its list and stayed
-// there. Sorted on load and on save — not while typing, when a row that
-// jumps away from under the finger is worse than one out of place.
-const gameKey = (g) => `${g?.date || ''} ${g?.time || ''}`;
-function sortGames(d) {
-  if (Array.isArray(d.fixtures)) d.fixtures.sort((a, b) => gameKey(a).localeCompare(gameKey(b)));
-  if (Array.isArray(d.matches)) d.matches.sort((a, b) => gameKey(b).localeCompare(gameKey(a)));
+// Every list with a natural order (`order` in LISTS) is kept in it: sorted
+// on load, after an import and on save — not while typing, when a row that
+// jumps away from under the finger is worse than one out of place. Lists
+// without one (links, insights) keep the order they were entered in, which
+// is the order parents see.
+function sortLists(d) {
+  for (const list of LISTS) {
+    const arr = getPath(d, list.path);
+    if (list.order && Array.isArray(arr)) arr.sort(list.order);
+  }
 }
 
+// A row added and not yet saved: shown first in its list, the latest on top,
+// wherever it sits in the data, until the save puts it in its place.
+let added = 0;
+const setNew = (item, on) => Object.defineProperty(item, '__new', { value: on ? ++added : 0, writable: true, configurable: true, enumerable: false });
 const setOpen = (item, open) => Object.defineProperty(item, '__open', { value: open, writable: true, configurable: true, enumerable: false });
 
 function adopt(payload) {
@@ -290,7 +303,7 @@ function adopt(payload) {
   draft.analysis.items ??= [];
   draft.fixtures ??= [];
   draft.settings ??= { format: [...DEFAULT_FORMAT] };
-  sortGames(draft);
+  sortLists(draft);
   // Players saved before ids and positions existed: the id follows the same
   // name rule season.js reads with, so live history still credits them.
   for (const p of draft.players || []) {
@@ -424,6 +437,7 @@ export function mountAdmin(view, ctx) {
         const r = applyFixtureImport(draft, out);
         draft.fixtures = r.fixtures;
         draft.matches = r.matches;
+        sortLists(draft);
         sh.close('done');
         touch(); paint();
         toast(`הלוח עודכן · ${r.fixtures.length} משחקים${r.added ? ` · ${r.added} תוצאות` : ''}. לחצו "שמירה" כדי שכולם יראו.`, { ms: 6000 });
@@ -523,6 +537,7 @@ export function mountAdmin(view, ctx) {
       el.querySelector('[data-apply]')?.addEventListener('click', () => {
         const before = (draft.players || []).length;
         draft.players = applyImport(existing, plan, { include, removeMissing, newId });
+        sortLists(draft);
         sh.close('done');
         touch(); paint();
         const added = draft.players.length - before + (removeMissing ? plan.missing.length : 0);
@@ -734,7 +749,8 @@ export function mountAdmin(view, ctx) {
     const items = getPath(draft, list.path) || [];
     // A list one row over its limit shows whole: "one more" is not worth a tap.
     const whole = !list.limit || expanded.has(list.path) || items.length <= list.limit + 1;
-    const shown = items.map((item, i) => [item, i]).filter(([item, i]) => whole || i < list.limit || item.__open);
+    const shown = items.map((item, i) => [item, i]).filter(([item, i]) => whole || i < list.limit || item.__open)
+      .sort(([a], [b]) => (b.__new || 0) - (a.__new || 0));
     const hidden = items.length - shown.length;
     const tools = list.importer && toolsOpen.has(list.path);
     return `<section>
@@ -843,7 +859,7 @@ export function mountAdmin(view, ctx) {
       const msg = view.querySelector('.save-msg');
       if (msg) msg.textContent = `מכין תמונה לסרטון ${i} מתוך ${n}…`;
     });
-    sortGames(draft);
+    sortLists(draft);
     const clean = JSON.parse(JSON.stringify(draft, (k, v) => (k === '__open' ? undefined : v)));
     try {
       const r = await call('putSeason', { season: clean, baseVersion }, { asAdmin: true });
@@ -851,7 +867,7 @@ export function mountAdmin(view, ctx) {
       dirty = false;
       // Saved means done with it: the rows close, and the list reads as a list
       // again. A failed save leaves them open, with what still needs fixing.
-      for (const list of LISTS) for (const item of getPath(draft, list.path) || []) setOpen(item, false);
+      for (const list of LISTS) for (const item of getPath(draft, list.path) || []) { setOpen(item, false); setNew(item, false); }
       ctx.onSaved({ version: r.version, updatedAt: r.updatedAt, season: clean });
       message = `נשמר. ההורים יראו את העדכון בפתיחה הבאה (גרסה ${r.version}).`;
       messageKind = 'ok';
@@ -985,13 +1001,15 @@ export function mountAdmin(view, ctx) {
       const item = list.blank();
       for (const other of arr) setOpen(other, false);
       setOpen(item, true);
+      setNew(item, true);
       // A new row opens at the top of its list, under the button that made
       // it — at the bottom it opened out of sight, past rows the limit hides.
-      // Games move to their date's place on save.
-      arr.unshift(item);
+      // In the data it goes last, and the save sorts it into its place
+      // (a list with no order of its own keeps it last, where parents see it).
+      arr.push(item);
       setPath(draft, list.path, arr);
       touch(); paint();
-      const row = view.querySelector(`details[data-item="${list.path}.0"]`);
+      const row = view.querySelector(`details[data-item="${list.path}.${arr.length - 1}"]`);
       row?.closest('section')?.scrollIntoView({ block: 'start', behavior: 'smooth' });
       row?.querySelector('input:not([type="date"]):not([type="time"]), textarea')?.focus({ preventScroll: true });
       return;
@@ -1029,6 +1047,7 @@ export function mountAdmin(view, ctx) {
       const item = { date: splitKickoff(nm.kickoff).date || today(), opponent: nm.opponent, home: nm.home !== false, round: nm.round ?? null, friendly: nm.friendly === true, gf: null, ga: null };
       for (const other of draft.matches || []) setOpen(other, false);
       setOpen(item, true);
+      setNew(item, true);
       draft.matches = [item, ...(draft.matches || [])];
       draft.nextMatch = null;
       message = 'נוסף משחק לתוצאות — מלאו את התוצאה ושמרו.';

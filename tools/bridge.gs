@@ -615,13 +615,28 @@ function clearLiveControl_(req) {
   });
 }
 
+/* שתי דרכים לפנות את המסך החי: "סגירה" אחרי סיום (התוצאה נשארת בעונה),
+   ו"ביטול" (`discard`) — שום דבר מהמשחק לא נשמר. משחק שהסתיים, נפתח מחדש
+   לתיקון ואז בוטל כבר נכתב לעונה בסיום הראשון; בלי ההסרה כאן השורה נשארה,
+   עם הכובשים שלה, והורידה מהלוח את המשחק שממנו נפתח. */
 function clearLive_(req) {
   requireAdmin_(req);
   return withLock_(() => {
     const l = live_();
+    let seasonVersion = null;
+    if (req.discard && l.state && l.state.id) {
+      const s = readJson_(SEASON_FILE, null);
+      const matches = (s && s.season && s.season.matches) || [];
+      if (matches.some((m) => m.liveId === l.state.id)) {
+        s.season.matches = matches.filter((m) => m.liveId !== l.state.id);
+        const nextSeason = { version: Number(s.version || 0) + 1, updatedAt: new Date().toISOString(), season: s.season };
+        writeJson_(SEASON_FILE, nextSeason);
+        seasonVersion = nextSeason.version;
+      }
+    }
     const next = { version: l.version + 1, updatedAt: new Date().toISOString(), state: null, meta: { controllers: [], code: null } };
     writeJson_(LIVE_FILE, next);
-    return { version: next.version };
+    return { version: next.version, seasonVersion: seasonVersion };
   });
 }
 

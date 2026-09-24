@@ -520,6 +520,15 @@ await step('cancelling a live match saves nothing and returns the fixture to the
   await admin.locator('.pick', { hasText: 'הפועל לוח' }).click();
   await admin.click('[data-act="start"]');
   await admin.click('[data-act="goal-them"]');
+  // Finished by mistake, reopened for a correction, then cancelled after all:
+  // the row the first finish wrote must go too.
+  await admin.click('[data-act="more"]');
+  await admin.click('[data-m="finish"]');
+  await admin.click('[data-ok]');
+  await admin.locator('[data-act="reopen"]').click();
+  const saved = () => JSON.parse(bridge.driveFile('season.json')).season.matches.some((x) => x.opponent === 'הפועל לוח');
+  for (let i = 0; i < 50 && !saved(); i++) await admin.waitForTimeout(100);
+  expect(saved(), 'the first finish did not save');
   await admin.click('[data-act="more"]');
   await admin.click('[data-m="cancel"]');
   await admin.click('[data-ok]');

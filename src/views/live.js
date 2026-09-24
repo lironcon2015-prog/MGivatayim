@@ -782,7 +782,7 @@ export function mountLive(view, ctx) {
         el.querySelector('[data-m="cancel"]')?.addEventListener('click', async () => {
           sh.close('next');
           if (!(await confirmSheet({ title: 'לבטל את המשחק החי?', text: `המשחק יוסר מהמסך של כולם, ושום דבר ממנו לא יישמר — גם לא שערים, בישולים או חילופים שכבר תועדו.${st.fixture ? ' הוא יחזור ללוח המשחקים בתאריך המקורי.' : ''}`, ok: 'ביטול המשחק', cancel: 'חזרה', danger: true }))) return;
-          try { await S.admin('clearLive'); toast('המשחק החי בוטל'); } catch (err) { toast(esc(err.message), { kind: 'err' }); }
+          try { await S.admin('clearLive', { discard: true }); toast('המשחק החי בוטל'); } catch (err) { toast(esc(err.message), { kind: 'err' }); }
         });
       },
     });

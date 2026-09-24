@@ -318,6 +318,26 @@ console.log('live:');
     assert.equal(L.post({ action: 'getLive', deviceKey: parent }).result.state, null);
     assert.ok(L.post({ action: 'startLive', adminCode: ADMIN, state: state({ id: 'M2' }) }).ok);
     assert.deepEqual(L.post({ action: 'getLive', adminCode: ADMIN }).result.control.controllers, []);
+    assert.ok(L.post({ action: 'getSeason', adminCode: ADMIN }).result.season.matches.some((m) => m.liveId === 'M1'),
+      'closing the screen after the end keeps the saved result');
+  });
+
+  test('cancelling a match that was saved, reopened and then cancelled takes its row out of the season', () => {
+    let v = L.post({ action: 'getLive', adminCode: ADMIN }).result.version;
+    const goal = [{ id: 'z1', type: 'goal', side: 'us', pid: 'p9' }];
+    L.post({ action: 'finishLive', adminCode: ADMIN, baseVersion: v, state: state({ id: 'M2', status: 'ended', events: goal }) });
+    assert.ok(L.post({ action: 'getSeason', adminCode: ADMIN }).result.season.matches.some((m) => m.liveId === 'M2'));
+    v = L.post({ action: 'getLive', adminCode: ADMIN }).result.version;
+    L.post({ action: 'putLive', adminCode: ADMIN, baseVersion: v, state: state({ id: 'M2', status: 'fulltime', events: goal }) });   // reopened
+    const r = L.post({ action: 'clearLive', adminCode: ADMIN, discard: true }).result;
+    const matches = L.post({ action: 'getSeason', adminCode: ADMIN }).result.season.matches;
+    assert.ok(!matches.some((m) => m.liveId === 'M2'), 'the cancelled match is still in the season');
+    assert.ok(matches.some((m) => m.liveId === 'M1'), 'another live match was taken out with it');
+    assert.ok(r.seasonVersion > 0, 'the client is not told the season changed');
+  });
+
+  test('only the manager can cancel', () => {
+    assert.equal(err(L.post({ action: 'clearLive', deviceKey: parent, discard: true })), 'bad_code');
   });
 }
 

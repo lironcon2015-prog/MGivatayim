@@ -396,6 +396,9 @@ session.subscribe(() => {
   // the result has reached it.
   const confirmed = session.confirmed?.status ?? null;
   if (confirmed === 'ended' && lastLiveStatus && lastLiveStatus !== 'ended') refresh();
+  // Cleared: a cancelled match that had been saved once is gone from the
+  // season too, so the results and the schedule are re-read.
+  else if (confirmed === null && lastLiveStatus) refresh();
   lastLiveStatus = confirmed;
   if (key === lastLiveKey) return;
   lastLiveKey = key;

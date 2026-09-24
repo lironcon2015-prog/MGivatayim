@@ -152,8 +152,6 @@ function overviewHtml(g, s) {
 function albumHtml(g, grp, sel) {
   const canUpload = g.mode !== 'closed' && !g.blocked;
   const photos = photosOf(grp.items), clips = clipsOf(grp.items);
-  if (shownTab === 'photos' && !photos.length) shownTab = 'videos';
-  if (shownTab === 'videos' && !clips.length) shownTab = 'photos';
   const list = shownTab === 'videos' ? clips : photos;
   const parents = new Set(grp.items.map((it) => it.byName)).size;
   const pickable = list.some((it) => canPick(it, sel.asAdmin));
@@ -162,8 +160,9 @@ function albumHtml(g, grp, sel) {
     <div class="sec-head">${icon('photo')}<h2>${gameTitle(grp.match)}</h2>
       ${pickable && !sel.on ? `<span class="aside"><button type="button" class="chip-tool" data-sel="start">${icon('check')} בחירה</button></span>` : ''}</div>
     <p class="note gl-meta num">${grp.match ? `${esc(shortDate(grp.match.date))} · ` : ''}${noun(shownTab === 'videos' ? 'video' : 'image', list.length)} ${parents === 1 ? 'מהורה אחד' : `מ-${parents} הורים`}</p>
-    ${photos.length && clips.length ? tabsHtml(shownTab, photos.length, clips.length) : ''}
-    <div class="gl-grid gl-album-grid">${list.map((it) => tile(g, it, sel)).join('')}</div>
+    ${tabsHtml(shownTab, photos.length, clips.length)}
+    ${list.length ? `<div class="gl-grid gl-album-grid">${list.map((it) => tile(g, it, sel)).join('')}</div>`
+      : empty(shownTab === 'videos' ? 'אין סרטונים מהמשחק הזה.' : 'אין תמונות מהמשחק הזה.')}
     ${canUpload && !sel.on ? `<button type="button" class="btn secondary gl-here" data-upload-here>${icon('upload')} העלאה למשחק הזה</button>${fileInput}` : ''}
   </section>
   ${sel.on ? selBar(sel) : ''}`;
@@ -438,8 +437,16 @@ export function wireGallery(root, s, { isAdmin = () => false } = {}) {
     host.innerHTML = grp ? albumHtml(g, grp, sel) : overviewHtml(g, s);
     hydratePosters(host);
   };
-  const refresh = async () => {
+  // Redrawn only when the answer differs from what is on screen: a redraw
+  // replaces every thumbnail (a flicker) and the file input — a parent who
+  // picked files a moment before would lose the upload sheet.
+  // After an action (upload, delete) the screen is always redrawn.
+  let shown = null;
+  const refresh = async ({ quiet = false } = {}) => {
     try { g = await loadGallery({ asAdmin }); } catch { /* keep what is shown */ }
+    const now = JSON.stringify(g);
+    if (quiet && now === shown) return;
+    shown = now;
     paint();
   };
 
@@ -507,6 +514,7 @@ export function wireGallery(root, s, { isAdmin = () => false } = {}) {
   });
 
   paint();
-  refresh();
+  if (g?.enabled) shown = JSON.stringify(g);
+  refresh({ quiet: true });
   return () => { alive = false; };
 }

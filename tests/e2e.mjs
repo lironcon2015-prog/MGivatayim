@@ -796,6 +796,12 @@ await step('several items are deleted at once by picking them; a parent picks on
   await parent.locator('[data-gallery] .gl-album').first().click();
   await parent.locator('[data-gallery] [data-back]').waitFor();
   expect(await parent.locator('[data-gallery] .gl-album-grid .gl-tile').count() === 3, 'the game page does not hold all three photos');
+  // The photos | videos switch stays on a game's page, even for a game
+  // with photos only.
+  await parent.click('[data-gallery] [data-gtab="videos"]');
+  await parent.locator('[data-gallery] .gl-empty', { hasText: 'אין סרטונים מהמשחק הזה' }).waitFor();
+  expect(await parent.locator('[data-gallery] [data-back]').count() === 1, 'switching tabs left the game page');
+  await parent.click('[data-gallery] [data-gtab="photos"]');
   await parent.click('[data-sel="start"]');
   expect(await parent.locator('.gl-tile.pick.nopick').count() === 1, 'another parent\'s photo is pickable');
   await parent.click('[data-sel="all"]');

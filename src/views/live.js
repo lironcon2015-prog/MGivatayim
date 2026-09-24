@@ -1,8 +1,8 @@
 import * as M from '../live/model.js';
 import { serverNow } from '../live/sync.js';
-import { esc, splitKickoff, shortName } from '../format.js';
+import { esc, splitKickoff, shortName, shortDate } from '../format.js';
 import { icon } from '../icons.js';
-import { crestImg } from '../components.js';
+import { crestImg, roundText } from '../components.js';
 import { POSITIONS, posLabel, isKeeper, layout, subGroups } from '../positions.js';
 import { openSheet, confirmSheet, toast, buzz } from '../ui/sheet.js';
 import { liveMinutesHtml, hasShortfall, coachFormEvent, coachSheet, matchMinutesHtml } from './minutes.js';
@@ -108,7 +108,7 @@ export function openMatchSheet(match, coach = null) {
   const minutesHtml = () => (minutes ? matchMinutesHtml(state, coach.coachCfg()) : '');
   openSheet({
     title: `${match.home ? 'בית' : 'חוץ'} · מול ${match.opponent}`,
-    subtitle: `<span class="num">${esc(match.date.split('-').reverse().slice(0, 2).join('.'))}</span>${match.round ? ` · מחזור ${match.round}` : ''}`,
+    subtitle: `<span class="num">${esc(shortDate(match.date))}</span>${roundText(match.round, match.friendly) ? ` · ${esc(roundText(match.round, match.friendly))}` : ''}`,
     tall: hasEvents || minutes,
     body: `<div class="ms-score num"><span class="ours">${match.gf}</span><span class="sep">:</span><span>${match.ga}</span></div>
       ${hasEvents ? timelineHtml(state) : '<p class="sheet-text">למשחק הזה לא תועדו אירועים — רק התוצאה.</p>'}
@@ -357,9 +357,9 @@ export function mountLive(view, ctx) {
       tall: list.length > 5,
       body: `<p class="sheet-text">המשחק יתועד בתאריך שבו תשרקו לפתיחה, וירד מהלוח כשתסיימו. ביטול מחזיר אותו ללוח.</p>
         <div class="pick-list">${list.map((f, i) => `<button type="button" class="pick" data-fx="${i}">
-            <span class="pick-num num">${esc(f.date.split('-').reverse().slice(0, 2).join('.'))}</span>
+            <span class="pick-num num">${esc(shortDate(f.date).slice(0, 5))}</span>
             <span class="pick-name">${esc(f.opponent)}</span>
-            <span class="pick-pos">${f.home !== false ? 'בית' : 'חוץ'}${f.round != null ? ` · מחזור ${esc(f.round)}` : ''}</span>
+            <span class="pick-pos">${f.home !== false ? 'בית' : 'חוץ'}${roundText(f.round, f.friendly) ? ` · ${esc(roundText(f.round, f.friendly))}` : ''}</span>
           </button>`).join('')}
           <button type="button" class="pick pick-plain" data-fx="none">משחק שלא בלוח</button>
         </div>`,
@@ -827,12 +827,12 @@ export function mountLive(view, ctx) {
   async function newMatch(from) {
     const players = ctx.players();
     let base;
-    if (from?.none) base = { opponent: '', home: true, round: null, date: new Date().toISOString().slice(0, 10), fixture: null };
-    else if (from) base = { opponent: from.opponent, home: from.home !== false, round: from.round ?? null, date: from.date, fixture: from };
+    if (from?.none) base = { opponent: '', home: true, round: null, friendly: false, date: new Date().toISOString().slice(0, 10), fixture: null };
+    else if (from) base = { opponent: from.opponent, home: from.home !== false, round: from.round ?? null, friendly: from.friendly === true, date: from.date, fixture: from };
     else {
       const nm = ctx.nextMatch;
       base = {
-        opponent: nm?.opponent || '', home: nm ? nm.home !== false : true, round: nm?.round ?? null,
+        opponent: nm?.opponent || '', home: nm ? nm.home !== false : true, round: nm?.round ?? null, friendly: nm?.friendly === true,
         date: nm?.kickoff ? splitKickoff(nm.kickoff).date : new Date().toISOString().slice(0, 10),
         fixture: nextFixture(),
       };

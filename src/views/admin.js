@@ -6,6 +6,7 @@ import { DEFAULT_FORMAT, DEFAULT_SIZE, cleanFormat, cleanSize } from '../live/mo
 import { formatEditorHtml, wireFormatEditor } from './live.js';
 import { openSheet, toast } from '../ui/sheet.js';
 import { icon } from '../icons.js';
+import { roundText } from '../components.js';
 import { preparePosters } from '../posters.js';
 import { thumbUrl } from '../gallery.js';
 import { detectFixtureColumns, rowsToFixtures, applyFixtureImport, upcomingFixtures, FIXTURE_FIELDS } from '../fixtures.js';
@@ -38,7 +39,7 @@ const HOME_VENUE_FIELDS = [
 const NEXT_FIELDS = [
   { key: 'opponent', label: 'יריבה', required: true },
   { key: 'home', label: 'בית / חוץ', type: 'select', options: HOME_OPTS },
-  { key: 'round', label: 'מחזור', type: 'number' },
+  { key: 'round', label: 'מחזור', type: 'round' },
   { key: 'kickoff', label: 'מועד', type: 'kickoff', required: true },
   { key: 'arrival', label: 'שעת התכנסות', type: 'time' },
   { key: 'venue.name', label: 'שם המגרש' },
@@ -55,27 +56,27 @@ const LISTS = [
     note: 'משחקים שעוד לא נערכו. המשחק הבא נלקח מכאן, ומשחק עם תוצאה יורד מהלוח.',
     blank: () => ({ date: today(), time: '', opponent: '', home: true, round: null, venue: { name: '', address: '' } }),
     label: (f) => `${f.date ? shortDate(f.date) + ' · ' : ''}${f.opponent || 'משחק חדש'}`,
-    sum: (f) => ({ title: f.opponent || 'משחק חדש', sub: [f.date && shortDate(f.date), f.time, f.home === false ? 'חוץ' : 'בית'].filter(Boolean).join(' · ') }),
+    sum: (f) => ({ title: f.opponent || 'משחק חדש', sub: [f.date && shortDate(f.date), f.time, f.home === false ? 'חוץ' : 'בית', roundText(f.round, f.friendly)].filter(Boolean).join(' · ') }),
     fields: [
       { key: 'date', label: 'תאריך', type: 'date', required: true },
       { key: 'time', label: 'שעה', type: 'time', hint: 'ריק = טרם נקבעה' },
       { key: 'opponent', label: 'יריבה', required: true },
       { key: 'home', label: 'בית / חוץ', type: 'select', options: HOME_OPTS },
-      { key: 'round', label: 'מחזור', type: 'number' },
+      { key: 'round', label: 'מחזור', type: 'round' },
       { key: 'venue.name', label: 'מגרש' },
-      { key: 'venue.address', label: 'כתובת', hint: 'קישור ה-Waze נבנה מהכתובת' },
+      { key: 'venue.address', label: 'כתובת', hint: 'קישור ה-Waze נבנה מהכתובת', wide: true },
     ],
   },
   {
     path: 'matches', title: 'תוצאות משחקים', glyph: 'trophy', add: 'תוצאה', prepend: true, tab: 'games', limit: 5,
     blank: () => ({ date: today(), opponent: '', home: true, round: null, gf: 0, ga: 0 }),
     label: (m) => `${m.opponent || 'משחק חדש'} · ${m.gf ?? '?'}:${m.ga ?? '?'}`,
-    sum: (m) => ({ title: m.opponent || 'משחק חדש', sub: [m.date && shortDate(m.date), m.home === false ? 'חוץ' : 'בית'].filter(Boolean).join(' · '), score: [m.gf, m.ga] }),
+    sum: (m) => ({ title: m.opponent || 'משחק חדש', sub: [m.date && shortDate(m.date), m.home === false ? 'חוץ' : 'בית', roundText(m.round, m.friendly)].filter(Boolean).join(' · '), score: [m.gf, m.ga] }),
     fields: [
       { key: 'date', label: 'תאריך', type: 'date', required: true },
       { key: 'opponent', label: 'יריבה', required: true },
       { key: 'home', label: 'בית / חוץ', type: 'select', options: HOME_OPTS },
-      { key: 'round', label: 'מחזור', type: 'number' },
+      { key: 'round', label: 'מחזור', type: 'round' },
       { key: 'gf', label: 'שערים שלנו', type: 'number', required: true },
       { key: 'ga', label: 'שערי היריבה', type: 'number', required: true },
     ],
@@ -158,7 +159,12 @@ function coerce(field, raw, el) {
 
 /* ── Field rendering ───────────────────────────────────────────────────── */
 
-function fieldHtml(field, path, value) {
+// The round is a list and not a number box: "משחק אימון" sits next to the
+// numbers, and picking it marks the game `friendly` with no round.
+const ROUNDS = 40;
+const roundValue = (obj) => (obj?.friendly ? 'f' : obj?.round != null && obj.round !== '' ? String(obj.round) : '');
+
+function fieldHtml(field, path, value, obj) {
   const id = 'f-' + path.replace(/\./g, '-');
   const req = field.required ? ' <i class="req" aria-hidden="true">*</i>' : '';
   const attrs = `id="${id}" data-path="${esc(path)}" data-field="${esc(field.key)}"`;
@@ -172,6 +178,13 @@ function fieldHtml(field, path, value) {
           <input type="date" data-kick="date" data-path="${esc(path)}" value="${esc(date)}" aria-label="תאריך המשחק" />
           <input type="time" data-kick="time" data-path="${esc(path)}" value="${esc(time)}" aria-label="שעת המשחק" />
         </div></div>`;
+    }
+    case 'round': {
+      const cur = roundValue(obj);
+      const top = Math.max(ROUNDS, Number(cur) || 0);
+      const opts = [['', '—'], ['f', 'משחק אימון'], ...Array.from({ length: top }, (_, i) => [String(i + 1), String(i + 1)])];
+      input = `<select ${attrs}>${opts.map(([v, l]) => `<option value="${v}"${cur === v ? ' selected' : ''}>${l}</option>`).join('')}</select>`;
+      break;
     }
     case 'select':
       input = `<select ${attrs}>${field.options.map(([v, l]) =>
@@ -193,7 +206,7 @@ function fieldHtml(field, path, value) {
 }
 
 const grid = (fields, base, obj) =>
-  `<div class="grid-2">${fields.map((f) => fieldHtml(f, `${base}${f.key}`, getPath(obj, f.key))).join('')}</div>`;
+  `<div class="grid-2">${fields.map((f) => fieldHtml(f, `${base}${f.key}`, getPath(obj, f.key), obj)).join('')}</div>`;
 
 /* ── Validation ────────────────────────────────────────────────────────── */
 
@@ -259,12 +272,25 @@ const blankSeason = () => ({
   analysis: { items: [], note: '' },
 });
 
+// Games in the order of their dates: the schedule soonest first, results
+// newest first. A game added by hand went to the end of its list and stayed
+// there. Sorted on load and on save — not while typing, when a row that
+// jumps away from under the finger is worse than one out of place.
+const gameKey = (g) => `${g?.date || ''} ${g?.time || ''}`;
+function sortGames(d) {
+  if (Array.isArray(d.fixtures)) d.fixtures.sort((a, b) => gameKey(a).localeCompare(gameKey(b)));
+  if (Array.isArray(d.matches)) d.matches.sort((a, b) => gameKey(b).localeCompare(gameKey(a)));
+}
+
+const setOpen = (item, open) => Object.defineProperty(item, '__open', { value: open, writable: true, configurable: true, enumerable: false });
+
 function adopt(payload) {
   draft = clone(payload?.season) || blankSeason();
   draft.analysis ??= { items: [], note: '' };
   draft.analysis.items ??= [];
   draft.fixtures ??= [];
   draft.settings ??= { format: [...DEFAULT_FORMAT] };
+  sortGames(draft);
   // Players saved before ids and positions existed: the id follows the same
   // name rule season.js reads with, so live history still credits them.
   for (const p of draft.players || []) {
@@ -370,7 +396,7 @@ export function mountAdmin(view, ctx) {
     compute();
     const have = new Set((draft.matches || []).map((m) => m.date));
     const row = (f, res) => `<div class="imp-row"><span class="imp-name"><b>${esc(shortDate(f.date))} · ${esc(f.opponent)}</b>
-        <small>${f.home ? 'בית' : 'חוץ'}${f.round != null ? ` · מחזור ${f.round}` : ''}${res ? ` · תוצאה <span class="num" dir="ltr">${f.gf}:${f.ga}</span>` : f.time ? ` · ${esc(f.time)}` : ' · שעה טרם נקבעה'}${f.venue?.name ? ` · ${esc(f.venue.name)}` : ''}</small></span>
+        <small>${f.home ? 'בית' : 'חוץ'}${roundText(f.round, f.friendly) ? ` · ${esc(roundText(f.round, f.friendly))}` : ''}${res ? ` · תוצאה <span class="num" dir="ltr">${f.gf}:${f.ga}</span>` : f.time ? ` · ${esc(f.time)}` : ' · שעה טרם נקבעה'}${f.venue?.name ? ` · ${esc(f.venue.name)}` : ''}</small></span>
         <span class="imp-kind ${res ? (have.has(f.date) ? 'k-same' : 'k-new') : 'k-upd'}">${res ? (have.has(f.date) ? 'יש כבר' : 'תוצאה') : 'בלוח'}</span></div>`;
     const body = () => {
       const newRes = out.results.filter((r) => !have.has(r.date)).length;
@@ -817,11 +843,15 @@ export function mountAdmin(view, ctx) {
       const msg = view.querySelector('.save-msg');
       if (msg) msg.textContent = `מכין תמונה לסרטון ${i} מתוך ${n}…`;
     });
+    sortGames(draft);
     const clean = JSON.parse(JSON.stringify(draft, (k, v) => (k === '__open' ? undefined : v)));
     try {
       const r = await call('putSeason', { season: clean, baseVersion }, { asAdmin: true });
       baseVersion = r.version;
       dirty = false;
+      // Saved means done with it: the rows close, and the list reads as a list
+      // again. A failed save leaves them open, with what still needs fixing.
+      for (const list of LISTS) for (const item of getPath(draft, list.path) || []) setOpen(item, false);
       ctx.onSaved({ version: r.version, updatedAt: r.updatedAt, season: clean });
       message = `נשמר. ההורים יראו את העדכון בפתיחה הבאה (גרסה ${r.version}).`;
       messageKind = 'ok';
@@ -856,7 +886,11 @@ export function mountAdmin(view, ctx) {
         : path.startsWith('team.homeVenue.') ? HOME_VENUE_FIELDS
         : path.startsWith('team.') ? TEAM_FIELDS : [{ key: 'note' }];
       const field = fields.find((f) => f.key === el.dataset.field) || {};
-      setPath(draft, path, coerce(field, el.value, el));
+      if (field.type === 'round') {
+        const game = getPath(draft, path.slice(0, -'.round'.length));
+        game.friendly = el.value === 'f';
+        game.round = el.value === '' || el.value === 'f' ? null : Number(el.value);
+      } else setPath(draft, path, coerce(field, el.value, el));
       // Keep the summary line of an open item in step with what is typed.
       if (list) {
         const idx = Number(path.slice(list.path.length + 1).split('.')[0]);
@@ -871,7 +905,10 @@ export function mountAdmin(view, ctx) {
     const d = e.target;
     if (d.tagName !== 'DETAILS' || !d.dataset.item) return;
     const item = getPath(draft, d.dataset.item);
-    if (item) Object.defineProperty(item, '__open', { value: d.open, writable: true, configurable: true, enumerable: false });
+    if (item) setOpen(item, d.open);
+    // One row open at a time in a list: a second one opened under the first
+    // pushed it off the screen, and both stayed open for good.
+    if (d.open) for (const o of d.parentElement.querySelectorAll(':scope > details[open]')) if (o !== d) o.open = false;
   };
 
   const onClick = async (e) => {
@@ -946,7 +983,8 @@ export function mountAdmin(view, ctx) {
       const list = LISTS.find((l) => l.path === t.dataset.add);
       const arr = getPath(draft, list.path) || [];
       const item = list.blank();
-      Object.defineProperty(item, '__open', { value: true, writable: true, configurable: true, enumerable: false });
+      for (const other of arr) setOpen(other, false);
+      setOpen(item, true);
       if (list.prepend) arr.unshift(item); else arr.push(item);
       setPath(draft, list.path, arr);
       touch(); paint();
@@ -966,7 +1004,7 @@ export function mountAdmin(view, ctx) {
       // manager only adds what the schedule does not know (gathering, kit).
       const f = upcomingFixtures(draft.fixtures, draft.matches)[0];
       draft.nextMatch = f
-        ? { opponent: f.opponent, home: f.home !== false, round: f.round ?? null, kickoff: f.time ? israelIso(f.date, f.time) : '', arrival: '', venue: { name: f.venue?.name || '', address: f.venue?.address || '', waze: '' }, kit: '' }
+        ? { opponent: f.opponent, home: f.home !== false, round: f.round ?? null, friendly: f.friendly === true, kickoff: f.time ? israelIso(f.date, f.time) : '', arrival: '', venue: { name: f.venue?.name || '', address: f.venue?.address || '', waze: '' }, kit: '' }
         : { opponent: '', home: true, round: null, kickoff: '', arrival: '', venue: { name: '', address: '', waze: '' }, kit: '' };
       touch(); paint();
       return;
@@ -982,8 +1020,9 @@ export function mountAdmin(view, ctx) {
     if (t.id === 'played') {
       const nm = draft.nextMatch;
       if (!nm?.opponent) { message = 'אין פרטי משחק להעביר.'; messageKind = 'err'; paint(); return; }
-      const item = { date: splitKickoff(nm.kickoff).date || today(), opponent: nm.opponent, home: nm.home !== false, round: nm.round ?? null, gf: null, ga: null };
-      Object.defineProperty(item, '__open', { value: true, writable: true, configurable: true, enumerable: false });
+      const item = { date: splitKickoff(nm.kickoff).date || today(), opponent: nm.opponent, home: nm.home !== false, round: nm.round ?? null, friendly: nm.friendly === true, gf: null, ga: null };
+      for (const other of draft.matches || []) setOpen(other, false);
+      setOpen(item, true);
       draft.matches = [item, ...(draft.matches || [])];
       draft.nextMatch = null;
       message = 'נוסף משחק לתוצאות — מלאו את התוצאה ושמרו.';

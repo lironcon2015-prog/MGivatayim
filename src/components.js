@@ -3,8 +3,9 @@ import { shortDate, esc, safeUrl } from './format.js';
 import { icon } from './icons.js';
 import { youtubeThumb } from './posters.js';
 
-// "מחזור 7", or nothing — never "מחזור null" for a match entered without one.
-export const roundText = (r) => (r != null && r !== '' ? `מחזור ${r}` : '');
+// "מחזור 7", "משחק אימון", or nothing — never "מחזור null" for a match
+// entered without one.
+export const roundText = (r, friendly = false) => (friendly ? 'משחק אימון' : r != null && r !== '' ? `מחזור ${r}` : '');
 
 export const CLASS_OF = { win: 'is-win', draw: 'is-draw', loss: 'is-loss' };
 
@@ -44,7 +45,7 @@ export function matchRow(match, i) {
   return `<${tag} class="match"${tag === 'button' ? ` type="button" data-match="${i}"` : ''}>
     <span class="when"><b class="num">${shortDate(match.date)}</b></span>
     <span class="ha">${match.home ? 'בית' : 'חוץ'}</span>
-    <span class="who"><b>${esc(match.opponent)}</b>${roundText(match.round) ? `<span>${esc(roundText(match.round))}</span>` : ''}</span>
+    <span class="who"><b>${esc(match.opponent)}</b>${roundText(match.round, match.friendly) ? `<span>${esc(roundText(match.round, match.friendly))}</span>` : ''}</span>
     ${scoreEl(match)}
     <span class="tag ${CLASS_OF[o]}">${esc(OUTCOMES[o])}</span>
   </${tag}>`;
@@ -53,7 +54,7 @@ export function matchRow(match, i) {
 // A fixture still ahead: date, home/away, opponent, round and ground, and
 // the kick-off time where a result row has its score.
 export function fixtureRow(f) {
-  const sub = [roundText(f.round), f.venue?.name].filter(Boolean).map(esc).join(' · ');
+  const sub = [roundText(f.round, f.friendly), f.venue?.name].filter(Boolean).map(esc).join(' · ');
   return `<div class="match fixture-row">
     <span class="when"><b class="num">${shortDate(f.date)}</b></span>
     <span class="ha">${f.home !== false ? 'בית' : 'חוץ'}</span>

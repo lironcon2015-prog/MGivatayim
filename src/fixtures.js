@@ -161,9 +161,11 @@ export function rowsToFixtures(rows, { map, headerRow }, teamName = '') {
     }
     if (!when.date || !opponent) { skipped++; continue; }
     const round = num(get(r, 'round'));
+    // "אימון" / "ידידות" in the round column: a training match, with no round.
+    const friendly = /אימון|ידידות|friendly/i.test(String(get(r, 'round') ?? ''));
     const time = parseTime(get(r, 'time')) || when.time;
     const fixture = {
-      date: when.date, time, opponent: opponent.replace(/\s+/g, ' '), home: home !== false, round,
+      date: when.date, time, opponent: opponent.replace(/\s+/g, ' '), home: home !== false, round, ...(friendly ? { friendly } : {}),
       venue: { name: get(r, 'venue'), address: get(r, 'address') },
     };
     let gf = num(get(r, 'gf')), ga = num(get(r, 'ga'));
@@ -171,7 +173,7 @@ export function rowsToFixtures(rows, { map, headerRow }, teamName = '') {
       const hg = num(get(r, 'homeGoals')), ag = num(get(r, 'awayGoals'));
       if (hg != null && ag != null) [gf, ga] = fixture.home ? [hg, ag] : [ag, hg];
     }
-    if (gf != null && ga != null) results.push({ date: fixture.date, opponent: fixture.opponent, home: fixture.home, round, gf, ga });
+    if (gf != null && ga != null) results.push({ date: fixture.date, opponent: fixture.opponent, home: fixture.home, round, ...(friendly ? { friendly } : {}), gf, ga });
     else fixtures.push(fixture);
   }
   const byDate = (a, b) => a.date.localeCompare(b.date) || (a.time || '').localeCompare(b.time || '');
@@ -219,7 +221,7 @@ export function fixtureAsNext(f) {
   if (!f) return null;
   const time = f.time || '12:00';
   return {
-    opponent: f.opponent, home: f.home !== false, round: f.round ?? null,
+    opponent: f.opponent, home: f.home !== false, round: f.round ?? null, friendly: f.friendly === true,
     kickoff: israelIso(f.date, time), timeTbd: !f.time,
     venue: { name: f.venue?.name || '', address: f.venue?.address || '', waze: '' },
     arrival: '', kit: '', fromFixtures: true,

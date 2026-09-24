@@ -459,6 +459,29 @@ await step('a video link gets a poster in Drive, and the parent sees it', async 
   await parent.locator('.thumb-img[src^="blob:"]').first().waitFor({ timeout: 10000 });
 });
 
+await step('a game added by hand is saved in date order, and saving closes the open rows', async () => {
+  await admin.goto(APP + '#/admin');
+  await adminTab(admin, 'games');
+  for (const [date, opp] of [['2031-03-20', 'מאוחר'], ['2031-03-06', 'מוקדם']]) {
+    await admin.click('[data-add="fixtures"]');
+    const i = (await admin.locator('details[data-item^="fixtures."]').count()) - 1;
+    await admin.fill(`[data-path="fixtures.${i}.date"]`, date);
+    await admin.fill(`[data-path="fixtures.${i}.opponent"]`, opp);
+    if (opp === 'מוקדם') await admin.selectOption(`[data-path="fixtures.${i}.round"]`, 'f');
+  }
+  expect(await admin.locator('details[data-item^="fixtures."][open]').count() === 1, 'opening a new row left the previous one open');
+  await admin.click('#save');
+  await waitText(admin, 'נשמר');
+  const { fixtures } = JSON.parse(bridge.driveFile('season.json')).season;
+  const names = fixtures.map((f) => f.opponent);
+  expect(names.indexOf('מוקדם') < names.indexOf('מאוחר'), 'the schedule was saved out of date order: ' + names.join(', '));
+  const early = fixtures.find((f) => f.opponent === 'מוקדם');
+  expect(early.friendly === true && early.round == null, 'the training match: ' + JSON.stringify(early));
+  expect(await admin.locator('.edit-item[open]').count() === 0, 'rows stayed open after the save');
+  const rows = await admin.locator('details[data-item^="fixtures."] summary').allInnerTexts();
+  expect(rows.some((t) => t.includes('06.03.31') && t.includes('משחק אימון')), 'the row lacks the year or the training label: ' + rows.join(' | '));
+});
+
 await step('a pasted schedule becomes the next match and the list after it', async () => {
   await admin.goto(APP + '#/admin');
   await adminTab(admin, 'games');

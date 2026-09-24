@@ -73,10 +73,15 @@ export function buildSeason(input, now = new Date()) {
   };
   const chronological = [...raw.matches].sort((a, b) => a.date.localeCompare(b.date));
   const recent = [...chronological].reverse();
+  // A training match (friendly) is listed with the results but counts in no
+  // figure: not the record, the splits, the streaks, the form or a player's
+  // goals. The owner asked for it next to the round numbers; a league table
+  // does not count friendlies, and neither does this one.
+  const league = chronological.filter((m) => !m.friendly);
 
-  const overall = tally(chronological);
-  const home = tally(chronological.filter((m) => m.home));
-  const away = tally(chronological.filter((m) => !m.home));
+  const overall = tally(league);
+  const home = tally(league.filter((m) => m.home));
+  const away = tally(league.filter((m) => !m.home));
 
   // A player's totals are the manager's baseline (matches played before live
   // tracking, entered by hand) plus everything recorded in live matches.
@@ -85,7 +90,7 @@ export function buildSeason(input, now = new Date()) {
   // events every time, so deleting a mistaken goal fixes the table with it.
   const fromLive = { goals: {}, assists: {} };
   const bump = (bag, id, n = 1) => { if (id) bag[id] = (bag[id] || 0) + n; };
-  for (const m of chronological) {
+  for (const m of league) {
     if (!Array.isArray(m.events)) continue;
     for (const e of m.events) {
       if (e.type !== 'goal' || e.side === 'them') continue;
@@ -120,6 +125,8 @@ export function buildSeason(input, now = new Date()) {
     upcoming: raw.nextMatch?.opponent ? upcoming.filter((f) => !sameDay(f, raw.nextMatch)) : upcoming.slice(1),
     chronological,
     recent,
+    // The latest league results, newest first: the form pills.
+    form: [...league].reverse(),
     overall: {
       ...overall,
       // Points taken out of points available (3 per match): the figure a
@@ -128,7 +135,7 @@ export function buildSeason(input, now = new Date()) {
       pointsRate: overall.played ? overall.points / (overall.played * 3) : 0,
       goalsPerGame: overall.played ? overall.gf / overall.played : 0,
       concededPerGame: overall.played ? overall.ga / overall.played : 0,
-      streak: streaks(chronological),
+      streak: streaks(league),
     },
     splits: { home, away },
     players,

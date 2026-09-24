@@ -318,7 +318,7 @@ section { margin-top: 1.9rem; }
 /* ── Match history ───────────────────────────────────────────────────── */
 .match { display: flex; align-items: center; gap: .6rem; padding: .85rem 0; }
 .match + .match { border-top: 1px solid var(--line); }
-.match .when { flex: none; width: 42px; font-size: .72rem; color: var(--faint); }
+.match .when { flex: none; width: 50px; font-size: .72rem; color: var(--faint); }
 .match .when b { display: block; font-size: .86rem; color: var(--muted); font-weight: 500; }
 .match .ha {
   flex: none; width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center;
@@ -441,7 +441,10 @@ section { margin-top: 1.9rem; }
    content's, and iOS gives date and time inputs a wide intrinsic width —
    in a two-column grid the date pushed over its neighbour and the two
    pickers overlapped. */
-.field { display: grid; gap: .35rem; min-width: 0; font-size: .8rem; font-weight: 700; color: #A7B2C4; }
+/* align-content: start — a field beside one with a hint is stretched to the
+   row's height, and the stretch went into its input: the date box grew
+   taller than the time box beside it. */
+.field { display: grid; align-content: start; gap: .35rem; min-width: 0; font-size: .8rem; font-weight: 700; color: #A7B2C4; }
 .field small { font-weight: 500; color: var(--faint); font-size: .74rem; }
 .field .req { color: var(--gold); font-style: normal; }
 .field input, .field select, .field textarea, .pair input {
@@ -452,7 +455,7 @@ section { margin-top: 1.9rem; }
 /* Safari draws date/time as a native control that ignores width and centres
    its text; stripping its appearance makes it size and align like the rest. */
 .field input[type="date"], .field input[type="time"], .pair input[type="date"], .pair input[type="time"] {
-  -webkit-appearance: none; appearance: none; display: block; text-align: start;
+  -webkit-appearance: none; appearance: none; display: block; text-align: start; height: 46px;
 }
 .field input::-webkit-date-and-time-value, .pair input::-webkit-date-and-time-value { text-align: start; }
 .field textarea { resize: vertical; min-height: 78px; line-height: 1.5; }

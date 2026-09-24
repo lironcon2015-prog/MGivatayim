@@ -290,6 +290,7 @@ console.log('live:');
     assert.equal(season.matches.length, 1);
     assert.equal(season.matches[0].liveId, 'M1');
     assert.equal(season.matches[0].round, null, 'a round that is not a number is not stored');
+    assert.equal(season.matches[0].friendly, false, 'a league match came out a training match');
     assert.equal(season.nextMatch, null);
   });
 
@@ -302,6 +303,15 @@ console.log('live:');
     assert.deepEqual([season.matches[0].gf, season.matches[0].ga], [1, 0]);
     assert.deepEqual(season.matches[0].fixture, { date: '2030-11-08', opponent: 'בני לוד' }, 'the schedule row it came from, and nothing else from the client');
     assert.equal(season.matches[0].date, '2026-10-03', 'dated by the match, not by the schedule');
+  });
+
+  test('a training match finished live stays one, and the flag is only ever true or false', () => {
+    // Ends as it began — one goal, not a training match — for the tests after it.
+    for (const [sent, kept] of [[true, true], ['<b>', false]]) {
+      const v = L.post({ action: 'getLive', adminCode: ADMIN }).result.version;
+      L.post({ action: 'finishLive', adminCode: ADMIN, baseVersion: v, state: state({ status: 'ended', friendly: sent, events: [{ id: 'a', type: 'goal', side: 'us' }] }) });
+      assert.equal(L.post({ action: 'getSeason', adminCode: ADMIN }).result.season.matches[0].friendly, kept);
+    }
   });
 
   test('after the match ends the parent\'s control ends with it', () => {

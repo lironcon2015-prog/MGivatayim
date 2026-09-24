@@ -1,7 +1,7 @@
 import { topBy } from '../season.js';
 import { longDate, clock, pct, dec, esc, safeUrl, splitDuration, pad2, wazeLink } from '../format.js';
 import { icon } from '../icons.js';
-import { crestImg, sectionHead, formPill, matchRow, fixtureRow, leaderRow, tile, splitBar, linkRow, videoCard } from '../components.js';
+import { crestImg, roundText, sectionHead, formPill, matchRow, fixtureRow, leaderRow, tile, splitBar, linkRow, videoCard } from '../components.js';
 
 // "Next match" is the page's lead card, so its title lives inside it as a
 // gold eyebrow instead of a section head above it.
@@ -30,7 +30,7 @@ function nextMatchCard(s) {
       <strong>${esc(side.name)}</strong><span>${side.role}</span>
     </div>`;
 
-  const round = nm.round != null && nm.round !== '' ? `מחזור ${esc(nm.round)} · ` : '';
+  const round = roundText(nm.round, nm.friendly) ? `${esc(roundText(nm.round, nm.friendly))} · ` : '';
   const place = esc(nm.venue?.name || nm.venue?.address || 'מגרש טרם נקבע');
   const chips = [
     nm.arrival ? `<span class="meta-chip">${icon('clock')}<span>התכנסות <span class="num">${esc(nm.arrival)}</span></span></span>` : '',
@@ -55,7 +55,7 @@ function nextMatchCard(s) {
 
 export function renderHome(s) {
   const o = s.overall;
-  const last5 = s.recent.slice(0, 5);
+  const last5 = s.form.slice(0, 5);
   const maxPoints = Math.max(s.splits.home.points, s.splits.away.points, 1);
   const scorers = topBy(s.players, 'goals', 5);
 

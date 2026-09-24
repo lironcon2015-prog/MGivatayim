@@ -336,6 +336,44 @@ await test('a home game with no venue is at the home ground; its own venue and a
   assert.equal(buildSeason({ team: { name: 'x' }, fixtures }, now).schedule[0].venue.name, '', 'no home ground set, yet a venue appeared');
 });
 
+await test('a training match is listed with the results but counts in no figure', async () => {
+  const { buildSeason } = await import('../src/season.js');
+  const F = await import('../src/fixtures.js');
+  const { cleanPlayedMatch, cleanLive } = await import('../src/live/model.js');
+  const players = [{ id: 'a', name: 'איתי', goals: 0, assists: 0 }];
+  const goal = [{ id: 'g1', type: 'goal', side: 'us', scorer: 'a', period: 1, atMs: 60000 }];
+  const matches = [
+    { date: '2026-08-22', opponent: 'א', home: true, round: 1, gf: 1, ga: 0 },
+    { date: '2026-08-29', opponent: 'ב', home: false, round: null, friendly: true, gf: 0, ga: 5, liveId: 'x', events: goal },
+    { date: '2026-09-05', opponent: 'ג', home: true, round: 2, gf: 2, ga: 0 },
+  ];
+  const s = buildSeason({ team: { name: 'x' }, matches, players });
+  assert.equal(s.recent.length, 3, 'the training match left the results list');
+  assert.equal(s.overall.played, 2);
+  assert.deepEqual([s.overall.gf, s.overall.ga, s.splits.away.played], [3, 0, 0]);
+  assert.equal(s.overall.streak.current, 2, 'the loss in training broke the winning streak');
+  assert.deepEqual(s.form.map((m) => m.opponent), ['ג', 'א']);
+  assert.equal(s.players[0].goals, 0, 'a goal in training counted in the player table');
+  // The flag is a boolean whatever arrived, in the season and in live state.
+  assert.equal(cleanPlayedMatch({ date: '2026-01-01', friendly: '<b>' }).friendly, false);
+  assert.equal(cleanLive({ id: 'm', friendly: true }).friendly, true);
+  assert.equal(cleanLive({ id: 'm', friendly: 'yes' }).friendly, false);
+  // "אימון" in the round column of a schedule file.
+  const rows = [['מחזור', 'תאריך', 'יריבה', 'בית/חוץ'], ['משחק אימון', '12/10/2026', 'הפועל', 'בית'], ['4', '19/10/2026', 'בני', 'חוץ']];
+  const out = F.rowsToFixtures(rows, F.detectFixtureColumns(rows));
+  assert.deepEqual(out.fixtures.map((f) => [f.round, f.friendly === true]), [[null, true], [4, false]]);
+  assert.equal(F.fixtureAsNext(out.fixtures[0]).friendly, true, 'the next-match card lost the flag');
+});
+
+await test('a game date carries its year', async () => {
+  const { shortDate } = await import('../src/format.js');
+  const { roundText } = await import('../src/components.js');
+  assert.equal(shortDate('2026-09-05'), '05.09.26');
+  assert.equal(roundText(3), 'מחזור 3');
+  assert.equal(roundText(null, true), 'משחק אימון');
+  assert.equal(roundText(null), '');
+});
+
 await test('a gallery upload can go to any past game — with a result or only on the schedule', async () => {
   const { photoMatches } = await import('../src/fixtures.js');
   const now = new Date('2026-10-20T12:00:00+03:00');

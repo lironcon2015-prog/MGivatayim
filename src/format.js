@@ -11,9 +11,11 @@ const TZ = 'Asia/Jerusalem';
 // A played match is a calendar date, not an instant, so it is never routed
 // through Date(). Parsing 'YYYY-MM-DD' and re-formatting it is precisely how
 // a day and a month end up swapped a timezone away from home.
+// With the year's last two digits: a season crosses a new year, and the
+// owner asked for the year on every game's date.
 export function shortDate(iso) {
-  const [, month, day] = iso.split('-');
-  return `${day}.${month}`;
+  const [year, month, day] = String(iso).split('-');
+  return `${day}.${month}.${String(year).slice(-2)}`;
 }
 
 export const longDate = (d) =>

@@ -108,7 +108,7 @@ export function israelDate(ms) {
 // `fixture` names the schedule row this match was opened from ({date,
 // opponent}); the finished match carries it, and that is what takes the row
 // off the schedule even when the match was played on another day.
-export function newLive({ id, opponent, home = true, round = null, date, format, size, lineup, players, fixture = null }) {
+export function newLive({ id, opponent, home = true, round = null, friendly = false, date, format, size, lineup, players, fixture = null }) {
   const squad = (players || []).map((p) => ({ id: p.id, name: p.name, number: p.number ?? null, pos: p.pos || '', pos2: p.pos2 || '' }));
   return {
     id,
@@ -116,6 +116,7 @@ export function newLive({ id, opponent, home = true, round = null, date, format,
     opponent: opponent || '',
     home: home !== false,
     round: round ?? null,
+    friendly: friendly === true,
     date: date || '',
     format: cleanFormat(format),
     size: cleanSize(size),
@@ -169,7 +170,7 @@ export function cleanLive(s) {
   return {
     id: str(s.id),
     status: STATUSES.includes(s.status) ? s.status : 'setup',
-    opponent: str(s.opponent), home: s.home !== false, round: num(s.round), date: str(s.date),
+    opponent: str(s.opponent), home: s.home !== false, round: num(s.round), friendly: s.friendly === true, date: str(s.date),
     format: cleanFormat(s.format), size: cleanSize(s.size),
     fixture: s.fixture && s.fixture.date ? { date: str(s.fixture.date), opponent: str(s.fixture.opponent) } : null,
     period: num(s.period, 0),
@@ -184,7 +185,7 @@ export function cleanLive(s) {
 // by the bridge from what the controlling device sent. Hand-entered fields
 // pass through; only what a controller could have written is retyped.
 export function cleanPlayedMatch(m) {
-  const out = { ...m, date: str(m.date), opponent: str(m.opponent), round: num(m.round) };
+  const out = { ...m, date: str(m.date), opponent: str(m.opponent), round: num(m.round), friendly: m.friendly === true };
   if ('events' in m) out.events = cleanEvents(m.events);
   if ('lineup' in m) out.lineup = cleanLineup(m.lineup);
   if ('players' in m) out.players = cleanPlayers(m.players);

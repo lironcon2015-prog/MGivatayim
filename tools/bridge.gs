@@ -562,6 +562,7 @@ function finishLive_(req) {
     const match = {
       liveId: st.id, date: date, opponent: String(st.opponent || ''),
       home: st.home !== false, round: st.round == null || st.round === '' || !isFinite(round) ? null : round, gf: gf, ga: ga,
+      friendly: st.friendly === true,
       format: st.format, lineup: st.lineup, events: st.events, players: st.players,
       // The schedule row this match was opened from: it takes the row off the
       // schedule even when the match was played on another day.

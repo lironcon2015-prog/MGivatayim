@@ -802,6 +802,12 @@ await step('several items are deleted at once by picking them; a parent picks on
   await parent.locator('[data-gallery] .gl-empty', { hasText: 'אין סרטונים מהמשחק הזה' }).waitFor();
   expect(await parent.locator('[data-gallery] [data-back]').count() === 1, 'switching tabs left the game page');
   await parent.click('[data-gallery] [data-gtab="photos"]');
+  // "הגלריה" returns to the top of the page, not to where it was scrolled.
+  await parent.evaluate(() => window.scrollTo(0, 400));
+  await parent.click('[data-gallery] [data-back]');
+  await parent.locator('[data-gallery] .gl-album').first().waitFor();
+  expect(await parent.evaluate(() => window.scrollY) === 0, 'back to the gallery left the page scrolled');
+  await parent.locator('[data-gallery] .gl-album').first().click();
   await parent.click('[data-sel="start"]');
   expect(await parent.locator('.gl-tile.pick.nopick').count() === 1, 'another parent\'s photo is pickable');
   await parent.click('[data-sel="all"]');

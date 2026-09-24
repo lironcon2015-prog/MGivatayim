@@ -423,7 +423,9 @@ export function wireGallery(root, s, { isAdmin = () => false } = {}) {
   const openAlbum = () => (album === null ? null : groups(visible(g)).find((grp) => grp.key === album) || null);
   const inTab = () => (openAlbum()?.items || []).filter(kindOk);
   let preset = null;   // an upload started from a game's page
-  const toTop = () => host.scrollIntoView({ block: 'start', behavior: 'instant' });
+  // Opening a game and coming back both land at the very top of the page,
+  // as a new screen does — not where the finger happened to leave it.
+  const toTop = () => window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
 
   const paint = () => {
     if (!alive) return;

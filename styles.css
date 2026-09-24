@@ -1275,4 +1275,10 @@ button.match:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px
 .gw-row .who > span { display: block; font-size: .76rem; color: var(--faint); }
 .gw-row .acts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: .55rem; }
 .gw-blocked { margin-top: 1rem; padding-top: .8rem; border-top: 1px solid var(--line); }
-.gl-count { white-space: nowrap; }
+.gl-tabs { margin-top: .9rem; }
+.gl-tabs .num { font-size: .78rem; opacity: .75; }
+.gl-sub { font-size: .9rem; font-weight: 700; color: var(--muted); margin: 1.2rem .15rem .55rem; }
+.gl-linked { margin-top: .9rem; display: grid; gap: var(--gap); }
+.gl-sub + .gl-linked { margin-top: 0; }
+.gl-linked .note { margin: 0 .15rem; }
+.gl-linked .video + .video { margin-top: 0; }

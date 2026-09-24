@@ -4,15 +4,20 @@ import { openSheet, confirmSheet, toast } from '../ui/sheet.js';
 import {
   loadGallery, cachedGallery, thumbUrl, fullUrl, posterUrl, saveUrl, uploadOne, hideItem, deleteItem, kindOf, MAX_VIDEO_S,
 } from '../gallery.js';
+import { linkedVideosHtml, sortedVideos } from './media.js';
+import { photoMatches } from '../fixtures.js';
+import { hydratePosters } from '../posters.js';
 
 /* ── The team's gallery, on the media screen ──────────────────────────────
    Everything a parent uploads is up at once, under their name; any parent
    can hide a photo, the uploader can delete it. Nothing on this screen
-   speaks of a manager: the gallery belongs to the team. */
+   speaks of a manager: the gallery belongs to the team.
+   Uploads take photos and videos together; the display splits them — a
+   photos tab, and a videos tab that also holds the manager's linked videos
+   (highlights, whole matches), so videos are in one place. */
 
 const GROUP_SHOW = 6;
-
-export const galleryPlaceholder = () => `<section data-gallery hidden></section>`;
+let shownTab = null;    // 'photos' | 'videos', kept across visits
 
 // A manager gets hidden items too — they belong in the manager's list, not
 // in the gallery. An uploader sees their own, marked.
@@ -31,6 +36,8 @@ function groups(items) {
 }
 
 const items_ = (n) => plural(n, 'פריט אחד', 'שני פריטים', 'פריטים');
+const photos_ = (n) => plural(n, 'תמונה אחת', 'שתי תמונות', 'תמונות');
+const videos_ = (n) => plural(n, 'סרטון אחד', 'שני סרטונים', 'סרטונים');
 // "3 תמונות וסרטון אחד", "תמונה אחת ו-2 סרטונים".
 const and = (a, b) => (!a ? b : !b ? a : `${a} ו${/^\d/.test(b) ? '-' : ''}${b}`);
 
@@ -44,29 +51,51 @@ function tile(g, it, extra = '') {
     </button>`;
 }
 
-function galleryHtml(g, open) {
+function groupsHtml(g, items, open) {
+  return groups(items).map((grp) => {
+    const whole = open.has(grp.key) || grp.items.length <= GROUP_SHOW;
+    const shown = whole ? grp.items : grp.items.slice(0, GROUP_SHOW - 1);
+    const rest = grp.items.length - shown.length;
+    return `<div class="gl-group">
+      <div class="gl-head">${grp.match ? `מול ${esc(grp.match.opponent)} <span class="num">${esc(shortDate(grp.match.date))}</span>` : 'מהעונה'}
+        <span class="num">${items_(grp.items.length)}</span></div>
+      <div class="gl-grid">${shown.map((it) => tile(g, it)).join('')}
+        ${rest ? `<button type="button" class="gl-tile gl-more num" dir="ltr" data-more="${esc(grp.key)}" aria-label="עוד ${rest}">+${rest}</button>` : ''}</div>
+    </div>`;
+  }).join('');
+}
+
+// The tab a visit opens on: photos, unless there are none and videos wait.
+function tabFor(photos, videoCount) {
+  if (shownTab) return shownTab;
+  return !photos.length && videoCount ? 'videos' : 'photos';
+}
+
+function galleryHtml(g, s, open) {
   const canUpload = g.mode !== 'closed' && !g.blocked;
   const items = visible(g);
-  const gs = groups(items);
-  const live = items.filter((it) => it.status === 'live');
-  return `
+  const photos = items.filter((it) => it.kind !== 'video');
+  const clips = items.filter((it) => it.kind === 'video');
+  const linked = sortedVideos(s);
+  const videoCount = clips.length + linked.length;
+  const tab = tabFor(photos, videoCount);
+  const body = tab === 'photos'
+    ? (photos.length ? groupsHtml(g, photos, open)
+      : `<div class="card gl-empty"><div class="empty">עוד אין כאן תמונות.${canUpload ? ' אפשר להיות הראשונים.' : ''}</div></div>`)
+    : (!videoCount ? `<div class="card gl-empty"><div class="empty">עוד אין סרטונים.${canUpload ? ' אפשר להעלות קטע מהמשחק.' : ''}</div></div>`
+      : `${linked.length ? `${clips.length ? '<div class="gl-sub">תקצירים ומשחקים</div>' : ''}<div class="gl-linked">${linkedVideosHtml(s)}</div>` : ''}
+         ${clips.length ? `${linked.length ? '<div class="gl-sub">צולם במגרש</div>' : ''}${groupsHtml(g, clips, open)}` : ''}`);
+  return `<section>
     <div class="sec-head">${icon('photo')}<h2>הגלריה של הקבוצה</h2>
-      <button type="button" class="help-btn" data-help aria-label="איך זה עובד">?</button>
-      ${live.length ? `<span class="aside num gl-count">${items_(live.length)}</span>` : ''}</div>
+      <button type="button" class="help-btn" data-help aria-label="איך זה עובד">?</button></div>
     ${canUpload ? `<button type="button" class="btn" data-upload>${icon('upload')} העלאת תמונות וסרטונים</button>
       <input type="file" data-files accept="image/*,video/*" multiple hidden />` : ''}
-    ${!items.length ? `<div class="card gl-empty"><div class="empty">עוד אין כאן תמונות.${canUpload ? ' אפשר להיות הראשונים.' : ''}</div></div>`
-      : gs.map((grp) => {
-        const whole = open.has(grp.key) || grp.items.length <= GROUP_SHOW;
-        const shown = whole ? grp.items : grp.items.slice(0, GROUP_SHOW - 1);
-        const rest = grp.items.length - shown.length;
-        return `<div class="gl-group">
-          <div class="gl-head">${grp.match ? `מול ${esc(grp.match.opponent)} <span class="num">${esc(shortDate(grp.match.date))}</span>` : 'מהעונה'}
-            <span class="num">${items_(grp.items.length)}</span></div>
-          <div class="gl-grid">${shown.map((it) => tile(g, it)).join('')}
-            ${rest ? `<button type="button" class="gl-tile gl-more num" dir="ltr" data-more="${esc(grp.key)}" aria-label="עוד ${rest}">+${rest}</button>` : ''}</div>
-        </div>`;
-      }).join('')}`;
+    <div class="seg gl-tabs" role="tablist" aria-label="תמונות או סרטונים">
+      <button type="button" role="tab" data-gtab="photos" aria-selected="${tab === 'photos'}">תמונות${photos.length ? ` <span class="num">${photos.length}</span>` : ''}</button>
+      <button type="button" role="tab" data-gtab="videos" aria-selected="${tab === 'videos'}">סרטונים${videoCount ? ` <span class="num">${videoCount}</span>` : ''}</button>
+    </div>
+    ${body}
+  </section>`;
 }
 
 /* ---- help ---- */
@@ -108,7 +137,7 @@ function uploadSheet(files, s, g, { asAdmin, onDone }) {
     if (ok) left[kind]--;
     return { file, kind, i, state: ok ? 'wait' : 'over', pct: 0, msg: ok ? '' : 'מעבר למכסה היומית' };
   });
-  const matches = (s.recent || []).slice(0, 10);
+  const matches = photoMatches(s.matches, s.fixtures);
   const images = rows.filter((r) => r.kind === 'image').length, videos = rows.length - images;
   const rowHtml = (r) => `<div class="up-row" data-row="${r.i}">
       <span class="up-kind">${icon(r.kind === 'video' ? 'film' : 'photo')}</span>
@@ -150,7 +179,7 @@ function uploadSheet(files, s, g, { asAdmin, onDone }) {
           redraw(r);
         }
         busy = false;
-        if (ok) { toast(`${plural(ok, 'קובץ אחד עלה', 'שני קבצים עלו', 'קבצים עלו')} לגלריה של הקבוצה.`); onDone(); }
+        if (ok) { toast(`${plural(ok, 'קובץ אחד עלה', 'שני קבצים עלו', 'קבצים עלו')} לגלריה של הקבוצה.`); onDone(rows.filter((r) => r.state === 'done').map((r) => r.kind)); }
         // All up: nothing left to read here. A failure stays on screen with
         // its reason until the parent closes it.
         if (ok === rows.length) { sh.close('done'); return; }
@@ -304,9 +333,13 @@ export function wireGallery(root, s, { isAdmin = () => false } = {}) {
 
   const paint = () => {
     if (!alive) return;
-    if (!g?.enabled) { host.hidden = true; return; }
-    host.hidden = false;
-    host.innerHTML = galleryHtml(g, open);
+    // Off (or not loaded yet): the host keeps the linked videos it was
+    // rendered with.
+    if (!g?.enabled) return;
+    const items = visible(g);
+    shownTab = tabFor(items.filter((it) => it.kind !== 'video'), items.filter((it) => it.kind === 'video').length + s.videos.length);
+    host.innerHTML = galleryHtml(g, s, open);
+    hydratePosters(host);
   };
   const refresh = async () => {
     try { g = await loadGallery({ asAdmin }); } catch { /* keep what is shown */ }
@@ -319,8 +352,10 @@ export function wireGallery(root, s, { isAdmin = () => false } = {}) {
     if (t.dataset.help !== undefined) { helpSheet(g); return; }
     if (t.dataset.upload !== undefined) { host.querySelector('[data-files]').click(); return; }
     if (t.dataset.more !== undefined) { open.add(t.dataset.more); paint(); return; }
+    if (t.dataset.gtab) { shownTab = t.dataset.gtab; paint(); return; }
     if (t.dataset.open) {
-      const list = groups(visible(g)).flatMap((grp) => grp.items);
+      const kindOk = (it) => (shownTab === 'videos' ? it.kind === 'video' : it.kind !== 'video');
+      const list = groups(visible(g).filter(kindOk)).flatMap((grp) => grp.items);
       viewer(g, list, Math.max(0, list.findIndex((it) => it.id === t.dataset.open)), { asAdmin, onChange: refresh });
     }
   });
@@ -328,7 +363,13 @@ export function wireGallery(root, s, { isAdmin = () => false } = {}) {
     if (!e.target.matches('[data-files]')) return;
     const files = [...e.target.files];
     e.target.value = '';
-    if (files.length) uploadSheet(files, s, g, { asAdmin, onDone: refresh });
+    if (files.length) {
+      uploadSheet(files, s, g, {
+        asAdmin,
+        // Land on the tab of what was just uploaded.
+        onDone: (kinds) => { shownTab = kinds.includes('image') ? 'photos' : 'videos'; refresh(); },
+      });
+    }
   });
 
   paint();

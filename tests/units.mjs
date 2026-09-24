@@ -318,6 +318,19 @@ if (process.argv[1].endsWith('units.mjs')) {
   const model = await import('./units-live.mjs').catch((e) => (e.code === 'ERR_MODULE_NOT_FOUND' ? null : Promise.reject(e)));
   if (model) await model.run(test);
   await (await import('./units-minutes.mjs')).run(test);
+await test('a gallery upload can go to any past game — with a result or only on the schedule', async () => {
+  const { photoMatches } = await import('../src/fixtures.js');
+  const now = new Date('2026-10-20T12:00:00+03:00');
+  const matches = [{ date: '2026-09-19', opponent: 'בני לוד' }, { date: '2026-10-03', opponent: 'הפועל כפר סבא' }];
+  const fixtures = [
+    { date: '2026-10-10', opponent: 'מכבי יפו' },          // played, no result entered
+    { date: '2026-10-03', opponent: 'הפועל כפר סבא' },     // has its result
+    { date: '2026-10-24', opponent: 'בית"ר ת"א' },         // still ahead
+  ];
+  const got = photoMatches(matches, fixtures, now).map((m) => m.opponent);
+  assert.deepEqual(got, ['מכבי יפו', 'הפועל כפר סבא', 'בני לוד']);
+});
+
   console.log(`\nunits: ${passed} passed, ${failures.length} failed`);
   process.exit(failures.length ? 1 : 0);
 }

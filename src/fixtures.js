@@ -201,6 +201,18 @@ export function upcomingFixtures(fixtures, matches, now = new Date()) {
     .sort((a, b) => a.date.localeCompare(b.date) || (a.time || '').localeCompare(b.time || ''));
 }
 
+// Games a gallery upload can belong to, newest first: every result, and every
+// game on the schedule whose day has come even when no result was entered
+// for it — the photos are taken either way.
+export function photoMatches(matches, fixtures, now = new Date()) {
+  const today = todayInIsrael(now);
+  const played = (matches || []).filter((m) => m?.date).map((m) => ({ date: m.date, opponent: m.opponent || '' }));
+  const days = new Set(played.map((m) => m.date));
+  const past = (fixtures || []).filter((f) => f?.date && f.date <= today && !days.has(f.date))
+    .map((f) => ({ date: f.date, opponent: f.opponent || '' }));
+  return [...played, ...past].filter((m) => m.opponent).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 20);
+}
+
 // A fixture in the shape the next-match card reads. Without a time the
 // card says the time is still to be set, and shows no countdown.
 export function fixtureAsNext(f) {

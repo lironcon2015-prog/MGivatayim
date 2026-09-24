@@ -689,7 +689,8 @@ await step('the gallery stays out of sight until the bridge has Cloudinary keys'
   await parent.goto(APP + '#/media');
   await parent.locator('.sec-head', { hasText: 'הסרטון הנבחר' }).or(parent.locator('.sec-head', { hasText: 'סרטונים' })).first().waitFor();
   await parent.waitForTimeout(500);
-  expect(await parent.locator('[data-gallery]').isHidden(), 'a gallery with no storage behind it is shown');
+  expect(await parent.locator('[data-gallery] [data-upload]').count() === 0, 'a gallery with no storage behind it is shown');
+  await parent.locator('[data-gallery] .video', { hasText: 'השער מול נחלים' }).waitFor();
 });
 
 await step('a parent uploads a photo; it is in the gallery at once, under their name', async () => {
@@ -719,6 +720,16 @@ await step('a parent uploads a photo; it is in the gallery at once, under their 
   expect(!up.body.includes('test-secret'), 'the secret went to the browser');
 });
 
+await step('photos and videos show apart; the linked videos sit in the videos tab', async () => {
+  expect(await parent.locator('[data-gtab="photos"][aria-selected="true"]').count() === 1, 'not on the photos tab after a photo upload');
+  expect(await parent.locator('[data-gallery] .video').count() === 0, 'a linked video in the photos tab');
+  await parent.click('[data-gtab="videos"]');
+  await parent.locator('[data-gallery] .video', { hasText: 'השער מול נחלים' }).waitFor();
+  expect(await parent.locator('[data-gallery] .gl-tile').count() === 0, 'a photo in the videos tab');
+  expect(await parent.locator('#view .sec-head', { hasText: 'סרטונים' }).count() === 0, 'a second videos section outside the gallery');
+  await parent.click('[data-gtab="photos"]');
+});
+
 await step('the help explains uploading, hiding and where photos go — and never mentions a manager', async () => {
   await parent.click('[data-gallery] [data-help]');
   const sheet = parent.locator('.sheet', { hasText: 'איך הגלריה עובדת' });
@@ -739,6 +750,7 @@ await step('another parent hides it: gone for everyone else, still there for the
   await other.locator('.gv').waitFor({ state: 'detached' });
   expect(galleryFile().items[0].status === 'hidden', 'not hidden in gallery.json');
   await other.reload();
+  await other.click('[data-gtab="photos"]');
   await other.locator('[data-gallery] .gl-empty').waitFor();
   await parent.reload();
   await parent.locator('[data-gallery] .gl-tile .gl-flag', { hasText: 'מוסתרת' }).waitFor();

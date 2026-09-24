@@ -1,32 +1,35 @@
-import { esc } from '../format.js';
+import { esc, safeUrl } from '../format.js';
 import { sectionHead, videoCard, roundText } from '../components.js';
-import { safeUrl } from '../format.js';
-import { galleryPlaceholder } from './gallery.js';
+
+/* The media screen: the team gallery on top (photos | videos), useful links
+   below. Videos live in one place — the manager's linked videos (YouTube,
+   Drive: highlights, whole matches) and the clips parents upload share the
+   gallery's videos tab. Until the gallery is switched on (Cloudinary keys in
+   the bridge) the linked videos show on their own, as before. */
+
+export const sortedVideos = (s) => [...s.videos].sort((a, b) => (b.featured ? 1 : 0) - (a.featured ? 1 : 0) || b.round - a.round);
+
+// The linked videos as a block: the featured one first, then the rest.
+export function linkedVideosHtml(s) {
+  const videos = sortedVideos(s);
+  if (!videos.length) return '';
+  const missing = videos.filter((v) => !safeUrl(v.url)).length;
+  return `${videos.map(videoCard).join('')}
+    ${missing ? `<p class="note">${missing === videos.length
+      ? 'לאף סרטון עדיין לא הוגדר קישור.'
+      : `ל-${missing} מהסרטונים עדיין לא הוגדר קישור.`}</p>` : ''}`;
+}
+
+// What the gallery's host shows before it loads, and for good when the
+// gallery is off: the linked videos, as the screen was before the gallery.
+function videosOnly(s) {
+  const videos = sortedVideos(s);
+  if (!videos.length) return `<section>${sectionHead('סרטונים', '', 'film')}<div class="card"><div class="empty">טרם הועלו סרטונים לעונה.</div></div></section>`;
+  return `<section>${sectionHead('סרטונים', esc(roundText(videos[0].round)), 'film')}${linkedVideosHtml(s)}</section>`;
+}
 
 export function renderMedia(s) {
-  const videos = [...s.videos].sort((a, b) => b.round - a.round);
-  const featured = videos.find((v) => v.featured) || videos[0];
-  const rest = videos.filter((v) => v !== featured);
-  const missing = videos.filter((v) => !safeUrl(v.url)).length;
-
-  if (!videos.length) {
-    return `${galleryPlaceholder()}<section>${sectionHead('סרטונים', '', 'film')}<div class="card"><div class="empty">טרם הועלו סרטונים לעונה.</div></div></section>`;
-  }
-
-  return `${galleryPlaceholder()}
-  <section>
-    ${sectionHead('הסרטון הנבחר', esc(roundText(featured.round)), 'film')}
-    ${videoCard(featured)}
-  </section>
-
-  ${rest.length ? `<section>
-    ${sectionHead('כל הסרטונים', `${videos.length} סרטונים`, 'play')}
-    ${rest.map(videoCard).join('')}
-  </section>` : ''}
-
-  ${missing ? `<section><p class="note">${missing === videos.length
-      ? 'לאף סרטון עדיין לא הוגדר קישור בקובץ הנתונים.'
-      : `ל-${missing} מהסרטונים עדיין לא הוגדר קישור.`}</p></section>` : ''}
+  return `<div data-gallery>${videosOnly(s)}</div>
 
   <section>
     ${sectionHead('קישורים שימושיים', '', 'link')}

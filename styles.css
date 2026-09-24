@@ -1321,3 +1321,38 @@ body.with-nav .gl-selbar { bottom: calc(var(--nav-space) + .5rem); }
 .mp-opt input { accent-color: var(--gold); width: 17px; height: 17px; margin: 0; flex: none; }
 .mp-opt .num { margin-inline-start: auto; color: var(--muted); font-weight: 600; font-size: .84rem; }
 .mp-more { margin-top: .5rem; }
+
+/* Albums: the overview stays short however long the season — the latest
+   uploads in one sideways row, and a card per game. */
+.gl-head-top { margin-top: 1.1rem; }
+.gl-strip {
+  display: flex; gap: 6px; overflow-x: auto; scroll-snap-type: x proximity; scrollbar-width: none;
+  margin-inline-end: calc(-1 * var(--pad)); padding-inline-end: var(--pad);
+}
+.gl-strip::-webkit-scrollbar { display: none; }
+.gl-strip .gl-tile { width: 88px; flex: none; scroll-snap-align: start; }
+.gl-albums { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.gl-album {
+  position: relative; aspect-ratio: 4 / 3; padding: 0; border-radius: 18px; overflow: hidden; cursor: pointer;
+  border: 1px solid var(--line); background: var(--surface-2); color: var(--text); text-align: start; font: inherit;
+  -webkit-tap-highlight-color: transparent;
+}
+.gl-album img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.gl-album::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 36%, rgba(4, 8, 14, .9)); }
+.gl-album-cap { position: absolute; z-index: 1; inset-inline: 10px; bottom: 8px; display: grid; }
+.gl-album-cap b { font-size: .88rem; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gl-album-cap .num { font-size: .72rem; color: #A7B2C4; }
+.gl-new {
+  position: absolute; z-index: 1; top: 8px; right: 8px; font-size: .66rem; font-weight: 800; padding: 2px 8px;
+  border-radius: var(--r-pill); background: rgba(4, 8, 14, .78); color: var(--gold); box-shadow: inset 0 0 0 1px var(--gold-line);
+}
+.gl-album:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.gl-all { margin-top: .8rem; }
+.gl-back {
+  display: inline-flex; align-items: center; gap: .3rem; margin-bottom: .6rem; padding: .2rem 0; cursor: pointer;
+  font: inherit; font-size: .88rem; font-weight: 700; color: var(--muted); background: none; border: 0;
+}
+.gl-back svg { width: 16px; height: 16px; transform: scaleX(-1); }
+.gl-meta { margin: -.35rem .15rem .8rem; }
+.gl-album-grid { margin-top: .8rem; }
+.gl-here { margin-top: 1rem; }

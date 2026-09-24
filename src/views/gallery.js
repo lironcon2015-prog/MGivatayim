@@ -16,9 +16,12 @@ import { hydratePosters } from '../posters.js';
    photos tab, and a videos tab that also holds the manager's linked videos
    (highlights, whole matches), so videos are in one place. */
 
-const GROUP_SHOW = 6;
 const MATCHES_SHOWN = 4;
+const ALBUMS_SHOWN = 6;
+const STRIP = 10;
 let shownTab = null;    // 'photos' | 'videos', kept across visits
+let album = null;       // the key of the game page open, or null for the overview
+let allAlbums = false;  // "all games" pressed
 
 // A manager gets hidden items too — they belong in the manager's list, not
 // in the gallery. An uploader sees their own, marked.
@@ -64,21 +67,6 @@ function tile(g, it, sel) {
     </button>`;
 }
 
-function groupsHtml(g, items, open, sel) {
-  return groups(items).map((grp) => {
-    // Picking shows every tile: a "+12" would hide what is being chosen.
-    const whole = sel?.on || open.has(grp.key) || grp.items.length <= GROUP_SHOW;
-    const shown = whole ? grp.items : grp.items.slice(0, GROUP_SHOW - 1);
-    const rest = grp.items.length - shown.length;
-    return `<div class="gl-group">
-      <div class="gl-head">${grp.match ? `מול ${esc(grp.match.opponent)} <span class="num">${esc(shortDate(grp.match.date))}</span>` : 'מהעונה'}
-        <span class="num">${items_(grp.items.length)}</span></div>
-      <div class="gl-grid">${shown.map((it) => tile(g, it, sel)).join('')}
-        ${rest ? `<button type="button" class="gl-tile gl-more num" dir="ltr" data-more="${esc(grp.key)}" aria-label="עוד ${rest}">+${rest}</button>` : ''}</div>
-    </div>`;
-  }).join('');
-}
-
 // The tab a visit opens on: photos, unless there are none and videos wait.
 function tabFor(photos, videoCount) {
   if (shownTab) return shownTab;
@@ -95,32 +83,88 @@ function selBar(sel) {
   </div>`;
 }
 
-function galleryHtml(g, s, open, sel) {
+/* The overview stays one screen and a half however long the season gets:
+   the latest uploads in one sideways row, then a card per game (album) —
+   six, and "all games" for the rest. A game's photos open on its own page. */
+
+const photosOf = (items) => items.filter((it) => it.kind !== 'video');
+const clipsOf = (items) => items.filter((it) => it.kind === 'video');
+const noun = (kind, n) => (kind === 'video' ? videos_(n) : photos_(n));
+const gameTitle = (m) => (m ? `מול ${esc(m.opponent)}` : 'מהעונה');
+const FRESH_MS = 3 * 24 * 60 * 60 * 1000;
+
+function albumCard(g, grp, kind) {
+  const cover = grp.items.find((it) => it.status === 'live') || grp.items[0];
+  const fresh = grp.items.some((it) => Date.now() - Date.parse(it.at) < FRESH_MS);
+  return `<button type="button" class="gl-album" data-album="${esc(grp.key)}" aria-label="${gameTitle(grp.match)}, ${noun(kind, grp.items.length)}">
+      <img src="${esc(thumbUrl(g, cover, 480))}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.remove()" />
+      ${fresh ? '<span class="gl-new">חדש</span>' : ''}
+      <span class="gl-album-cap"><b>${gameTitle(grp.match)}</b>
+        <span class="num">${grp.match ? `${esc(shortDate(grp.match.date))} · ` : ''}${noun(kind, grp.items.length)}</span></span>
+    </button>`;
+}
+
+function albumsHtml(g, items, kind) {
+  const gs = groups(items);
+  const shown = allAlbums ? gs : gs.slice(0, ALBUMS_SHOWN);
+  return `<div class="gl-head gl-head-top">לפי משחק<span class="num">${plural(gs.length, 'משחק אחד', 'שני משחקים', 'משחקים')}</span></div>
+    <div class="gl-albums">${shown.map((grp) => albumCard(g, grp, kind)).join('')}</div>
+    ${gs.length > shown.length ? `<button type="button" class="btn secondary gl-all" data-all-albums>כל המשחקים <span class="num">· ${gs.length}</span></button>` : ''}`;
+}
+
+const empty = (text) => `<div class="card gl-empty"><div class="empty">${text}</div></div>`;
+
+function tabsHtml(tab, nPhotos, nVideos) {
+  return `<div class="seg gl-tabs" role="tablist" aria-label="תמונות או סרטונים">
+      <button type="button" role="tab" data-gtab="photos" aria-selected="${tab === 'photos'}">תמונות${nPhotos ? ` <span class="num">${nPhotos}</span>` : ''}</button>
+      <button type="button" role="tab" data-gtab="videos" aria-selected="${tab === 'videos'}">סרטונים${nVideos ? ` <span class="num">${nVideos}</span>` : ''}</button>
+    </div>`;
+}
+
+const fileInput = '<input type="file" data-files accept="image/*,video/*" multiple hidden />';
+
+function overviewHtml(g, s) {
   const canUpload = g.mode !== 'closed' && !g.blocked;
   const items = visible(g);
-  const photos = items.filter((it) => it.kind !== 'video');
-  const clips = items.filter((it) => it.kind === 'video');
+  const photos = photosOf(items), clips = clipsOf(items);
   const linked = sortedVideos(s);
-  const videoCount = clips.length + linked.length;
-  const tab = tabFor(photos, videoCount);
+  const tab = tabFor(photos, clips.length + linked.length);
+  const latest = photos.slice(0, STRIP);
   const body = tab === 'photos'
-    ? (photos.length ? groupsHtml(g, photos, open, sel)
-      : `<div class="card gl-empty"><div class="empty">עוד אין כאן תמונות.${canUpload ? ' אפשר להיות הראשונים.' : ''}</div></div>`)
-    : (!videoCount ? `<div class="card gl-empty"><div class="empty">עוד אין סרטונים.${canUpload ? ' אפשר להעלות קטע מהמשחק.' : ''}</div></div>`
+    ? (!photos.length ? empty(`עוד אין כאן תמונות.${canUpload ? ' אפשר להיות הראשונים.' : ''}`)
+      : `<div class="gl-head gl-head-top">העלאות אחרונות</div>
+         <div class="gl-strip">${latest.map((it) => tile(g, it)).join('')}</div>
+         ${albumsHtml(g, photos, 'image')}`)
+    : (!clips.length && !linked.length ? empty(`עוד אין סרטונים.${canUpload ? ' אפשר להעלות קטע מהמשחק.' : ''}`)
       : `${linked.length ? `${clips.length ? '<div class="gl-sub">תקצירים ומשחקים</div>' : ''}<div class="gl-linked">${linkedVideosHtml(s)}</div>` : ''}
-         ${clips.length ? `${linked.length ? '<div class="gl-sub">צולם במגרש</div>' : ''}${groupsHtml(g, clips, open, sel)}` : ''}`);
-  const pickable = (tab === 'photos' ? photos : clips).some((it) => canPick(it, sel.asAdmin));
+         ${clips.length ? `${linked.length ? '<div class="gl-sub">צולם במגרש</div>' : ''}${albumsHtml(g, clips, 'video')}` : ''}`);
   return `<section>
     <div class="sec-head">${icon('photo')}<h2>הגלריה של הקבוצה</h2>
-      <button type="button" class="help-btn" data-help aria-label="איך זה עובד">?</button>
-      ${pickable && !sel.on ? `<span class="aside"><button type="button" class="chip-tool" data-sel="start">${icon('check')} בחירה</button></span>` : ''}</div>
-    ${canUpload ? `<button type="button" class="btn" data-upload>${icon('upload')} העלאת תמונות וסרטונים</button>
-      <input type="file" data-files accept="image/*,video/*" multiple hidden />` : ''}
-    <div class="seg gl-tabs" role="tablist" aria-label="תמונות או סרטונים">
-      <button type="button" role="tab" data-gtab="photos" aria-selected="${tab === 'photos'}">תמונות${photos.length ? ` <span class="num">${photos.length}</span>` : ''}</button>
-      <button type="button" role="tab" data-gtab="videos" aria-selected="${tab === 'videos'}">סרטונים${videoCount ? ` <span class="num">${videoCount}</span>` : ''}</button>
-    </div>
+      <button type="button" class="help-btn" data-help aria-label="איך זה עובד">?</button></div>
+    ${canUpload ? `<button type="button" class="btn" data-upload>${icon('upload')} העלאת תמונות וסרטונים</button>${fileInput}` : ''}
+    ${tabsHtml(tab, photos.length, clips.length + linked.length)}
     ${body}
+  </section>`;
+}
+
+// One game's page: every photo (or clip) of it, picking, and an upload that
+// already knows the game.
+function albumHtml(g, grp, sel) {
+  const canUpload = g.mode !== 'closed' && !g.blocked;
+  const photos = photosOf(grp.items), clips = clipsOf(grp.items);
+  if (shownTab === 'photos' && !photos.length) shownTab = 'videos';
+  if (shownTab === 'videos' && !clips.length) shownTab = 'photos';
+  const list = shownTab === 'videos' ? clips : photos;
+  const parents = new Set(grp.items.map((it) => it.byName)).size;
+  const pickable = list.some((it) => canPick(it, sel.asAdmin));
+  return `<section>
+    <button type="button" class="gl-back" data-back>${icon('chevron')} הגלריה</button>
+    <div class="sec-head">${icon('photo')}<h2>${gameTitle(grp.match)}</h2>
+      ${pickable && !sel.on ? `<span class="aside"><button type="button" class="chip-tool" data-sel="start">${icon('check')} בחירה</button></span>` : ''}</div>
+    <p class="note gl-meta num">${grp.match ? `${esc(shortDate(grp.match.date))} · ` : ''}${noun(shownTab === 'videos' ? 'video' : 'image', list.length)} ${parents === 1 ? 'מהורה אחד' : `מ-${parents} הורים`}</p>
+    ${photos.length && clips.length ? tabsHtml(shownTab, photos.length, clips.length) : ''}
+    <div class="gl-grid gl-album-grid">${list.map((it) => tile(g, it, sel)).join('')}</div>
+    ${canUpload && !sel.on ? `<button type="button" class="btn secondary gl-here" data-upload-here>${icon('upload')} העלאה למשחק הזה</button>${fileInput}` : ''}
   </section>
   ${sel.on ? selBar(sel) : ''}`;
 }
@@ -140,7 +184,8 @@ function helpSheet(g) {
 
       <h3>${icon('photo')} מה קורה אחרי ההעלאה</h3>
       <p>${review ? 'ההעלאה מופיעה בגלריה של כולם אחרי בדיקה קצרה' : 'ההעלאה מופיעה מיד בגלריה של כולם'}, עם השם שלכם.
-        העלאה שלכם אפשר למחוק בכל זמן: פותחים אותה ולוחצים <b>"מחיקה"</b>. כמה בבת אחת: <b>"בחירה"</b> ליד הכותרת, מסמנים ומוחקים.</p>
+        העלאה שלכם אפשר למחוק בכל זמן: פותחים אותה ולוחצים <b>"מחיקה"</b>. כמה בבת אחת: נכנסים למשחק, לוחצים <b>"בחירה"</b>, מסמנים ומוחקים.</p>
+      <p>הגלריה מסודרת לפי משחק: למעלה ההעלאות האחרונות, ומתחת כרטיס לכל משחק — לחיצה עליו פותחת את כל התמונות שלו.</p>
 
       <h3>${icon('eyeoff')} הסתרה</h3>
       <p>רואים תמונה של הילד שלכם ומעדיפים שלא תופיע? או משהו שלא מתאים לגלריה? פותחים את התמונה ולוחצים <b>"הסתרה"</b>.
@@ -156,7 +201,7 @@ function helpSheet(g) {
 
 /* ---- upload ---- */
 
-function uploadSheet(files, s, g, { asAdmin, onDone }) {
+function uploadSheet(files, s, g, { asAdmin, onDone, preset = null }) {
   const left = { ...g.left };
   const rows = files.map((file, i) => {
     const kind = kindOf(file);
@@ -165,6 +210,12 @@ function uploadSheet(files, s, g, { asAdmin, onDone }) {
     return { file, kind, i, state: ok ? 'wait' : 'over', pct: 0, msg: ok ? '' : 'מעבר למכסה היומית' };
   });
   const matches = photoMatches(s.matches, s.fixtures);
+  // From a game's page the upload goes to that game: first, and chosen.
+  if (preset) {
+    const at = matches.findIndex((m) => m.date === preset.date && m.opponent === preset.opponent);
+    const [m] = at >= 0 ? matches.splice(at, 1) : [{ date: preset.date, opponent: preset.opponent }];
+    matches.unshift(m);
+  }
   const images = rows.filter((r) => r.kind === 'image').length, videos = rows.length - images;
   const rowHtml = (r) => `<div class="up-row" data-row="${r.i}">
       <span class="up-kind">${icon(r.kind === 'video' ? 'film' : 'photo')}</span>
@@ -364,12 +415,16 @@ export function wireGallery(root, s, { isAdmin = () => false } = {}) {
   const host = root.querySelector('[data-gallery]');
   if (!host) return () => {};
   let alive = true;
-  const open = new Set();
   let g = cachedGallery();
   const asAdmin = isAdmin();
   const sel = { on: false, ids: new Set(), busy: false, asAdmin };
   const endSelect = () => { sel.on = false; sel.ids.clear(); sel.busy = false; };
-  const inTab = () => visible(g).filter((it) => (shownTab === 'videos' ? it.kind === 'video' : it.kind !== 'video'));
+  const kindOk = (it) => (shownTab === 'videos' ? it.kind === 'video' : it.kind !== 'video');
+  // The game page open, if it still has anything in it.
+  const openAlbum = () => (album === null ? null : groups(visible(g)).find((grp) => grp.key === album) || null);
+  const inTab = () => (openAlbum()?.items || []).filter(kindOk);
+  let preset = null;   // an upload started from a game's page
+  const toTop = () => host.scrollIntoView({ block: 'start', behavior: 'instant' });
 
   const paint = () => {
     if (!alive) return;
@@ -377,8 +432,10 @@ export function wireGallery(root, s, { isAdmin = () => false } = {}) {
     // rendered with.
     if (!g?.enabled) return;
     const items = visible(g);
-    shownTab = tabFor(items.filter((it) => it.kind !== 'video'), items.filter((it) => it.kind === 'video').length + s.videos.length);
-    host.innerHTML = galleryHtml(g, s, open, sel);
+    shownTab = tabFor(photosOf(items), clipsOf(items).length + s.videos.length);
+    const grp = openAlbum();
+    if (!grp) { album = null; endSelect(); }
+    host.innerHTML = grp ? albumHtml(g, grp, sel) : overviewHtml(g, s);
     hydratePosters(host);
   };
   const refresh = async () => {
@@ -390,8 +447,11 @@ export function wireGallery(root, s, { isAdmin = () => false } = {}) {
     const t = e.target.closest('button');
     if (!t) return;
     if (t.dataset.help !== undefined) { helpSheet(g); return; }
-    if (t.dataset.upload !== undefined) { host.querySelector('[data-files]').click(); return; }
-    if (t.dataset.more !== undefined) { open.add(t.dataset.more); paint(); return; }
+    if (t.dataset.upload !== undefined) { preset = null; host.querySelector('[data-files]').click(); return; }
+    if (t.dataset.uploadHere !== undefined) { preset = openAlbum()?.match || null; host.querySelector('[data-files]').click(); return; }
+    if (t.dataset.album !== undefined) { album = t.dataset.album; endSelect(); paint(); toTop(); return; }
+    if (t.dataset.back !== undefined) { album = null; endSelect(); paint(); toTop(); return; }
+    if (t.dataset.allAlbums !== undefined) { allAlbums = true; paint(); return; }
     if (t.dataset.gtab) { shownTab = t.dataset.gtab; endSelect(); paint(); return; }
     if (t.dataset.pick) {
       if (sel.ids.has(t.dataset.pick)) sel.ids.delete(t.dataset.pick); else sel.ids.add(t.dataset.pick);
@@ -409,8 +469,8 @@ export function wireGallery(root, s, { isAdmin = () => false } = {}) {
     }
     if (t.dataset.sel === 'delete') { deleteSelected(); return; }
     if (t.dataset.open) {
-      const kindOk = (it) => (shownTab === 'videos' ? it.kind === 'video' : it.kind !== 'video');
-      const list = groups(visible(g).filter(kindOk)).flatMap((grp) => grp.items);
+      // What the viewer swipes through: this game's page, or the latest row.
+      const list = album !== null ? inTab() : photosOf(visible(g)).slice(0, STRIP);
       viewer(g, list, Math.max(0, list.findIndex((it) => it.id === t.dataset.open)), { asAdmin, onChange: refresh });
     }
   });
@@ -439,6 +499,7 @@ export function wireGallery(root, s, { isAdmin = () => false } = {}) {
     if (files.length) {
       uploadSheet(files, s, g, {
         asAdmin,
+        preset,
         // Land on the tab of what was just uploaded.
         onDone: (kinds) => { shownTab = kinds.includes('image') ? 'photos' : 'videos'; refresh(); },
       });

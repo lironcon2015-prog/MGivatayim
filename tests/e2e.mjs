@@ -790,6 +790,12 @@ await step('several items are deleted at once by picking them; a parent picks on
   await parent.setInputFiles('[data-files]', [{ name: 'a1.png', mimeType: 'image/png', buffer: PNG }, { name: 'a2.png', mimeType: 'image/png', buffer: PNG }]);
   await parent.click('.sheet [data-go]');
   await parent.locator('[data-gallery] .gl-tile').nth(2).waitFor({ timeout: 8000 });
+  // The overview is short: latest uploads and a card per game. Picking
+  // happens on a game's page.
+  expect(await parent.locator('[data-gallery] [data-sel="start"]').count() === 0, 'picking offered on the overview');
+  await parent.locator('[data-gallery] .gl-album').first().click();
+  await parent.locator('[data-gallery] [data-back]').waitFor();
+  expect(await parent.locator('[data-gallery] .gl-album-grid .gl-tile').count() === 3, 'the game page does not hold all three photos');
   await parent.click('[data-sel="start"]');
   expect(await parent.locator('.gl-tile.pick.nopick').count() === 1, 'another parent\'s photo is pickable');
   await parent.click('[data-sel="all"]');
@@ -803,12 +809,14 @@ await step('several items are deleted at once by picking them; a parent picks on
 
 await step('the manager picks anyone\'s items; the uploads switch answers at once', async () => {
   await admin.goto(APP + '#/media');
+  await admin.locator('[data-gallery] .gl-album').first().click();
   await admin.click('[data-sel="start"]');
   await admin.locator('.gl-tile.pick:not(.nopick)').first().click();
   await admin.click('[data-sel="delete"]');
   await admin.click('.sheet [data-ok]');
   await admin.locator('.gl-selbar').waitFor({ state: 'detached' });
   expect(galleryFile().items.length === 0, 'the manager could not delete a parent\'s item');
+  await admin.locator('[data-gallery] .gl-empty').waitFor();   // the emptied game page falls back to the overview
   // A slow bridge: the switch must move before it answers.
   await admin.route(BRIDGE, async (r) => {
     if ((r.request().postData() || '').includes('"setGallery"')) await new Promise((z) => setTimeout(z, 1500));

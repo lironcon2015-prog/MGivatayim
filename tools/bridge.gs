@@ -131,6 +131,7 @@ function handle_(req) {
     case 'makePoster':    return makePoster_(req);
     case 'putLogo':       return putLogo_(req);
     case 'startLive':     return startLive_(req);
+    case 'publishLive':   return publishLive_(req);
     case 'setLiveCode':   return setLiveCode_(req);
     case 'clearLiveControl': return clearLiveControl_(req);
     case 'clearLive':     return clearLive_(req);
@@ -483,6 +484,15 @@ function requireControl_(req, l, allowEnded) {
   return who;
 }
 
+/* משחק חי שהמנהל עוד לא פרסם (meta.hidden): המנהל מכין הרכב הרבה לפני
+   המשחק, והמאמן צריך לראות אותו כדי לסמן מי הגיע — אבל אצל ההורים הוא
+   מופיע רק כשהמנהל מפרסם (publishLive), או לבד בשריקת הפתיחה, כדי שמשחק
+   לא יתועד בלי שאף הורה רואה אותו. נאכף כאן: הורה מקבל "אין משחק חי". */
+function seesLive_(who, l) {
+  if (!l.state || !l.meta.hidden) return true;
+  return who.admin || who.coach || (l.meta.controllers || []).indexOf(who.id) >= 0;
+}
+
 function checkLiveState_(state) {
   if (!state || typeof state !== 'object' || Array.isArray(state) || !state.id) {
     throw fail_('נתוני משחק לא תקינים', 'bad_live');
@@ -496,13 +506,15 @@ function getLive_(req) {
   // נוכחות בלבד, במטמון ולא בדרייב: כתיבה לקובץ כל 4 שניות מכל טלפון
   // הייתה חונקת את הגשר. מפתח לכל מכשיר — בלי רשימה משותפת שאפשר לדרוס.
   const cache = CacheService.getScriptCache();
-  if (!who.admin && req.watching && l.state && l.state.status !== 'ended') {
+  const sees = seesLive_(who, l);
+  if (!who.admin && sees && req.watching && l.state && l.state.status !== 'ended') {
     cache.put('watch:' + who.id, String(Date.now()), WATCH_TTL_S);
   }
   const out = {
     version: l.version, updatedAt: l.updatedAt || null, serverNow: Date.now(),
-    canControl: canControl_(who, l), isAdmin: who.admin,
+    canControl: sees && canControl_(who, l), isAdmin: who.admin,
   };
+  if (l.state && l.meta.hidden && sees) out.hidden = true;
   if (who.admin) {
     const users = access_().users;
     out.control = {
@@ -513,7 +525,7 @@ function getLive_(req) {
     };
   }
   if (req.since != null && Number(req.since) === Number(l.version)) out.unchanged = true;
-  else out.state = l.state;
+  else out.state = sees ? l.state : null;
   return out;
 }
 
@@ -537,7 +549,26 @@ function startLive_(req) {
     if (l.state && l.state.status !== 'ended' && l.state.id !== req.state.id && !req.replace) {
       throw fail_('כבר יש משחק חי פתוח. סיימו או בטלו אותו קודם.', 'live_exists');
     }
-    const next = { version: l.version + 1, updatedAt: new Date().toISOString(), state: req.state, meta: { controllers: [], code: null } };
+    // A new match starts hidden from parents until it is published or kicks
+    // off; `publish` opens it at once.
+    const hidden = req.publish !== true && (!req.state.status || req.state.status === 'setup');
+    const next = { version: l.version + 1, updatedAt: new Date().toISOString(), state: req.state, meta: { controllers: [], code: null, hidden: hidden } };
+    writeJson_(LIVE_FILE, next);
+    return { version: next.version, serverNow: Date.now() };
+  });
+}
+
+/* מנהל בלבד: פרסום להורים (או הסתרה חוזרת, רק לפני שריקת הפתיחה). הגרסה
+   עולה, כדי שהורה ששואל "מאז גרסה N" יקבל את המשחק. */
+function publishLive_(req) {
+  requireAdmin_(req);
+  return withLock_(() => {
+    const l = live_();
+    if (!l.state) throw fail_('אין משחק חי', 'no_live');
+    const hide = req.hidden === true;
+    if (hide && l.state.status !== 'setup') throw fail_('אי אפשר להסתיר משחק שכבר התחיל', 'bad_live');
+    l.meta.hidden = hide;
+    const next = { version: l.version + 1, updatedAt: new Date().toISOString(), state: l.state, meta: l.meta };
     writeJson_(LIVE_FILE, next);
     return { version: next.version, serverNow: Date.now() };
   });
@@ -551,6 +582,8 @@ function putLive_(req) {
     if (!l.state) throw fail_('אין משחק חי', 'no_live');
     if (l.state.id !== req.state.id) throw fail_('המשחק הוחלף בינתיים', 'conflict');
     if (Number(req.baseVersion) !== Number(l.version)) throw fail_('המשחק עודכן ממכשיר אחר', 'conflict');
+    // Kick-off publishes a hidden match: a match under way is everyone's.
+    if (req.state.status && req.state.status !== 'setup') l.meta.hidden = false;
     const next = { version: l.version + 1, updatedAt: new Date().toISOString(), state: req.state, meta: l.meta };
     writeJson_(LIVE_FILE, next);
     return { version: next.version, serverNow: Date.now() };

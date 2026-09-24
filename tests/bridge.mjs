@@ -369,7 +369,7 @@ console.log('live:');
 // attendance) — never the season, the live match or anyone's access.
 {
   const C = createBridge({ adminCode: ADMIN });
-  const coach = 'c'.repeat(64), parent = 'd'.repeat(64);
+  const coach = 'c'.repeat(64), parent = 'd'.repeat(64), other = 'e'.repeat(64);
   const approve = (key, name) => {
     C.post({ action: 'requestAccess', deviceKey: key, name });
     const id = C.post({ action: 'listUsers', adminCode: ADMIN }).result.find((u) => u.name === name).id;
@@ -378,6 +378,7 @@ console.log('live:');
   };
   const coachId = approve(coach, 'המאמן');
   approve(parent, 'הורה');
+  approve(other, 'הורה אחר');
   C.post({ action: 'putSeason', adminCode: ADMIN, baseVersion: 0, season: {
     players: [{ id: 'p1', name: 'איתי', minutes: 30 }],
     matches: [{ liveId: 'OLD', date: '2026-09-19', opponent: 'בני לוד', gf: 1, ga: 0, lineup: [{ pid: 'p1', pos: 'ST' }], events: [] }] } });
@@ -423,6 +424,37 @@ console.log('live:');
     assert.equal(err(C.post({ action: 'setCoachMatch', deviceKey: coach, liveId: 'M1', min: -1 })), 'bad_min');
     assert.equal(err(C.post({ action: 'setCoachMatch', deviceKey: coach, liveId: 'M1', min: 2.5 })), 'bad_min');
     assert.equal(err(C.post({ action: 'setCoachMatch', deviceKey: coach, liveId: 'M1', absent: 'p1' })), 'bad_absent');
+  });
+
+  test('a match opened ahead is hidden from parents until published; the coach and a controller see it', () => {
+    C.post({ action: 'clearLive', adminCode: ADMIN, discard: true });
+    C.post({ action: 'startLive', adminCode: ADMIN, state: { id: 'H1', status: 'setup', opponent: 'x' } });
+    const p0 = C.post({ action: 'getLive', deviceKey: parent }).result;
+    assert.equal(p0.state, null, 'a parent sees a match that was not published');
+    assert.equal(p0.canControl, false);
+    assert.equal(C.post({ action: 'getLive', deviceKey: coach }).result.state.id, 'H1', 'the coach does not see it');
+    assert.equal(C.post({ action: 'getLive', deviceKey: coach }).result.hidden, true);
+    // A parent who got a code sees it before it is published.
+    C.post({ action: 'setLiveCode', adminCode: ADMIN, code: '5151' });
+    assert.ok(C.post({ action: 'claimLive', deviceKey: parent, code: '5151' }).ok);
+    assert.equal(C.post({ action: 'getLive', deviceKey: parent }).result.state.id, 'H1', 'the controller does not see it');
+    assert.equal(C.post({ action: 'getLive', deviceKey: other }).result.state, null);
+    // Only the manager publishes; the parent polling "since" gets it.
+    const since = C.post({ action: 'getLive', deviceKey: other }).result.version;
+    assert.equal(err(C.post({ action: 'publishLive', deviceKey: parent })), 'bad_code');
+    assert.equal(err(C.post({ action: 'publishLive', deviceKey: coach })), 'bad_code');
+    C.post({ action: 'publishLive', adminCode: ADMIN });
+    const p1 = C.post({ action: 'getLive', deviceKey: other, since }).result;
+    assert.equal(p1.state && p1.state.id, 'H1', 'published, but a polling parent is told nothing changed');
+    assert.equal(p1.hidden, undefined);
+    // Hidden again before kick-off; kick-off publishes by itself.
+    C.post({ action: 'publishLive', adminCode: ADMIN, hidden: true });
+    assert.equal(C.post({ action: 'getLive', deviceKey: other }).result.state, null);
+    const v = C.post({ action: 'getLive', adminCode: ADMIN }).result.version;
+    C.post({ action: 'putLive', adminCode: ADMIN, baseVersion: v, state: { id: 'H1', status: 'running', opponent: 'x' } });
+    assert.equal(C.post({ action: 'getLive', deviceKey: other }).result.state.status, 'running', 'kick-off did not publish');
+    assert.equal(err(C.post({ action: 'publishLive', adminCode: ADMIN, hidden: true })), 'bad_live');
+    C.post({ action: 'clearLive', adminCode: ADMIN, discard: true });
   });
 
   test('a coach writes nothing else: not the season, not the live match, not access', () => {

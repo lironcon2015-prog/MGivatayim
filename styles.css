@@ -977,6 +977,10 @@ button.tl-item:focus-visible { outline: 2px solid var(--gold); outline-offset: 2
 .ms-score .sep { color: var(--faint); font-weight: 600; font-size: 1.8rem; }
 .ended-card p { display: flex; align-items: center; gap: .5rem; margin: 0; font-weight: 700; }
 .ended-card svg { width: 18px; height: 18px; color: var(--gold); flex: none; }
+.hidden-live p { display: flex; align-items: flex-start; gap: .5rem; margin: 0; line-height: 1.5; }
+.hidden-live p.note { display: block; margin-top: .5rem; }
+.hidden-live p > svg { width: 18px; height: 18px; color: var(--gold); flex: none; margin-top: .2rem; }
+.hidden-live .btn { margin-top: .8rem; }
 
 /* ═══ Home banner & nav ════════════════════════════════════════════════ */
 .live-banner {

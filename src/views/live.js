@@ -338,13 +338,14 @@ export function mountLive(view, ctx) {
       const others = ctx.schedule().length > (nextFixture() ? 1 : 0);
       return `<section><div class="card gate">
         <h2>אין משחק חי כרגע</h2>${next}
-        <p class="note">פתיחת משחק חי מציגה אותו לכל מי שיש לו גישה, עם שעון, תוצאה והרכב שמתעדכנים בזמן אמת. התאריך נקבע בשריקת הפתיחה — גם אם המשחק הוקדם או נדחה.</p>
+        <p class="note">אפשר לפתוח מתי שרוצים ולהכין הרכב. עד שתפרסמו (או עד שריקת הפתיחה) רק את/ה והמאמן רואים אותו. התאריך נקבע בשריקת הפתיחה — גם אם המשחק הוקדם או נדחה.</p>
         <button type="button" class="btn" data-act="new">${icon('play')} ${nm?.opponent ? `פתיחת משחק חי מול ${esc(nm.opponent)}` : 'פתיחת משחק חי'}</button>
         ${others || nm?.opponent ? `<button type="button" class="btn secondary" data-act="pick">${icon('calendar')} משחק אחר מהלוח…</button>` : ''}
       </div></section>`;
     }
     return `<section><div class="card gate"><h2>אין משחק חי כרגע</h2>${next}
-      <p class="note">כשהמשחק יתחיל, הוא יופיע כאן בזמן אמת.</p></div></section>`;
+      <p class="note">כשהמשחק יתחיל, הוא יופיע כאן בזמן אמת.</p></div></section>
+      <p class="gate-foot"><button type="button" class="linkish" data-act="claim">יש לי קוד שליטה במשחק</button></p>`;
   }
 
   // Any fixture in the schedule can go live now, whatever its date — games
@@ -390,7 +391,7 @@ export function mountLive(view, ctx) {
       </div>` : '';
 
     if (tab === 'minutes') {
-      view.innerHTML = `${scoreboard(st)}${tabs}<div data-mn-host>${liveMinutesHtml(st, now(), cfg, { folded: store.getFolded() === alertKey(st) })}</div>`;
+      view.innerHTML = `${scoreboard(st)}${hiddenNote()}${tabs}<div data-mn-host>${liveMinutesHtml(st, now(), cfg, { folded: store.getFolded() === alertKey(st) })}</div>`;
       lastMinute = minuteKey(st);
       window.scrollTo(0, scroll);
       hydratePosters(view);
@@ -400,6 +401,7 @@ export function mountLive(view, ctx) {
 
     view.innerHTML = `
       ${scoreboard(st)}
+      ${hiddenNote()}
       ${tabs}
       ${ctl ? `<section class="ctl-wrap">${controls(st)}${syncChip()}</section>` : ''}
       ${!ctl && S.netDown ? '<p class="sync off" role="status">אין חיבור — ייתכן שהמצב כאן לא עדכני</p>' : ''}
@@ -420,6 +422,18 @@ export function mountLive(view, ctx) {
     window.scrollTo(0, scroll);
     hydratePosters(view);
     tick();
+  }
+
+  // Not yet published: the manager prepares the match (lineup, a code for a
+  // parent) long before it, the coach marks who came, and parents see it only
+  // once the manager publishes — or by itself at the kick-off whistle.
+  function hiddenNote() {
+    if (!S.hidden) return '';
+    return `<section><div class="card hidden-live">
+      <p>${icon('eyeoff')}<span><b>ההורים עוד לא רואים את המשחק.</b> ${S.isAdmin ? 'רק את/ה, המאמן ומי שקיבל קוד שליטה.' : 'הוא יופיע אצלם כשהמנהל יפרסם אותו.'}</span></p>
+      ${S.isAdmin ? `<button type="button" class="btn small" data-act="publish">${icon('eye')} פרסום להורים</button>
+      <p class="note">בשריקת הפתיחה הוא מתפרסם לבד.</p>` : ''}
+    </div></section>`;
   }
 
   function endedPanel() {
@@ -762,6 +776,7 @@ export function mountLive(view, ctx) {
         </div>` : `<div class="more-block"><p class="ctl-who">${icon('check')} אתם שולטים במשחק הזה.</p></div>`}
         <div class="more-block">
           ${st.status === 'running' || st.status === 'break' ? '<button type="button" class="btn secondary" data-m="finish">סיום המשחק עכשיו</button>' : ''}
+          ${admin && !S.hidden && st.status === 'setup' ? '<button type="button" class="btn secondary" data-m="hide">הסתרה מההורים עד הפרסום</button>' : ''}
           ${admin ? '<button type="button" class="btn danger" data-m="cancel">ביטול המשחק החי (בלי שמירה)</button>' : ''}
         </div>`,
       onMount: ({ el }) => {
@@ -781,6 +796,10 @@ export function mountLive(view, ctx) {
           catch (err) { toast(esc(err.message), { kind: 'err' }); }
         });
         el.querySelector('[data-m="finish"]')?.addEventListener('click', () => { sh.close('next'); finish(); });
+        el.querySelector('[data-m="hide"]')?.addEventListener('click', async () => {
+          try { await S.admin('publishLive', { hidden: true }); sh.close('done'); toast('המשחק מוסתר מההורים עד שתפרסמו'); }
+          catch (err) { toast(esc(err.message), { kind: 'err' }); }
+        });
         el.querySelector('[data-m="cancel"]')?.addEventListener('click', async () => {
           sh.close('next');
           if (!(await confirmSheet({ title: 'לבטל את המשחק החי?', text: `המשחק יוסר מהמסך של כולם, ושום דבר ממנו לא יישמר — גם לא שערים, בישולים או חילופים שכבר תועדו.${st.fixture ? ' הוא יחזור ללוח המשחקים בתאריך המקורי.' : ''}`, ok: 'ביטול המשחק', cancel: 'חזרה', danger: true }))) return;
@@ -877,6 +896,12 @@ export function mountLive(view, ctx) {
     if (a === 'new') { t.disabled = true; newMatch(); return; }
     if (a === 'pick') { pickFixtureSheet(); return; }
     if (a === 'claim') { claimSheet(); return; }
+    if (a === 'publish') {
+      t.disabled = true;
+      try { await S.admin('publishLive'); toast('המשחק מופיע עכשיו אצל ההורים'); }
+      catch (err) { t.disabled = false; toast(esc(err.message), { kind: 'err' }); }
+      return;
+    }
     if (a === 'watchers') { watchersSheet(); return; }
     if (!st) return;
     if (a === 'start') {

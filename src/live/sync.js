@@ -63,6 +63,7 @@ export class LiveSession {
     this.retryMs = 2000;
     this.flushing = false;
     this.netDown = false;      // the last request never reached the bridge
+    this.hidden = false;       // not yet published to parents (manager, coach, controllers see it)
     const saved = load();
     if (saved?.liveId && Array.isArray(saved.ops)) this.saved = saved;
     const snap = loadSnap();
@@ -71,6 +72,7 @@ export class LiveSession {
       this.version = snap.version;
       this.canControl = !!snap.canControl;
       this.isAdmin = !!snap.isAdmin;
+      this.hidden = !!snap.hidden;
       this.loaded = true;
       offset = Number(snap.offset) || 0;
       this.adoptSaved(false);
@@ -78,7 +80,7 @@ export class LiveSession {
   }
 
   remember() {
-    saveSnap(this.confirmed ? { at: Date.now(), state: this.confirmed, version: this.version, canControl: this.canControl, isAdmin: this.isAdmin, offset } : null);
+    saveSnap(this.confirmed ? { at: Date.now(), state: this.confirmed, version: this.version, canControl: this.canControl, isAdmin: this.isAdmin, hidden: this.hidden, offset } : null);
   }
 
   /* ── reading ── */
@@ -125,7 +127,8 @@ export class LiveSession {
       if (this.watching) params.watching = true;
       const r = await call('getLive', params, { asAdmin: this.asAdmin() });
       learnTime(r.serverNow, t0, Date.now());
-      let changed = !this.loaded || r.canControl !== this.canControl || JSON.stringify(r.control) !== JSON.stringify(this.control);
+      let changed = !this.loaded || r.canControl !== this.canControl || !!r.hidden !== this.hidden || JSON.stringify(r.control) !== JSON.stringify(this.control);
+      this.hidden = !!r.hidden;
       this.canControl = !!r.canControl;
       this.isAdmin = !!r.isAdmin;
       this.control = r.control || null;

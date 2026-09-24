@@ -716,10 +716,19 @@ await step('before kick-off the coach sets the minimum and who came; a parent se
   // They turned up after all: the one player on the bench, for the alert.
   await coach.locator(`[data-mn-present="${benched.id}"][data-mn-state="here"]`).click();
   await until(() => !coachFile().matches[id].absent.includes(benched.id), 'the correction to reach Drive');
+  coach.benchName = benched.name;
+});
+
+await step('a match opened ahead is hidden from parents until the manager publishes it', async () => {
   await parent.goto(APP + '#/live');
+  await waitText(parent, 'אין משחק חי כרגע');
+  expect(await parent.locator('.score-card').count() === 0, 'a parent sees a match that was not published');
+  await coach.locator('.hidden-live').waitFor();
+  expect(await coach.locator('.hidden-live [data-act="publish"]').count() === 0, 'the coach can publish');
+  await admin.click('.hidden-live [data-act="publish"]');
+  await admin.locator('.hidden-live').waitFor({ state: 'detached', timeout: 8000 });
   await parent.locator('.score-card').waitFor({ timeout: 8000 });
   expect(await parent.locator('[data-tab="minutes"]').count() === 0, 'a parent sees the minutes tab');
-  coach.benchName = benched.name;
 });
 
 await step('at the break before the last period the coach is alerted once, wherever they are', async () => {

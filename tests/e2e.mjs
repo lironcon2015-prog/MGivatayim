@@ -156,6 +156,8 @@ await step('manager fills a season and saves it', async () => {
   await adminTab(admin, 'team');
   await admin.fill('[data-path="team.league"]', 'ליגת ילדים א');
   await admin.fill('[data-path="team.season"]', '2026/27');
+  await admin.fill('[data-path="team.homeVenue.name"]', 'אצטדיון גבעתיים');
+  await admin.fill('[data-path="team.homeVenue.address"]', 'רחוב המעיין 4, גבעתיים');
   await adminTab(admin, 'players');
   await admin.click('[data-add="players"]');
   await admin.fill('[data-path="players.0.name"]', 'איתי');
@@ -173,6 +175,7 @@ await step('manager fills a season and saves it', async () => {
   expect(saved.version === 1, 'version is ' + saved.version);
   expect(saved.season.nextMatch.kickoff === '2030-10-05T10:30:00+03:00', 'kickoff stored as ' + saved.season.nextMatch.kickoff);
   expect(saved.season.matches[0].gf === 2 && typeof saved.season.matches[0].gf === 'number', 'score not stored as a number');
+  expect(saved.season.team.homeVenue?.address === 'רחוב המעיין 4, גבעתיים', 'home ground not saved: ' + JSON.stringify(saved.season.team));
   expect(!JSON.stringify(saved).includes('__open'), 'UI state leaked into the saved data');
 });
 

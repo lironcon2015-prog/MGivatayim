@@ -46,6 +46,17 @@ function streaks(chronological) {
 
 const sameDay = (f, nm) => !!nm?.kickoff && String(nm.kickoff).slice(0, 10) === f.date;
 
+// A home game with no venue of its own is at the team's home ground
+// (team.homeVenue, set once in the settings). Filled in here, on every load,
+// and never written back: change the home ground and every home game follows.
+// A venue given for a game wins; away games get nothing.
+function withHomeVenue(game, home) {
+  if (!game || game.home === false || !(home?.name || home?.address)) return game;
+  const v = game.venue || {};
+  if (v.name || v.address) return game;
+  return { ...game, venue: { ...v, name: home.name || '', address: home.address || '' } };
+}
+
 export function buildSeason(input, now = new Date()) {
   // Every list may be missing or empty: the data file is filled in by hand,
   // often section by section, and a season that has not kicked off yet has
@@ -54,7 +65,7 @@ export function buildSeason(input, now = new Date()) {
     ...input,
     team: { name: 'מכבי גבעתיים', ...(input.team ?? {}) },
     matches: (input.matches ?? []).filter(Boolean).map(cleanPlayedMatch),
-    fixtures: input.fixtures ?? [],
+    fixtures: (input.fixtures ?? []).map((f) => withHomeVenue(f, input.team?.homeVenue)),
     players: input.players ?? [],
     videos: input.videos ?? [],
     links: input.links ?? [],
@@ -99,7 +110,7 @@ export function buildSeason(input, now = new Date()) {
   // and kit), else the first fixture still ahead in the schedule. Derived on
   // every load, so entering a result moves the schedule on by itself.
   const upcoming = upcomingFixtures(raw.fixtures, raw.matches, now);
-  const nextMatch = raw.nextMatch?.opponent ? raw.nextMatch : fixtureAsNext(upcoming[0]);
+  const nextMatch = raw.nextMatch?.opponent ? withHomeVenue(raw.nextMatch, raw.team.homeVenue) : fixtureAsNext(upcoming[0]);
 
   return {
     ...raw,

@@ -29,6 +29,12 @@ const TEAM_FIELDS = [
   { key: 'season', label: 'עונה', placeholder: currentSeasonLabel(), hint: `ריק = ${currentSeasonLabel()}, לפי התאריך` },
 ];
 
+// The home ground: the venue of every home game that does not name its own.
+const HOME_VENUE_FIELDS = [
+  { key: 'name', label: 'שם המגרש', wide: true },
+  { key: 'address', label: 'כתובת', hint: 'ממנה נבנה הניווט ב-Waze', wide: true },
+];
+
 const NEXT_FIELDS = [
   { key: 'opponent', label: 'יריבה', required: true },
   { key: 'home', label: 'בית / חוץ', type: 'select', options: HOME_OPTS },
@@ -183,7 +189,7 @@ function fieldHtml(field, path, value) {
       input = `<input type="${type}" ${attrs}${extra} value="${esc(value ?? '')}"${field.placeholder ? ` placeholder="${esc(field.placeholder)}"` : ''} />`;
     }
   }
-  return `<label class="field${field.type === 'textarea' ? ' span-2' : ''}" for="${id}"><span>${esc(field.label)}${req}</span>${input}${hint}</label>`;
+  return `<label class="field${field.type === 'textarea' || field.wide ? ' span-2' : ''}" for="${id}"><span>${esc(field.label)}${req}</span>${input}${hint}</label>`;
 }
 
 const grid = (fields, base, obj) =>
@@ -764,6 +770,11 @@ export function mountAdmin(view, ctx) {
           <div class="card">${grid(TEAM_FIELDS, 'team.', draft.team)}</div>
         </section>
         <section>
+          <div class="sec-head">${icon('pin')}<h2>המגרש הביתי</h2></div>
+          <div class="card">${grid(HOME_VENUE_FIELDS, 'team.homeVenue.', draft.team?.homeVenue || {})}
+            <p class="note">ברירת המחדל לכל משחק בית — בלוח המשחקים, במשחק הבא ובניווט. משחק שהוזן לו מגרש אחר נשאר עם שלו.</p></div>
+        </section>
+        <section>
           <div class="sec-head">${icon('clock')}<h2>מבנה משחק</h2></div>
           <div class="card" data-format-editor>${formatEditorHtml(cleanFormat(draft.settings?.format), cleanSize(draft.settings?.size))}
             <p class="note">ברירת המחדל לכל משחק חי. אפשר לשנות גם בפתיחת משחק מסוים.</p></div>
@@ -842,6 +853,7 @@ export function mountAdmin(view, ctx) {
       const list = LISTS.find((l) => path.startsWith(l.path + '.'));
       const fields = list ? list.fields
         : path.startsWith('nextMatch.') ? NEXT_FIELDS
+        : path.startsWith('team.homeVenue.') ? HOME_VENUE_FIELDS
         : path.startsWith('team.') ? TEAM_FIELDS : [{ key: 'note' }];
       const field = fields.find((f) => f.key === el.dataset.field) || {};
       setPath(draft, path, coerce(field, el.value, el));

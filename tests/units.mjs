@@ -318,6 +318,24 @@ if (process.argv[1].endsWith('units.mjs')) {
   const model = await import('./units-live.mjs').catch((e) => (e.code === 'ERR_MODULE_NOT_FOUND' ? null : Promise.reject(e)));
   if (model) await model.run(test);
   await (await import('./units-minutes.mjs')).run(test);
+await test('a home game with no venue is at the home ground; its own venue and away games are left alone', async () => {
+  const { buildSeason } = await import('../src/season.js');
+  const now = new Date('2026-10-01T12:00:00+03:00');
+  const team = { name: 'מכבי גבעתיים', homeVenue: { name: 'אצטדיון גבעתיים', address: 'רחוב המעיין 4, גבעתיים' } };
+  const fixtures = [
+    { date: '2026-10-03', opponent: 'א', home: true, venue: { name: '', address: '' } },
+    { date: '2026-10-10', opponent: 'ב', home: true, venue: { name: 'מגרש חלופי', address: 'רחוב אחר 1' } },
+    { date: '2026-10-17', opponent: 'ג', home: false, venue: { name: '', address: '' } },
+    { date: '2026-10-24', opponent: 'ד', home: true },
+  ];
+  const s = buildSeason({ team, fixtures }, now);
+  const by = Object.fromEntries(s.schedule.map((f) => [f.opponent, f.venue?.name || '']));
+  assert.deepEqual(by, { 'א': 'אצטדיון גבעתיים', 'ב': 'מגרש חלופי', 'ג': '', 'ד': 'אצטדיון גבעתיים' });
+  assert.equal(s.nextMatch.venue.address, 'רחוב המעיין 4, גבעתיים', 'the next-match card (and its Waze link) has no address');
+  assert.equal(fixtures[0].venue.name, '', 'the stored fixture was written to');
+  assert.equal(buildSeason({ team: { name: 'x' }, fixtures }, now).schedule[0].venue.name, '', 'no home ground set, yet a venue appeared');
+});
+
 await test('a gallery upload can go to any past game — with a result or only on the schedule', async () => {
   const { photoMatches } = await import('../src/fixtures.js');
   const now = new Date('2026-10-20T12:00:00+03:00');

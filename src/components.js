@@ -1,11 +1,19 @@
 import { outcomeOf, OUTCOMES } from './season.js';
-import { shortDate, esc, safeUrl } from './format.js';
+import { esc, safeUrl } from './format.js';
 import { icon } from './icons.js';
 import { youtubeThumb } from './posters.js';
 
 // "מחזור 7", "משחק אימון", or nothing — never "מחזור null" for a match
 // entered without one.
 export const roundText = (r, friendly = false) => (friendly ? 'משחק אימון' : r != null && r !== '' ? `מחזור ${r}` : '');
+
+// A game's date in a row's narrow date column: day and month, the year in
+// small type under them. "03.10.26" on one line was wider than the column in
+// Rubik and ran into the home/away pill beside it.
+const whenHtml = (iso) => {
+  const [year, month, day] = String(iso).split('-');
+  return `<span class="when"><b class="num">${esc(`${day}.${month}`)}</b><span class="num">${esc(year)}</span></span>`;
+};
 
 export const CLASS_OF = { win: 'is-win', draw: 'is-draw', loss: 'is-loss' };
 
@@ -43,7 +51,7 @@ export function matchRow(match, i) {
   const o = outcomeOf(match);
   const tag = Number.isInteger(i) ? 'button' : 'div';
   return `<${tag} class="match"${tag === 'button' ? ` type="button" data-match="${i}"` : ''}>
-    <span class="when"><b class="num">${shortDate(match.date)}</b></span>
+    ${whenHtml(match.date)}
     <span class="ha">${match.home ? 'בית' : 'חוץ'}</span>
     <span class="who"><b>${esc(match.opponent)}</b>${roundText(match.round, match.friendly) ? `<span>${esc(roundText(match.round, match.friendly))}</span>` : ''}</span>
     ${scoreEl(match)}
@@ -56,7 +64,7 @@ export function matchRow(match, i) {
 export function fixtureRow(f) {
   const sub = [roundText(f.round, f.friendly), f.venue?.name].filter(Boolean).map(esc).join(' · ');
   return `<div class="match fixture-row">
-    <span class="when"><b class="num">${shortDate(f.date)}</b></span>
+    ${whenHtml(f.date)}
     <span class="ha">${f.home !== false ? 'בית' : 'חוץ'}</span>
     <span class="who"><b>${esc(f.opponent)}</b>${sub ? `<span>${sub}</span>` : ''}</span>
     <span class="kick num">${f.time ? esc(f.time) : 'טרם נקבע'}</span>

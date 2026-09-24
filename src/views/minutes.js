@@ -8,7 +8,7 @@
 
 import * as M from '../live/model.js';
 import * as MN from '../minutes.js';
-import { esc, shortName } from '../format.js';
+import { esc, shortName, shortDate } from '../format.js';
 import { icon } from '../icons.js';
 import { openSheet } from '../ui/sheet.js';
 import { sectionHead } from '../components.js';
@@ -244,7 +244,7 @@ function tableHtml(sm) {
 function mapHtml(sm, s) {
   const cols = sm.matches.map((x) => {
     const idx = s.recent.indexOf(x.match);
-    return `<th><button type="button" class="mn-col" data-match="${idx}" aria-label="${esc(`מול ${x.match.opponent}`)}"><span class="num">${dm(x.match.date)}</span><i class="mn-res ${outcomeOf(x.match)}"></i></button></th>`;
+    return `<th><button type="button" class="mn-col" data-match="${idx}" aria-label="${esc(`מול ${x.match.opponent}, ${shortDate(x.match.date)}`)}"><span class="num">${dm(x.match.date)}</span><i class="mn-res ${outcomeOf(x.match)}"></i></button></th>`;
   }).join('');
   const rows = sm.players.map((p) => `<tr>
       <th class="nm"><button type="button" class="mn-pl" data-mnp="${esc(p.id)}">${esc(shortName(p.name))}</button></th>
@@ -268,10 +268,10 @@ function playerSheet(sm, s, pid) {
     const of = total(x.match.format);
     const where = `<small>${x.match.home ? 'בית' : 'חוץ'}</small>`;
     if (c.absent) {
-      return `<div class="mn-h absent"><span class="num mn-d">${dm(x.match.date)}</span><span class="mn-o">${esc(x.match.opponent)} ${where}</span><span class="mn-v">לא הגיע</span></div>`;
+      return `<div class="mn-h absent"><span class="num mn-d">${esc(shortDate(x.match.date))}</span><span class="mn-o">${esc(x.match.opponent)} ${where}</span><span class="mn-v">לא הגיע</span></div>`;
     }
     return `<div class="mn-h${c.short ? ' short' : ''}${c.started ? ' started' : ''}">
-        <span class="num mn-d">${dm(x.match.date)}</span>
+        <span class="num mn-d">${esc(shortDate(x.match.date))}</span>
         <span class="mn-o">${esc(x.match.opponent)} ${where}${c.started ? ' <span class="chip">פתח</span>' : ''}</span>
         <span class="mn-v num">${mins(c.minutes)}</span>
         <span class="mn-track" aria-hidden="true">${c.spans.map(([a, w]) => `<i class="mn-span" style="inset-inline-start:${(a * 100).toFixed(1)}%;width:${(w * 100).toFixed(1)}%"></i>`).join('')}<i class="mn-min" style="inset-inline-start:${pct(x.min, of)}%"></i></span>

@@ -332,8 +332,7 @@ export function mountLive(view, ctx) {
 
   function noLive() {
     const nm = ctx.nextMatch;
-    const when = (d) => esc(d.split('-').reverse().slice(0, 2).join('.'));
-    const next = nm?.opponent ? `<p class="gate-lead">המשחק הבא: <b>${esc(nm.opponent)}</b>${nm.kickoff ? ` · ${when(splitKickoff(nm.kickoff).date)}` : ''}</p>` : '';
+    const next = nm?.opponent ? `<p class="gate-lead">המשחק הבא: <b>${esc(nm.opponent)}</b>${nm.kickoff ? ` · <span class="num">${esc(shortDate(splitKickoff(nm.kickoff).date))}</span>` : ''}</p>` : '';
     if (ctx.isAdmin()) {
       const others = ctx.schedule().length > (nextFixture() ? 1 : 0);
       return `<section><div class="card gate">

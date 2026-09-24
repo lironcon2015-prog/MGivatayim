@@ -542,6 +542,13 @@ await step('a pasted schedule becomes the next match and the list after it', asy
   await parent.locator('.hero', { hasText: 'הפועל לוח' }).waitFor({ timeout: 8000 });
   await parent.locator('.fixture-row', { hasText: 'בני לוח' }).waitFor();
   expect((await parent.locator('.fixture-row', { hasText: 'בני לוח' }).innerText()).includes('טרם נקבע'), 'a missing time should say so');
+  // The date column holds its text: nothing spills into the home/away pill.
+  const clash = await parent.locator('.match').evaluateAll((rows) => rows.map((r) => {
+    const w = r.querySelector('.when'), ha = r.querySelector('.ha');
+    const kids = [...w.children].map((c) => c.getBoundingClientRect());
+    return kids.some((k) => k.left < ha.getBoundingClientRect().right - 0.5) || w.scrollWidth > w.clientWidth ? r.innerText.replace(/\s+/g, ' ') : null;
+  }).filter(Boolean));
+  expect(!clash.length, 'a date runs into its pill: ' + clash.join(' | '));
 });
 
 const israelToday = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem' }).format(new Date());

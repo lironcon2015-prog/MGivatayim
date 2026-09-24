@@ -68,7 +68,7 @@ const LISTS = [
     ],
   },
   {
-    path: 'matches', title: 'תוצאות משחקים', glyph: 'trophy', add: 'תוצאה', prepend: true, tab: 'games', limit: 5,
+    path: 'matches', title: 'תוצאות משחקים', glyph: 'trophy', add: 'תוצאה', tab: 'games', limit: 5,
     blank: () => ({ date: today(), opponent: '', home: true, round: null, gf: 0, ga: 0 }),
     label: (m) => `${m.opponent || 'משחק חדש'} · ${m.gf ?? '?'}:${m.ga ?? '?'}`,
     sum: (m) => ({ title: m.opponent || 'משחק חדש', sub: [m.date && shortDate(m.date), m.home === false ? 'חוץ' : 'בית', roundText(m.round, m.friendly)].filter(Boolean).join(' · '), score: [m.gf, m.ga] }),
@@ -97,7 +97,7 @@ const LISTS = [
     ],
   },
   {
-    path: 'videos', title: 'סרטונים', glyph: 'film', add: 'סרטון', prepend: true, tab: 'media', limit: 5,
+    path: 'videos', title: 'סרטונים', glyph: 'film', add: 'סרטון', tab: 'media', limit: 5,
     blank: () => ({ title: '', round: null, duration: '', url: '', featured: false }),
     label: (v) => v.title || 'סרטון חדש',
     sum: (v) => ({ title: v.title || 'סרטון חדש', sub: [v.round != null && v.round !== '' ? `מחזור ${v.round}` : '', v.duration, v.featured ? 'נבחר' : ''].filter(Boolean).join(' · ') }),
@@ -985,9 +985,15 @@ export function mountAdmin(view, ctx) {
       const item = list.blank();
       for (const other of arr) setOpen(other, false);
       setOpen(item, true);
-      if (list.prepend) arr.unshift(item); else arr.push(item);
+      // A new row opens at the top of its list, under the button that made
+      // it — at the bottom it opened out of sight, past rows the limit hides.
+      // Games move to their date's place on save.
+      arr.unshift(item);
       setPath(draft, list.path, arr);
       touch(); paint();
+      const row = view.querySelector(`details[data-item="${list.path}.0"]`);
+      row?.closest('section')?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+      row?.querySelector('input:not([type="date"]):not([type="time"]), textarea')?.focus({ preventScroll: true });
       return;
     }
     if (t.dataset.remove) {

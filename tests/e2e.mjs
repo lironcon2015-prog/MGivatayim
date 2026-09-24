@@ -464,10 +464,11 @@ await step('a game added by hand is saved in date order, and saving closes the o
   await adminTab(admin, 'games');
   for (const [date, opp] of [['2031-03-20', 'מאוחר'], ['2031-03-06', 'מוקדם']]) {
     await admin.click('[data-add="fixtures"]');
-    const i = (await admin.locator('details[data-item^="fixtures."]').count()) - 1;
-    await admin.fill(`[data-path="fixtures.${i}.date"]`, date);
-    await admin.fill(`[data-path="fixtures.${i}.opponent"]`, opp);
-    if (opp === 'מוקדם') await admin.selectOption(`[data-path="fixtures.${i}.round"]`, 'f');
+    // The new row opens first in the list, not after the rest of the season.
+    expect(await admin.locator('details[data-item^="fixtures."]').first().getAttribute('open') !== null, 'the new row did not open at the top');
+    await admin.fill('[data-path="fixtures.0.date"]', date);
+    await admin.fill('[data-path="fixtures.0.opponent"]', opp);
+    if (opp === 'מוקדם') await admin.selectOption('[data-path="fixtures.0.round"]', 'f');
   }
   expect(await admin.locator('details[data-item^="fixtures."][open]').count() === 1, 'opening a new row left the previous one open');
   await admin.click('#save');

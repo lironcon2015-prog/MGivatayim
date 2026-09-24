@@ -1359,3 +1359,7 @@ body.with-nav .gl-selbar { bottom: calc(var(--nav-space) + .5rem); }
 .gl-meta { margin: -.35rem .15rem .8rem; }
 .gl-album-grid { margin-top: .8rem; }
 .gl-here { margin-top: 1rem; }
+
+/* A section scrolled to (a new row in the manager's lists) keeps its heading
+   off the screen's edge. */
+section { scroll-margin-top: 12px; }

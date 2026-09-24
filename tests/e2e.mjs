@@ -230,8 +230,8 @@ await step('manager approves the parent', async () => {
   await waitText(admin, 'אין בקשות חדשות');
 });
 
-await step('after approval the parent sees the season', async () => {
-  await parent.click('#recheck');
+await step('after approval the parent sees the season on returning to the app, with no tap', async () => {
+  await parent.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
   await waitText(parent, 'בני לוד');
   await waitText(parent, 'הפועל כוכבים');
   await parent.locator('.hero .side:not(.us) .opp-logo[src^="blob:"]').waitFor({ timeout: 8000 });
@@ -449,6 +449,14 @@ await step('a history row opens the match with its goals and subs', async () => 
   await parent.locator('button.match', { hasText: 'מכבי נחלים' }).first().click();
   await parent.locator('.sheet .tl', { hasText: 'גיא פרץ' }).waitFor();
   await parent.locator('.sheet-x').click();
+});
+
+await step('the back button (a route change) closes an open sheet instead of leaving it over the next screen', async () => {
+  await parent.locator('button.match', { hasText: 'מכבי נחלים' }).first().click();
+  await parent.locator('.sheet').waitFor();
+  await parent.evaluate(() => { location.hash = '#/stats'; });
+  await parent.waitForFunction(() => !document.querySelector('.sheet'), null, { timeout: 3000 });
+  await parent.goto(APP + '#/');
 });
 
 await step('the next live match opens with the last starting lineup, capped at the size', async () => {

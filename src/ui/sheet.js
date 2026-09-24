@@ -8,6 +8,12 @@ import { esc } from '../format.js';
 let openCount = 0;
 const reduceMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+// A sheet belongs to the screen it opened on. Android's back button (and a
+// swipe back) changes the route under an open sheet, which then sat on top
+// of the new screen; any route change closes them.
+const openClosers = new Set();
+window.addEventListener('hashchange', () => { for (const close of [...openClosers]) close('nav'); });
+
 export function openSheet({ title, subtitle = '', body = '', onMount, onClose, tall = false, label }) {
   const back = document.createElement('div');
   back.className = 'sheet-back';
@@ -34,6 +40,7 @@ export function openSheet({ title, subtitle = '', body = '', onMount, onClose, t
   const close = (reason) => {
     if (closed) return;
     closed = true;
+    openClosers.delete(close);
     document.removeEventListener('keydown', onKey, true);
     sheet.classList.remove('in');
     back.classList.remove('in');
@@ -57,6 +64,7 @@ export function openSheet({ title, subtitle = '', body = '', onMount, onClose, t
     else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
   };
   document.addEventListener('keydown', onKey, true);
+  openClosers.add(close);
   back.addEventListener('click', () => close('backdrop'));
   sheet.querySelector('.sheet-x').addEventListener('click', () => close('x'));
 

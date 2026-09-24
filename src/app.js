@@ -327,9 +327,23 @@ function render() {
         requestAccess(name);
       });
       return;
-    case 'pending':
+    case 'pending': {
       view.innerHTML = gate.pendingScreen(state.name);
-      teardown = wireInstall(view);
+      // The approval usually comes while the parent is in WhatsApp: coming
+      // back to the app (or waiting on this screen) finds it without a tap.
+      // Quiet: a check that is still pending draws nothing.
+      const quiet = async () => {
+        if (document.visibilityState !== 'visible' || state.access !== 'pending') return;
+        try {
+          const r = await call('hello');
+          if (r.status === 'approved') refresh();
+          else if (r.status !== 'pending') { state.access = r.status; render(); }
+        } catch { /* no network: the button is still there */ }
+      };
+      document.addEventListener('visibilitychange', quiet);
+      const every = setInterval(quiet, 20000);
+      const unInstall = wireInstall(view);
+      teardown = () => { document.removeEventListener('visibilitychange', quiet); clearInterval(every); unInstall?.(); };
       view.querySelector('#recheck').addEventListener('click', async (e) => {
         e.target.disabled = true;
         view.querySelector('#recheck-msg').textContent = 'בודק…';
@@ -340,6 +354,7 @@ function render() {
         }
       });
       return;
+    }
     case 'rejected':
     case 'revoked':
       view.innerHTML = gate.deniedScreen(state.access);

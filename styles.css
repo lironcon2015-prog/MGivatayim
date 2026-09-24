@@ -551,6 +551,8 @@ section { margin-top: 1.9rem; }
 .next-auto { display: flex; align-items: center; gap: .7rem; }
 .next-auto .ei-main b { font-size: 1.05rem; }
 .next-auto .ei-main small { font-size: .8rem; }
+.invite-kind { margin-bottom: .8rem; }
+.invite-kind button { font-size: .8rem; }
 .invite-more summary { cursor: pointer; font-size: .82rem; font-weight: 700; color: var(--gold); margin-top: .6rem; }
 .invite-more .invite-preview { margin-top: .6rem; }
 .btn.wide { width: 100%; margin-top: .9rem; }

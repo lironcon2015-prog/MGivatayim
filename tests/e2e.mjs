@@ -196,6 +196,17 @@ await step('the access tab has an invitation with the app\'s address, ready for 
   expect(!preview.includes('#'), 'the invitation must not carry a route or anything after the address');
 });
 
+await step('the toggle switches what copy and WhatsApp send: the parent or coach guide', async () => {
+  for (const [kind, page] of [['parent', 'docs/parent.html'], ['coach', 'docs/coach.html']]) {
+    await admin.click(`[data-invite-kind="${kind}"]`);
+    const wa = decodeURIComponent(await admin.locator('[data-invite-wa]').getAttribute('href'));
+    expect(wa.includes(APP + page), `${kind}: whatsapp sends ` + wa);
+    expect((await admin.locator('.invite-preview').textContent()).includes(APP + page), `${kind}: preview`);
+  }
+  await admin.click('[data-invite-kind="app"]');
+  expect(!decodeURIComponent(await admin.locator('[data-invite-wa]').getAttribute('href')).includes('docs/'), 'back to short: still a guide');
+});
+
 await step('manager approves the parent', async () => {
   await admin.click('[data-tab="access"]');
   await waitText(admin, 'אבא של איתי');

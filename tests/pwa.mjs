@@ -125,6 +125,20 @@ await step('unsaved manager work blocks the automatic reload; a bar is offered i
   await admin.close();
 });
 
+await step('an open sheet (a goal half entered) blocks the automatic reload too', async () => {
+  // The last deploy may still be reloading this tab: settle on it first.
+  await page.waitForTimeout(1500);
+  await page.reload();
+  await page.waitForFunction((v) => document.getElementById('app-version')?.textContent === v && !!navigator.serviceWorker.controller, versions(site).json, { timeout: 15000 });
+  const loadedAt = await page.evaluate(() => performance.timeOrigin);
+  await page.evaluate(() => import('./src/ui/sheet.js').then((m) => m.openSheet({ title: 'שער לנו', body: 'מי הבקיע?' })));
+  await page.locator('.sheet').waitFor();
+  deploy();
+  await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+  await page.locator('.update-bar').waitFor({ timeout: 15000 });
+  expect(await page.evaluate(() => performance.timeOrigin) === loadedAt, 'the page reloaded under an open sheet');
+});
+
 await browser.close();
 server.close();
 bridgeServer.close();

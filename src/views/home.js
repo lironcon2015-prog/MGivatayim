@@ -3,6 +3,9 @@ import { longDate, clock, pct, dec, esc, safeUrl, splitDuration, pad2, wazeLink,
 import { icon } from '../icons.js';
 import { crestImg, oppLogo, roundText, sectionHead, formPill, matchRow, fixtureRow, leaderRow, tile, splitBar, linkRow, videoCard } from '../components.js';
 
+// Videos and links are left off the home screen while there are none: a
+// summary page of empty cards reads as an app nobody uses. Their own screen
+// (media) keeps its empty states.
 // "Next match" is the page's lead card, so its title lives inside it as a
 // gold eyebrow instead of a section head above it.
 const eyebrow = (aside = '') => `<div class="hero-top">
@@ -108,15 +111,15 @@ export function renderHome(s) {
     <div class="card rows">${s.recent.length ? s.recent.map(matchRow).join('') : '<div class="empty">טרם נוספו משחקים.</div>'}</div>
   </section>
 
-  <section>
+  ${s.videos.length ? `<section>
     ${sectionHead('סרטונים מהעונה', '<a href="#/media">לכל הסרטונים</a>', 'film')}
-    ${s.videos.length ? videoCard(s.videos[0]) : '<div class="card"><div class="empty">טרם הועלו סרטונים.</div></div>'}
-  </section>
+    ${videoCard(s.videos[0])}
+  </section>` : ''}
 
-  <section>
+  ${s.links.length ? `<section>
     ${sectionHead('קישורים שימושיים', `${s.links.length} קישורים`, 'link')}
-    <div class="card rows">${s.links.length ? s.links.map(linkRow).join('') : '<div class="empty">טרם נוספו קישורים.</div>'}</div>
-  </section>
+    <div class="card rows">${s.links.map(linkRow).join('')}</div>
+  </section>` : ''}
 
   <section>
     ${sectionHead('תמונת מצב של העונה', '', 'bulb')}

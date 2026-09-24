@@ -479,4 +479,6 @@ function start() {
 
 window.addEventListener('hashchange', () => { state.formError = ''; render(); window.scrollTo(0, 0); });
 start();
-startUpdater({ isBusy: hasUnsavedWork });
+// An update never reloads under someone mid-action: an unsaved edit, a
+// sheet open (a goal half entered), or live actions still to be sent.
+startUpdater({ isBusy: () => hasUnsavedWork() || document.documentElement.classList.contains('sheet-open') || session.pending.length > 0 });

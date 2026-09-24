@@ -72,6 +72,7 @@ function prepare(payload) {
   // neither past lineups nor the coach data, and the screens are left out
   // rather than drawn empty.
   s.showMinutes = canMinutes();
+  s.isAdmin = isAdmin();
   s.coach = coachData();
   return s;
 }

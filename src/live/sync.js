@@ -31,6 +31,15 @@ function learnTime(server, t0, t1) {
 const PENDING_KEY = 'mg:livePending';
 const load = () => { try { return JSON.parse(localStorage.getItem(PENDING_KEY) || 'null'); } catch { return null; } };
 const save = (v) => { try { v ? localStorage.setItem(PENDING_KEY, JSON.stringify(v)) : localStorage.removeItem(PENDING_KEY); } catch { /* best effort */ } };
+// The last state the bridge confirmed, kept on the device: a phone that
+// reopens the app at the pitch with no reception (iOS drops a backgrounded
+// app freely) still shows the match and can go on recording into the queue,
+// instead of "connecting…" until the signal returns. Only a recent one, and
+// never a finished match: a stale board is worse than none.
+const SNAP_KEY = 'mg:liveLast';
+const SNAP_MAX_MS = 6 * 60 * 60 * 1000;
+const loadSnap = () => { try { return JSON.parse(localStorage.getItem(SNAP_KEY) || 'null'); } catch { return null; } };
+const saveSnap = (v) => { try { v ? localStorage.setItem(SNAP_KEY, JSON.stringify(v)) : localStorage.removeItem(SNAP_KEY); } catch { /* best effort */ } };
 const pollOverride = () => { try { return Number(localStorage.getItem('mg:pollMs')) || 0; } catch { return 0; } };
 
 export class LiveSession {
@@ -53,8 +62,23 @@ export class LiveSession {
     this.timer = null;
     this.retryMs = 2000;
     this.flushing = false;
+    this.netDown = false;      // the last request never reached the bridge
     const saved = load();
     if (saved?.liveId && Array.isArray(saved.ops)) this.saved = saved;
+    const snap = loadSnap();
+    if (snap?.state && Date.now() - snap.at < SNAP_MAX_MS && snap.state.status !== 'ended') {
+      this.confirmed = cleanLive(snap.state);
+      this.version = snap.version;
+      this.canControl = !!snap.canControl;
+      this.isAdmin = !!snap.isAdmin;
+      this.loaded = true;
+      offset = Number(snap.offset) || 0;
+      this.adoptSaved(false);
+    }
+  }
+
+  remember() {
+    saveSnap(this.confirmed ? { at: Date.now(), state: this.confirmed, version: this.version, canControl: this.canControl, isAdmin: this.isAdmin, offset } : null);
   }
 
   /* ── reading ── */
@@ -106,6 +130,7 @@ export class LiveSession {
       this.isAdmin = !!r.isAdmin;
       this.control = r.control || null;
       this.loaded = true;
+      if (this.netDown) { this.netDown = false; changed = true; }
       if (!r.unchanged) {
         this.confirmed = cleanLive(r.state);
         this.version = r.version;
@@ -114,23 +139,25 @@ export class LiveSession {
         // A queue for a match that is no longer the live one is meaningless.
         if (this.pending.length && this.confirmed?.id !== this.pendingFor) this.dropPending();
       }
+      this.remember();
       if (this.sync === 'offline' && !this.pending.length) { this.sync = 'idle'; changed = true; }
       if (changed) this.emit();
       return true;
     } catch (e) {
-      if (e.code === 'not_approved') { this.confirmed = null; this.loaded = true; this.emit(); }
+      if (e.code === 'not_approved') { this.confirmed = null; this.loaded = true; this.remember(); this.emit(); }
+      else if (e.code === 'network' || e.code === 'http') { this.netDown = true; if (this.canControl) this.sync = 'offline'; this.emit(); }
       return false;
     }
   }
 
   // Actions queued before a reload, restored once the match they belong to
   // is known to still be the live one.
-  adoptSaved() {
+  adoptSaved(send = true) {
     if (!this.saved || !this.confirmed || this.pending.length) return;
     if (this.saved.liveId === this.confirmed.id && this.canControl) {
       this.pending = this.saved.ops;
       this.pendingFor = this.saved.liveId;
-      this.flush();
+      if (send) this.flush();
     }
     this.saved = null;
   }
@@ -173,6 +200,8 @@ export class LiveSession {
           this.confirmed = target;
           this.version = r.version;
           this.pending.splice(0, n);
+          this.netDown = false;
+          this.remember();
           if (finishing) this.finishedSeasonVersion = r.seasonVersion;
           save(this.pending.length ? { liveId: this.pendingFor, ops: this.pending } : null);
           this.sync = 'idle';

@@ -50,7 +50,7 @@ export function renderStats(s) {
       ${BOARDS.map((b, i) => `<button role="tab" type="button" data-board="${b.key}" aria-selected="${i === 0}">${esc(b.label)}</button>`).join('')}
     </div>
     <div class="card rows" id="board" style="margin-top:.7rem"></div>
-    ${s.squadGoalsMatch ? '' : `<p class="note">שימו לב: סכום השערים של השחקנים (${s.squadGoals}) שונה מסך שערי הקבוצה (${s.overall.gf}) — ייתכן ששחקן חסר ברשימה.</p>`}
+    ${s.squadGoalsMatch || !s.isAdmin ? '' : `<p class="note">למנהל: לשחקנים שויכו ${s.squadGoals} שערים מתוך ${s.overall.gf} של הקבוצה. תוצאה שהוזנה ידנית לא כוללת כובשים — אפשר להשלים ב"שערים לפני הלייב" בעורך השחקנים.</p>`}
   </section>
 
   ${s.showMinutes ? seasonMinutesHtml(s) : ''}
@@ -70,7 +70,7 @@ export function renderStats(s) {
     <div class="card">
       ${best
         ? `<div class="insight"><span class="dot"></span><span><b>${esc(best.name)}</b> כבש ${best.goals} מתוך ${s.overall.gf} שערי הקבוצה — ${share} מהתפוקה.</span></div>`
-        : '<div class="empty">טרם נרשמו שערים.</div>'}
+        : `<div class="empty">${esc(s.emptyScorers)}</div>`}
     </div>
   </section>`;
 }
@@ -85,7 +85,7 @@ export function wireStats(root, s) {
     const rows = topBy(s.players, board.key, 10);
     out.innerHTML = rows.length
       ? rows.map((p, i) => leaderRow(p, i + 1, board.figs)).join('')
-      : `<div class="empty">אין עדיין נתוני ${esc(board.label)}.</div>`;
+      : `<div class="empty">${board.key === 'goals' ? esc(s.emptyScorers) : `אין עדיין נתוני ${esc(board.label)}.`}</div>`;
   };
 
   const onClick = (e) => {

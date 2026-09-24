@@ -82,7 +82,7 @@ export function renderHome(s) {
       ${tile({ value: pct(o.pointsRate), label: 'אחוז הצלחה', sub: `${o.points} מתוך ${o.maxPoints} נקודות`, tone: 'good' })}
       ${tile({ value: o.points, label: 'נקודות', sub: `${o.win}נ · ${o.draw}ת · ${o.loss}ה`, tone: 'accent' })}
       ${tile({ value: o.gf, label: 'שערים לזכות', sub: `${dec(o.goalsPerGame)} בממוצע למשחק` })}
-      ${tile({ value: o.ga, label: 'ספיגה', sub: `${o.cleanSheets} רשתות נקיות` })}
+      ${tile({ value: o.ga, label: 'ספיגה', sub: o.cleanSheets === 1 ? 'רשת נקייה אחת' : `${o.cleanSheets} רשתות נקיות` })}
     </div>
   </section>
 
@@ -99,7 +99,7 @@ export function renderHome(s) {
     <div class="card rows">
       ${scorers.length
         ? scorers.map((p, i) => leaderRow(p, i + 1, [{ key: 'goals', label: 'שערים' }, { key: 'assists', label: 'בישולים' }])).join('')
-        : '<div class="empty">טרם נרשמו שערים העונה.</div>'}
+        : `<div class="empty">${esc(s.emptyScorers)}</div>`}
     </div>
   </section>
 

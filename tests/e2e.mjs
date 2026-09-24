@@ -52,7 +52,7 @@ async function device(label) {
   const page = await ctx.newPage();
   page.errors = [];
   page.on('pageerror', (e) => page.errors.push(`${label}: ${e.message}`));
-  page.on('console', (m) => { if (m.type() === 'error' && !/fonts\.|ERR_FAILED/.test(m.text())) page.errors.push(`${label}: ${m.text()}`); });
+  page.on('console', (m) => { if (m.type() === 'error' && !/fonts\.|ERR_FAILED|ERR_INTERNET_DISCONNECTED/.test(m.text())) page.errors.push(`${label}: ${m.text()}`); });
   page.on('request', (r) => { if (r.method() === 'OPTIONS') page.errors.push(`${label}: CORS preflight sent to ${r.url()}`); });
   return page;
 }
@@ -383,6 +383,16 @@ await step('a wrong live code is refused; the right one hands the parent control
 await step('the parent in control records a goal against; the manager sees it', async () => {
   await parent.click('[data-act="goal-them"]');
   await admin.locator('.sc-score [data-them]', { hasText: '1' }).waitFor({ timeout: 8000 });
+});
+
+await step('a controlling phone reopened with no reception still shows the match and can record', async () => {
+  await parent.context().setOffline(true);
+  await parent.reload();
+  await parent.locator('.ctl-goal').first().waitFor({ timeout: 8000 });
+  await parent.locator('.sync.off').waitFor();
+  expect((await parent.locator('.sc-score [data-them]').innerText()).trim() === '1', 'the reopened board lost the score');
+  await parent.context().setOffline(false);
+  await parent.locator('.sync.ok').waitFor({ timeout: 15000 });
 });
 
 // Control lets a device write the whole live state, and nothing obliges it

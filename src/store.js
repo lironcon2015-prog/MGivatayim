@@ -51,6 +51,7 @@ export const setFolded = (k) => set('folded', k || null);
 
 export function forgetAccess() {
   setCachedSeason(null);
+  set('liveLast', null);
 }
 
 // Tests point the app at a local bridge through this key. It is read from

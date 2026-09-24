@@ -72,6 +72,11 @@ function cleanLogos(m) {
 }
 export const opponentLogo = (season, name) => season?.opponentLogos?.[logoKey(name)] || null;
 
+function withKickoff(f, nm) {
+  const time = String(nm.kickoff || '').slice(11, 16);
+  return /^\d\d:\d\d$/.test(time) ? { ...f, time } : f;
+}
+
 export function buildSeason(input, now = new Date()) {
   // Every list may be missing or empty: the data file is filled in by hand,
   // often section by section, and a season that has not kicked off yet has
@@ -126,6 +131,8 @@ export function buildSeason(input, now = new Date()) {
     return { ...p, id, pos, goals, assists, points: goals + assists, posText: posLabel(pos) || p.position || '' };
   });
   const squadGoals = players.reduce((sum, p) => sum + p.goals, 0);
+  const friendlyGoals = chronological.filter((m) => m.friendly)
+    .reduce((n, m) => n + (m.events || []).filter((e) => e.type === 'goal' && e.side !== 'them' && e.scorer).length, 0);
 
   // The next match: the one the manager set by hand (with its gathering time
   // and kit), else the first fixture still ahead in the schedule. Derived on
@@ -136,8 +143,10 @@ export function buildSeason(input, now = new Date()) {
   return {
     ...raw,
     nextMatch,
-    // Every fixture still ahead, and those after the one the card shows.
-    schedule: upcoming,
+    // Every fixture still ahead, and those after the one the card shows. The
+    // fixture on the day of a next match set by hand shows that match's
+    // kickoff: the schedule said "time not set" beside a card saying 09:30.
+    schedule: raw.nextMatch?.opponent ? upcoming.map((f) => (sameDay(f, raw.nextMatch) ? withKickoff(f, raw.nextMatch) : f)) : upcoming,
     upcoming: raw.nextMatch?.opponent ? upcoming.filter((f) => !sameDay(f, raw.nextMatch)) : upcoming.slice(1),
     chronological,
     recent,
@@ -160,6 +169,10 @@ export function buildSeason(input, now = new Date()) {
     // showing a share of the wrong whole.
     squadGoals,
     squadGoalsMatch: squadGoals === overall.gf,
+    // What an empty scorers list says. After a first match that was a
+    // friendly, "no goals yet" contradicts the goal everyone just watched.
+    emptyScorers: friendlyGoals ? 'שערים ממשחקי אימון לא נספרים בטבלה.'
+      : overall.gf ? 'עוד לא שויכו שערים לשחקנים.' : 'טרם נרשמו שערים העונה.',
   };
 }
 

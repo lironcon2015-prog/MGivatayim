@@ -239,7 +239,7 @@ export function mountLive(view, ctx) {
   function syncChip() {
     if (!S.canControl) return '';
     const n = S.pending.length;
-    if (S.sync === 'offline') return `<p class="sync off" role="status">אין קליטה · ${n} ${n === 1 ? 'פעולה ממתינה' : 'פעולות ממתינות'} — יישלחו כשהחיבור יחזור</p>`;
+    if (S.sync === 'offline') return `<p class="sync off" role="status">${n ? `אין קליטה · ${n} ${n === 1 ? 'פעולה ממתינה' : 'פעולות ממתינות'} — יישלחו כשהחיבור יחזור` : 'אין קליטה — מה שתתעדו יישלח כשהחיבור יחזור'}</p>`;
     if (S.sync === 'error') return `<p class="sync err" role="alert">${esc(S.error)}</p>`;
     if (n || S.sync === 'sending') return '<p class="sync" role="status">שולח…</p>';
     return `<p class="sync ok" role="status">${icon('check')} כולם רואים את העדכון</p>`;
@@ -402,6 +402,7 @@ export function mountLive(view, ctx) {
       ${scoreboard(st)}
       ${tabs}
       ${ctl ? `<section class="ctl-wrap">${controls(st)}${syncChip()}</section>` : ''}
+      ${!ctl && S.netDown ? '<p class="sync off" role="status">אין חיבור — ייתכן שהמצב כאן לא עדכני</p>' : ''}
       ${st.status === 'setup' && ctl ? lineupEditor(st) : `
         <section>
           <div class="sec-head">${icon('shirt')}<h2>על המגרש</h2>${ctl && st.status !== 'fulltime' ? '<span class="aside">הקישו על שחקן לחילוף</span>' : ''}</div>

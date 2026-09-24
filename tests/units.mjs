@@ -192,6 +192,26 @@ await test('success rate is points taken out of points available', async () => {
   assert.equal(buildSeason({}).overall.pointsRate, 0, 'no matches, no division by zero');
 });
 
+await test('an empty scorers list says why: a friendly, unassigned goals, or none yet', async () => {
+  const { buildSeason } = await import('../src/season.js');
+  const m = (o) => ({ date: '2026-09-01', opponent: 'x', home: true, gf: 1, ga: 0, ...o });
+  assert.equal(buildSeason({}).emptyScorers, 'טרם נרשמו שערים העונה.');
+  assert.equal(buildSeason({ matches: [m()] }).emptyScorers, 'עוד לא שויכו שערים לשחקנים.');
+  const friendly = m({ friendly: true, liveId: 'L1', events: [{ type: 'goal', side: 'us', scorer: 'p1' }] });
+  assert.equal(buildSeason({ matches: [friendly] }).emptyScorers, 'שערים ממשחקי אימון לא נספרים בטבלה.');
+});
+
+await test('the schedule row of a next match set by hand carries its kickoff', async () => {
+  const { buildSeason } = await import('../src/season.js');
+  const now = new Date('2026-09-24T12:00:00+03:00');
+  const s = buildSeason({
+    fixtures: [{ date: '2026-10-01', time: '', opponent: 'שיכון', home: false }, { date: '2026-10-17', time: '17:30', opponent: 'רמת גן', home: true }],
+    nextMatch: { opponent: 'שיכון', home: false, kickoff: '2026-10-01T09:30:00+03:00' },
+  }, now);
+  assert.equal(s.schedule[0].time, '09:30');
+  assert.equal(s.schedule[1].time, '17:30');
+});
+
 await test('opponent crests: kept by name, and only a Drive id reaches the page', async () => {
   const { buildSeason, opponentLogo } = await import('../src/season.js');
   const s = buildSeason({ opponentLogos: { ' הפועל  כוכבים ': 'abcDEF12345_-x', 'בני לוד': '"><img src=x onerror=alert(1)>', x: 7 } });

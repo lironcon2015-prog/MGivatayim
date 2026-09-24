@@ -1179,3 +1179,100 @@ button.match:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px
 .mn-h.started .mn-span { background: var(--blue); }
 .mn-h.absent .mn-o, .mn-h.absent .mn-v { color: var(--faint); font-weight: 500; }
 
+
+/* ═══ Gallery ════════════════════════════════════════════════════════════
+   The team's photos on the media screen: groups by match, a square grid,
+   and a full-screen viewer under the sheets (the hide and delete sheets
+   rise over it). */
+.help-btn {
+  flex: none; width: 26px; height: 26px; border-radius: 50%; cursor: pointer;
+  display: grid; place-items: center; font: inherit; font-size: .85rem; font-weight: 800; line-height: 1;
+  border: 1px solid var(--line-strong); background: var(--surface-2); color: var(--muted);
+}
+.help-btn:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+[data-gallery] > .btn { margin-top: 0; }
+.gl-empty { margin-top: .9rem; }
+.gl-group { margin-top: 1.1rem; }
+.gl-head { display: flex; align-items: baseline; gap: .5rem; margin: 0 .15rem .5rem; font-size: .92rem; font-weight: 700; }
+.gl-head .num:last-child { margin-inline-start: auto; color: var(--faint); font-size: .76rem; font-weight: 600; }
+.gl-head .num { color: var(--muted); font-weight: 600; }
+.gl-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.gl-tile {
+  position: relative; aspect-ratio: 1 / 1; padding: 0; border: 0; border-radius: 14px; overflow: hidden; cursor: pointer;
+  background: var(--surface-2); color: var(--text); -webkit-tap-highlight-color: transparent;
+}
+.gl-tile img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.gl-tile.dim img { opacity: .4; }
+.gl-tile:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.gl-vid {
+  position: absolute; bottom: 6px; left: 6px; display: inline-flex; align-items: center; gap: 3px;
+  font-size: .7rem; font-weight: 700; padding: 2px 7px; border-radius: var(--r-pill); background: rgba(4, 8, 14, .72);
+}
+.gl-vid svg { width: 11px; height: 11px; }
+.gl-flag {
+  position: absolute; top: 6px; right: 6px; font-size: .68rem; font-weight: 800; padding: 2px 7px;
+  border-radius: var(--r-pill); background: rgba(4, 8, 14, .78); color: var(--gold); box-shadow: inset 0 0 0 1px var(--gold-line);
+}
+.gl-more { font-size: 1.25rem; font-weight: 700; }
+
+.help h3 { display: flex; align-items: center; gap: .45rem; font-size: 1rem; margin: 1.2rem 0 .35rem; }
+.help h3:first-child { margin-top: 0; }
+.help h3 svg { width: 18px; height: 18px; color: var(--gold); flex: none; }
+.help p { margin: 0; font-size: .92rem; line-height: 1.6; color: var(--text); }
+.help p + p { margin-top: .45rem; }
+.help .note { margin-top: .45rem; }
+
+.up-list { margin: .9rem 0 .2rem; }
+.up-row { display: flex; align-items: center; gap: .7rem; padding: .55rem 0; border-top: 1px solid var(--line); }
+.up-kind { flex: none; width: 38px; height: 38px; border-radius: 12px; display: grid; place-items: center; background: var(--well); color: var(--muted); }
+.up-kind svg { width: 18px; height: 18px; }
+.up-name { flex: 1; min-width: 0; }
+.up-name b { display: block; font-size: .88rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.up-name small { font-size: .74rem; color: var(--gold-hi); }
+.up-name .bar { display: block; height: 5px; margin-top: .35rem; }
+.chip.done { background: var(--gold-soft); color: var(--gold); }
+
+.gv {
+  position: fixed; inset: 0; z-index: 55; display: grid; grid-template-rows: auto minmax(0, 1fr) auto;
+  background: rgba(3, 6, 11, .97); color: var(--text);
+  padding-top: env(safe-area-inset-top);
+}
+.gv-top { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; font-size: .88rem; color: var(--muted); }
+.gv-x, .gv-nav {
+  width: 42px; height: 42px; border-radius: 50%; border: 0; cursor: pointer; display: grid; place-items: center;
+  background: rgba(255, 255, 255, .09); color: var(--text);
+}
+.gv-x svg, .gv-nav svg { width: 20px; height: 20px; }
+.gv-stage { position: relative; display: grid; place-items: center; min-height: 0; }
+.gv-stage img, .gv-stage video { max-width: 100%; max-height: 100%; object-fit: contain; }
+.gv-nav { position: absolute; top: 50%; transform: translateY(-50%); background: rgba(4, 8, 14, .6); }
+.gv-prev { right: 10px; }
+.gv-prev svg { transform: scaleX(-1); }
+.gv-next { left: 10px; }
+.gv-cap { padding: 12px 16px calc(18px + env(safe-area-inset-bottom)); max-width: var(--shell); width: 100%; margin: 0 auto; box-sizing: border-box; }
+.gv-cap > b { display: block; font-size: 1.02rem; }
+.gv-cap > span { display: block; font-size: .84rem; color: var(--muted); margin-top: 2px; }
+.gv-acts { display: flex; gap: 8px; margin-top: .9rem; }
+.gv-acts .btn { flex: 1; margin: 0; padding: .75rem .4rem; font-size: .88rem; gap: .35rem; }
+.gv-x:focus-visible, .gv-nav:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+
+.hide-opts { display: grid; gap: 10px; }
+.hide-opt {
+  display: flex; align-items: center; gap: .75rem; padding: .85rem .95rem; border-radius: 18px; cursor: pointer;
+  border: 1px solid var(--line-strong); background: var(--well);
+}
+.hide-opt:has(input:checked) { border-color: var(--gold-line); background: var(--gold-soft); }
+.hide-opt input { accent-color: var(--gold); width: 18px; height: 18px; flex: none; margin: 0; }
+.hide-opt b { display: block; font-size: .95rem; }
+.hide-opt small { font-size: .78rem; color: var(--muted); }
+
+/* The manager's side of the gallery, in the content tab. */
+.gw-row { display: flex; gap: .8rem; padding: .85rem 0; }
+.gw-row + .gw-row { border-top: 1px solid var(--line); }
+.gw-thumb { flex: none; width: 64px; height: 64px; border-radius: 12px; object-fit: cover; background: var(--surface-2); }
+.gw-row .who { flex: 1; min-width: 0; }
+.gw-row .who > b { display: block; font-size: .92rem; }
+.gw-row .who > span { display: block; font-size: .76rem; color: var(--faint); }
+.gw-row .acts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: .55rem; }
+.gw-blocked { margin-top: 1rem; padding-top: .8rem; border-top: 1px solid var(--line); }
+.gl-count { white-space: nowrap; }

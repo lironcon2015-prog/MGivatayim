@@ -8,6 +8,7 @@ import * as store from './store.js';
 import { renderHome, startCountdown } from './views/home.js';
 import { renderStats, wireStats } from './views/stats.js';
 import { renderMedia } from './views/media.js';
+import { wireGallery } from './views/gallery.js';
 import * as gate from './views/gate.js';
 import { mountAdmin, hasUnsavedWork } from './views/admin.js';
 import { startUpdater, appVersion } from './updater.js';
@@ -24,7 +25,7 @@ const ROUTES = [
   { hash: '#/',      label: 'בית',    glyph: 'home',      render: renderHome,  wire: (root) => startCountdown(root) },
   { hash: '#/live',  label: 'לייב',   glyph: 'broadcast', live: true },
   { hash: '#/stats', label: 'נתונים', glyph: 'chart',     render: renderStats, wire: (root, s) => wireStats(root, s) },
-  { hash: '#/media', label: 'מדיה',   glyph: 'film',      render: renderMedia },
+  { hash: '#/media', label: 'מדיה',   glyph: 'film',      render: renderMedia, wire: (root, s) => wireGallery(root, s, { isAdmin }) },
 ];
 const ADMIN_HASH = '#/admin';
 
@@ -41,6 +42,7 @@ const state = {
   stale: false,           // showing the device cache because the bridge was unreachable
   skipInstall: false,     // a phone that cannot install chose to ask from the browser (this visit only)
   pending: 0,             // access requests waiting for the manager (manager only)
+  galleryWaiting: 0,      // gallery items hidden (or held for review), for the manager
 };
 
 const isAdmin = () => !!store.getAdminCode();
@@ -87,22 +89,34 @@ function accept(payload) {
   checkPending();
 }
 
-// A dot on the manager's tab while access requests wait. Asked on every
+// A dot on the manager's tab while access requests wait, or gallery items
+// someone hid (they wait for the manager to restore or delete). Asked on every
 // season load, on coming back to the app and once a minute — never pushed,
 // like everything else here. Drawn in place, so no screen re-renders for it.
 const PENDING_EVERY_MS = 60000;
 async function checkPending() {
   if (!isAdmin()) return;
-  try { setPending((await call('adminPing', {}, { asAdmin: true })).pending); } catch { /* next time */ }
+  try {
+    const r = await call('adminPing', {}, { asAdmin: true });
+    setGalleryWaiting(r.galleryWaiting);
+    setPending(r.pending);
+  } catch { /* next time */ }
 }
 function setPending(n) {
   state.pending = Number(n) || 0;
   document.querySelectorAll(`#nav a[href="${ADMIN_HASH}"]`).forEach((a) => {
     a.querySelector('.nav-dot')?.remove();
-    if (state.pending) a.insertAdjacentHTML('beforeend', pendingDot());
+    if (state.pending || state.galleryWaiting) a.insertAdjacentHTML('beforeend', pendingDot());
   });
 }
-const pendingDot = () => `<i class="nav-dot" aria-label="${state.pending === 1 ? 'בקשת גישה ממתינה' : `${state.pending} בקשות גישה ממתינות`}"></i>`;
+function setGalleryWaiting(n) {
+  state.galleryWaiting = Number(n) || 0;
+  setPending(state.pending);
+}
+const pendingDot = () => `<i class="nav-dot" aria-label="${[
+  state.pending && (state.pending === 1 ? 'בקשת גישה ממתינה' : `${state.pending} בקשות גישה ממתינות`),
+  state.galleryWaiting && (state.galleryWaiting === 1 ? 'פריט בגלריה מחכה לטיפול' : `${state.galleryWaiting} פריטים בגלריה מחכים לטיפול`),
+].filter(Boolean).join(', ')}"></i>`;
 setInterval(() => { if (document.visibilityState === 'visible') checkPending(); }, PENDING_EVERY_MS);
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkPending(); });
 
@@ -233,7 +247,7 @@ function chrome(team) {
   const nav = state.access === 'approved' && state.season
     ? `<nav class="nav" id="nav" aria-label="ניווט ראשי">
         ${ROUTES.map((r) => tab(r.hash, r.glyph, r.label, r.live && liveActive() ? '<i class="live-dot" aria-label="משחק חי"></i>' : '')).join('')}
-        ${isAdmin() ? tab(ADMIN_HASH, 'shield', 'ניהול', state.pending ? pendingDot() : '') : ''}
+        ${isAdmin() ? tab(ADMIN_HASH, 'shield', 'ניהול', state.pending || state.galleryWaiting ? pendingDot() : '') : ''}
       </nav>`
     : '';
   document.body.classList.toggle('with-nav', !!nav);
@@ -286,6 +300,7 @@ function render() {
       payload: state.payload,
       reload: refresh,
       onPending: setPending,
+      onGallery: setGalleryWaiting,
       onSaved: (payload) => { accept(payload); },
       logout: () => { store.setAdminCode(null); store.forgetAccess(); location.hash = '#/'; location.reload(); },
     });

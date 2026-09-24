@@ -7,6 +7,7 @@ import { formatEditorHtml, wireFormatEditor } from './live.js';
 import { openSheet, toast } from '../ui/sheet.js';
 import { icon } from '../icons.js';
 import { preparePosters } from '../posters.js';
+import { thumbUrl } from '../gallery.js';
 import { detectFixtureColumns, rowsToFixtures, applyFixtureImport, upcomingFixtures, FIXTURE_FIELDS } from '../fixtures.js';
 
 /* ── What the manager edits ───────────────────────────────────────────────
@@ -283,8 +284,10 @@ export function mountAdmin(view, ctx) {
   let message = '';
   let messageKind = '';
   let saving = false;
+  let gallery = null;        // the team gallery, as the manager sees it (bridge, not the season draft)
 
   const pendingCount = () => (users || []).filter((u) => u.status === 'pending').length;
+  const galleryWaiting = () => (gallery?.items || []).filter((it) => it.status !== 'live');
 
   // The access list can answer before the season does (both load on mount);
   // until the season is in, its tab says so instead of drawing nothing.
@@ -296,7 +299,7 @@ export function mountAdmin(view, ctx) {
         <div class="sec-head">${icon('shield')}<h2>ניהול</h2>
           <span class="aside"><button type="button" class="linkish" id="logout">יציאה ממצב מנהל</button></span></div>
         <div class="seg admin-tabs" role="tablist" aria-label="אזורי ניהול">
-          ${TABS.map(([id, label]) => `<button type="button" role="tab" data-tab="${id}" aria-selected="${tab === id}">${label}${id === 'access' && pendingCount() ? ` <b class="count">${pendingCount()}</b>` : ''}</button>`).join('')}
+          ${TABS.map(([id, label]) => `<button type="button" role="tab" data-tab="${id}" aria-selected="${tab === id}">${label}${id === 'access' && pendingCount() ? ` <b class="count">${pendingCount()}</b>` : id === 'media' && galleryWaiting().length ? ` <b class="count">${galleryWaiting().length}</b>` : ''}</button>`).join('')}
         </div>
       </section>
       ${tab === 'access' ? accessHtml() : draft ? seasonHtml() : '<section><div class="card"><div class="empty">טוען…</div></div></section>'}`;
@@ -586,6 +589,70 @@ export function mountAdmin(view, ctx) {
       + (gone.length ? block('נדחו / בוטלו', 'shield', gone, [['approved', 'אישור'], ['remove', 'מחיקה', 'secondary']], '') : '');
   }
 
+  /* ---- gallery ----
+     Not part of the season draft: every action here goes to the bridge at
+     once, like the access list, and nothing waits for the save bar. */
+
+  const WHY = { mine: 'הילד/ה בתמונה', unfit: 'לא מתאימה' };
+
+  function galleryAdminHtml() {
+    if (!gallery) return '';
+    if (!gallery.enabled) {
+      return `<section><div class="sec-head">${icon('photo')}<h2>גלריה</h2></div>
+        <div class="card"><p class="sheet-text">הגלריה עוד לא מחוברת. כדי להפעיל אותה מוסיפים את פרטי Cloudinary לגשר (הוראות ב-README), ופורסים גרסה חדשה.</p></div></section>`;
+    }
+    const waiting = galleryWaiting();
+    const row = (it) => `<div class="gw-row">
+        <img class="gw-thumb" src="${esc(thumbUrl(gallery, it, 160))}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()" />
+        <span class="who"><b>העלה/תה: ${esc(it.byName)}</b>
+          <span>${it.match ? `מול ${esc(it.match.opponent)} · ${esc(shortDate(it.match.date))}` : 'בלי משחק'}${it.kind === 'video' ? ' · סרטון' : ''}</span>
+          <span>${it.status === 'hidden' && it.hiddenBy ? `הוסתרה ע״י ${esc(it.hiddenBy.name)} · ${WHY[it.hiddenBy.why] || ''}` : 'ממתינה לאישור'}</span>
+          <span class="acts">
+            <button type="button" class="chip-tool is-add" data-g-restore="${esc(it.id)}">${icon(it.status === 'hidden' ? 'undo' : 'check')} ${it.status === 'hidden' ? 'החזרה' : 'אישור'}</button>
+            <button type="button" class="chip-tool" data-g-delete="${esc(it.id)}">${icon('trash')} מחיקה</button>
+            ${it.by && it.by !== 'admin' && !(gallery.blockedList || []).some((b) => b.id === it.by)
+              ? `<button type="button" class="chip-tool" data-g-block="${esc(it.by)}" data-name="${esc(it.byName)}">${icon('ban')} חסימה</button>` : ''}
+          </span></span>
+      </div>`;
+    const modes = [['open', 'פתוחות'], ['review', 'באישור'], ['closed', 'סגורות']];
+    const live = gallery.items.filter((it) => it.status === 'live').length;
+    return `
+      ${waiting.length ? `<section>
+        <div class="sec-head">${icon('eyeoff')}<h2>${gallery.mode === 'review' ? 'מחכים לטיפול' : 'הוסתרו'}</h2><span class="h-count num">${waiting.length}</span></div>
+        <div class="card rows">${waiting.map(row).join('')}</div>
+        <p class="note">מה שמופיע כאן לא נראה לאף אחד חוץ ממי שהעלה.</p>
+      </section>` : ''}
+      <section>
+        <div class="sec-head">${icon('photo')}<h2>גלריה</h2><span class="h-count num">${live}</span></div>
+        <div class="card">
+          <div class="field"><span>העלאות</span></div>
+          <div class="seg" role="group" aria-label="העלאות">${modes.map(([m, l]) =>
+            `<button type="button" data-g-mode="${m}" aria-selected="${gallery.mode === m}" aria-pressed="${gallery.mode === m}">${l}</button>`).join('')}</div>
+          <p class="note">פתוחות: כל העלאה מופיעה מיד. באישור: ממתינה לך כאן. סגורות: אין כפתור העלאה.</p>
+          <div class="grid-2" style="margin-top: 1rem">
+            <label class="field"><span>תמונות ביום, לכל טלפון</span><input type="number" inputmode="numeric" min="0" max="500" data-g-limit="dayPhotos" value="${esc(gallery.dayPhotos)}" /></label>
+            <label class="field"><span>סרטונים ביום, לכל טלפון</span><input type="number" inputmode="numeric" min="0" max="50" data-g-limit="dayVideos" value="${esc(gallery.dayVideos)}" /></label>
+          </div>
+          ${(gallery.blockedList || []).length ? `<div class="gw-blocked"><span class="field"><span>חסומים להעלאה</span></span>
+            ${gallery.blockedList.map((b) => `<div class="user-row"><span class="who"><b>${esc(b.name)}</b></span>
+              <button type="button" class="btn small secondary" data-g-unblock="${esc(b.id)}">ביטול חסימה</button></div>`).join('')}</div>` : ''}
+        </div>
+      </section>`;
+  }
+
+  async function loadGallery() {
+    try { gallery = await call('getGallery', {}, { asAdmin: true }); }
+    catch { gallery = gallery || null; }
+    ctx.onGallery?.(galleryWaiting().length);
+    paint();
+  }
+
+  async function galleryAct(action, params, done) {
+    try { await call(action, params, { asAdmin: true }); if (done) toast(done); }
+    catch (e) { toast(esc(e.message), { kind: 'err' }); }
+    await loadGallery();
+  }
+
   async function loadUsers() {
     try { users = await call('listUsers', {}, { asAdmin: true }); usersError = ''; ctx.onPending?.(pendingCount()); }
     catch (e) { usersError = e.message; }
@@ -683,7 +750,7 @@ export function mountAdmin(view, ctx) {
       // Results before the schedule: the score is the weekly edit.
       games: () => nextMatchHtml() + list('matches') + list('fixtures'),
       players: () => lists('players'),
-      media: () => `${lists('media')}
+      media: () => `${galleryAdminHtml()}${lists('media')}
         <section>
           <div class="card">
             <label class="field" for="f-note"><span>הערה מתחת לתמונת המצב</span>
@@ -759,6 +826,10 @@ export function mountAdmin(view, ctx) {
 
   const onInput = (e) => {
     const el = e.target;
+    if (el.dataset.gLimit) {
+      if (e.type === 'change' && el.value !== '') galleryAct('setGallery', { [el.dataset.gLimit]: Number(el.value) }, 'המגבלה עודכנה');
+      return;
+    }
     const path = el.dataset.path;
     if (!path) return;
     if (el.dataset.kick) {
@@ -798,8 +869,22 @@ export function mountAdmin(view, ctx) {
       paint();
       window.scrollTo(0, 0);
       if (tab === 'access') loadUsers();
+      if (tab === 'media') loadGallery();
       return;
     }
+    if (t.dataset.gMode) { galleryAct('setGallery', { mode: t.dataset.gMode }); return; }
+    if (t.dataset.gRestore) { t.disabled = true; galleryAct('restoreGalleryItem', { id: t.dataset.gRestore }, 'חזרה לגלריה'); return; }
+    if (t.dataset.gDelete) {
+      if (!confirm('למחוק לגמרי מהגלריה?')) return;
+      t.disabled = true; galleryAct('deleteGalleryItem', { id: t.dataset.gDelete }, 'נמחק');
+      return;
+    }
+    if (t.dataset.gBlock) {
+      if (!confirm(`לחסום העלאות מהמכשיר של ${t.dataset.name}? הגישה לאפליקציה נשארת.`)) return;
+      galleryAct('blockUploader', { id: t.dataset.gBlock, blocked: true }, 'המכשיר נחסם להעלאה');
+      return;
+    }
+    if (t.dataset.gUnblock) { galleryAct('blockUploader', { id: t.dataset.gUnblock, blocked: false }, 'החסימה בוטלה'); return; }
     if (t.dataset.more) {
       if (expanded.has(t.dataset.more)) expanded.delete(t.dataset.more); else expanded.add(t.dataset.more);
       paint();
@@ -906,6 +991,7 @@ export function mountAdmin(view, ctx) {
     paint();
   }
   loadUsers();
+  loadGallery();
 
   return () => {
     alive = false;

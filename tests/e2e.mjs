@@ -670,6 +670,103 @@ await step('at the break before the last period the coach is alerted once, where
   await asAdmin('setStatus', { id: coachId, status: 'revoked' });
 });
 
+// ---- the team gallery ----
+// Cloudinary is outside the test: its upload API and its image CDN are
+// stood in for per browser context. The bridge's side is the real one.
+const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64');
+const uploads = [];
+async function fakeCloudinary(page) {
+  await page.context().route('https://api.cloudinary.com/**', async (r) => {
+    uploads.push({ url: r.request().url(), body: r.request().postDataBuffer()?.toString('latin1') || '' });
+    await r.fulfill({ status: 200, contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: '{"public_id":"ok"}' });
+  });
+  await page.context().route('https://res.cloudinary.com/**', (r) => r.fulfill({ status: 200, contentType: 'image/png', body: PNG }));
+}
+let other;
+const galleryFile = () => JSON.parse(bridge.driveFile('gallery.json') || '{"items":[]}');
+
+await step('the gallery stays out of sight until the bridge has Cloudinary keys', async () => {
+  await parent.goto(APP + '#/media');
+  await parent.locator('.sec-head', { hasText: 'הסרטון הנבחר' }).or(parent.locator('.sec-head', { hasText: 'סרטונים' })).first().waitFor();
+  await parent.waitForTimeout(500);
+  expect(await parent.locator('[data-gallery]').isHidden(), 'a gallery with no storage behind it is shown');
+});
+
+await step('a parent uploads a photo; it is in the gallery at once, under their name', async () => {
+  bridge.setProp('CLOUDINARY_CLOUD', 'mg-test');
+  bridge.setProp('CLOUDINARY_KEY', '111');
+  bridge.setProp('CLOUDINARY_SECRET', 'test-secret');
+  // A second parent, approved straight through the bridge: the request and
+  // approval screens are tested above.
+  other = await device('parent-2');
+  await other.goto(APP);
+  await other.fill('input[name=name]', 'אמא של דניאל');
+  await other.locator('#request-form button').click();
+  await waitText(other, 'ממתינה לאישור');
+  const id = bridge.post({ action: 'listUsers', adminCode: ADMIN }).result.find((u) => u.name === 'אמא של דניאל').id;
+  bridge.post({ action: 'setStatus', adminCode: ADMIN, id, status: 'approved' });
+  for (const p of [parent, admin, other]) await fakeCloudinary(p);
+  await parent.reload();
+  await parent.locator('[data-gallery] [data-upload]').waitFor({ timeout: 8000 });
+  await parent.setInputFiles('[data-files]', { name: 'goal.png', mimeType: 'image/png', buffer: PNG });
+  await parent.locator('.sheet', { hasText: 'העלאה לגלריה' }).waitFor();
+  await parent.click('.sheet [data-go]');
+  await parent.locator('[data-gallery] .gl-tile').first().waitFor({ timeout: 8000 });
+  const items = galleryFile().items;
+  expect(items.length === 1 && items[0].byName === 'אבא של איתי' && items[0].status === 'live', 'gallery.json: ' + JSON.stringify(items));
+  const up = uploads.find((u) => u.url.endsWith('/mg-test/image/upload'));
+  expect(up && up.body.includes('name="signature"') && up.body.includes(items[0].pid), 'the upload did not carry the signature and the id');
+  expect(!up.body.includes('test-secret'), 'the secret went to the browser');
+});
+
+await step('the help explains uploading, hiding and where photos go — and never mentions a manager', async () => {
+  await parent.click('[data-gallery] [data-help]');
+  const sheet = parent.locator('.sheet', { hasText: 'איך הגלריה עובדת' });
+  await sheet.waitFor();
+  const t = await sheet.innerText();
+  expect(['איך מעלים', 'הסתרה', 'לאן התמונות עולות'].every((h) => t.includes(h)), 'a section is missing: ' + t);
+  expect(!t.includes('מנהל'), 'the help speaks of a manager');
+  await sheet.locator('.sheet-x').click();
+});
+
+await step('another parent hides it: gone for everyone else, still there for the uploader', async () => {
+  await other.click('#recheck');
+  await other.locator('#nav').waitFor();
+  await other.goto(APP + '#/media');
+  await other.locator('[data-gallery] .gl-tile').first().click();
+  await other.locator('.gv [data-v="hide"]').click();
+  await other.locator('.sheet [data-hide]').click();
+  await other.locator('.gv').waitFor({ state: 'detached' });
+  expect(galleryFile().items[0].status === 'hidden', 'not hidden in gallery.json');
+  await other.reload();
+  await other.locator('[data-gallery] .gl-empty').waitFor();
+  await parent.reload();
+  await parent.locator('[data-gallery] .gl-tile .gl-flag', { hasText: 'מוסתרת' }).waitFor();
+});
+
+await step('the manager sees what was hidden, by whom, and brings it back', async () => {
+  await admin.goto(APP + '#/admin');
+  await admin.click('[data-tab="media"]');
+  await admin.locator('[data-tab="media"] .count', { hasText: '1' }).waitFor({ timeout: 8000 });
+  await waitText(admin, 'הוסתרה ע״י אמא של דניאל');
+  await admin.locator('[data-g-restore]').click();
+  await admin.locator('[data-g-restore]').waitFor({ state: 'detached' });
+  expect(galleryFile().items[0].status === 'live', 'not restored');
+  await other.reload();
+  await other.locator('[data-gallery] .gl-tile').first().waitFor();
+});
+
+await step('the uploader deletes their own photo', async () => {
+  await parent.reload();
+  await parent.locator('[data-gallery] .gl-tile').first().click();
+  await parent.locator('.gv [data-v="delete"]').click();
+  await parent.click('.sheet [data-ok]');
+  await parent.locator('[data-gallery] .gl-empty').waitFor();
+  expect(galleryFile().items.length === 0, 'still in gallery.json');
+  const id = bridge.post({ action: 'listUsers', adminCode: ADMIN }).result.find((u) => u.name === 'אמא של דניאל').id;
+  bridge.post({ action: 'removeUser', adminCode: ADMIN, id });
+});
+
 await step('revoking locks the parent out and drops their cached copy', async () => {
   await admin.goto(APP + '#/admin');
   await admin.click('[data-tab="access"]');
@@ -683,7 +780,7 @@ await step('revoking locks the parent out and drops their cached copy', async ()
 });
 
 await step('no page errors and no CORS preflight on any device', async () => {
-  const errs = [...parent.errors, ...admin.errors, ...(coach?.errors || [])];
+  const errs = [...parent.errors, ...admin.errors, ...(coach?.errors || []), ...(other?.errors || [])];
   expect(!errs.length, errs.join(' | '));
 });
 

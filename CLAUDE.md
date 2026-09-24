@@ -44,6 +44,7 @@
 | `src/live/model.js`, `src/live/sync.js` | משחק חי (ראו למטה) |
 | `src/minutes.js`, `src/views/minutes.js` | דקות משחק למאמן: חישוב טהור, ומסכים (ראו "המאמן") |
 | `src/fixtures.js`, `src/importer.js`, `src/positions.js`, `src/posters.js`, `src/install.js`, `src/updater.js` | ראו הסעיפים המתאימים |
+| `src/gallery.js`, `src/views/gallery.js` | הגלריה של הקבוצה: העלאה ל-Cloudinary, והמסך (ראו "הגלריה") |
 | `tools/bridge.gs` | הגשר (Apps Script) |
 | `tools/bump.mjs` | קידום גרסה |
 | `tools/make-fixtures.py` | מייצר את `docs/fixtures/*.xlsx` (`openpyxl`) — לא לערוך את הקבצים ידנית |
@@ -246,6 +247,37 @@ dd/mm/yyyy או תא תאריך של אקסל. שורה עם תוצאה נכנס
   המנהל. `tests/bridge.mjs` מנסה לקרוא כך את `season.json`.
 - `UrlFetchApp` דורש הרשאת "גישה לשירות חיצוני" — בפריסה הראשונה אחריו גוגל
   מבקש לאשר הרשאה חדשה.
+
+## הגלריה של הקבוצה (תמונות וסרטונים מההורים)
+
+בעל הריפו: לא בדרייב שלו, ו**לא תחושה שהאפליקציה של המנהל** — היא של
+הקבוצה. לכן פרסום מיידי ובקרה בדיעבד, ולא אישור מראש.
+
+- **הקבצים ב-Cloudinary**, מועלים ישירות מהטלפון (`src/gallery.js`, XHR בשביל
+  פס התקדמות). הגשר רק חותם (`signUpload`): הוא בוחר את `public_id`
+  (`mg/<אקראי>`) וחותם גם על `allowed_formats` — תמונה או סרטון, לפי מה שהתבקש.
+  הסוד (`CLOUDINARY_SECRET`) ב-Script properties, יחד עם `CLOUDINARY_CLOUD`
+  ו-`CLOUDINARY_KEY`. בלי שלושתם `getGallery` מחזיר `enabled: false` והגלריה
+  לא מוצגת בכלל.
+- **הרשימה ב-`gallery.json`** בדרייב, לא בעונה: הורים כותבים אליה, והיא לא
+  צריכה להתנגש ב-`baseVersion` של המנהל. `addGalleryItem` מקבל רק `pid` שנחתם
+  לאותו מכשיר (במטמון, `sig:<pid>`) — אחרת הורה היה רושם קובץ של אחר כשלו.
+- **תמונה מוקטנת בטלפון** (canvas, 1600px, JPEG) — גם מהירות וגם הסרת EXIF
+  (מיקום GPS). סרטון לא מוקטן: עד 60 שניות ו-100MB, נבדק בטלפון.
+- **הסתרה בידי כל הורה** (`hideGalleryItem`, "הילד שלי בתמונה" / "לא מתאימה"):
+  נעלם מיד לכולם חוץ מהמעלה. המעלה מוחק את שלו (`deleteGalleryItem`, גם
+  מ-Cloudinary דרך `UrlFetchApp`). המנהל: `restoreGalleryItem`, מחיקה,
+  `blockUploader` (חסימת העלאות בלי לבטל גישה), ומתג `setGallery`:
+  `open` | `review` (ממתין לאישור) | `closed`, ומגבלה יומית לכל מכשיר (24
+  שעות אחורה).
+- **הורה לא מקבל** מזהי מכשירים ולא מי הסתיר (`publicItem_`). אצל המנהל:
+  ניהול → תוכן, עם מונה על הלשונית ונקודה על "ניהול" (`galleryWaiting`
+  ב-`adminPing`).
+- **בממשק ההורים אין מילה על מנהל** — לא "ממתין לאישור המנהל", לא "המנהל
+  הסיר". כפתור "?" ליד הכותרת פותח הסבר (איך מעלים, הסתרה, לאן זה עולה);
+  `tests/e2e.mjs` בודק שהמילה "מנהל" לא בו.
+- הגלריה מוצגת במסך המדיה (`galleryPlaceholder` ב-`renderMedia`, ו-`wireGallery`
+  טוען ומצייר), עם צופה במסך מלא מתחת לגיליונות (z-index 55).
 
 ## עמדות וייבוא
 

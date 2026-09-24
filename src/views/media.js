@@ -1,6 +1,7 @@
 import { esc } from '../format.js';
 import { sectionHead, videoCard, roundText } from '../components.js';
 import { safeUrl } from '../format.js';
+import { galleryPlaceholder } from './gallery.js';
 
 export function renderMedia(s) {
   const videos = [...s.videos].sort((a, b) => b.round - a.round);
@@ -9,10 +10,10 @@ export function renderMedia(s) {
   const missing = videos.filter((v) => !safeUrl(v.url)).length;
 
   if (!videos.length) {
-    return `<section>${sectionHead('סרטונים', '', 'film')}<div class="card"><div class="empty">טרם הועלו סרטונים לעונה.</div></div></section>`;
+    return `${galleryPlaceholder()}<section>${sectionHead('סרטונים', '', 'film')}<div class="card"><div class="empty">טרם הועלו סרטונים לעונה.</div></div></section>`;
   }
 
-  return `
+  return `${galleryPlaceholder()}
   <section>
     ${sectionHead('הסרטון הנבחר', esc(roundText(featured.round)), 'film')}
     ${videoCard(featured)}

@@ -76,6 +76,7 @@ export function createBridge({ adminCode = 'test-admin-code-1234' } = {}) {
   // The web as the bridge sees it through UrlFetchApp: tests register pages
   // and images by URL; anything else is a 404.
   const web = new Map();
+  const fetched = [];
   const drivePics = new Map();
 
   const sandbox = {
@@ -92,7 +93,7 @@ export function createBridge({ adminCode = 'test-admin-code-1234' } = {}) {
     },
     LockService: { getScriptLock: () => ({ tryLock: () => true, releaseLock: () => {} }) },
     Utilities: {
-      DigestAlgorithm: { SHA_256: 'sha256' },
+      DigestAlgorithm: { SHA_256: 'sha256', SHA_1: 'sha1' },
       Charset: { UTF_8: 'utf8' },
       // Apps Script hands back *signed* bytes; the bridge masks them with
       // & 0xff, and an unsigned shim would hide a missing mask.
@@ -110,7 +111,8 @@ export function createBridge({ adminCode = 'test-admin-code-1234' } = {}) {
       },
     },
     UrlFetchApp: {
-      fetch: (url) => {
+      fetch: (url, opts) => {
+        fetched.push({ url, opts });
         const hit = web.get(url);
         const code = hit ? 200 : 404;
         const body = hit ? Buffer.from(hit.body) : Buffer.from('not found');
@@ -138,6 +140,7 @@ export function createBridge({ adminCode = 'test-admin-code-1234' } = {}) {
     // test can prove a value came from the file and not from memory.
     driveFile: (name) => folders[0]?.files.find((f) => f.name === name)?.text ?? null,
     clearCache: () => cache.clear(),
+    fetched,
     web: (url, type, body) => web.set(url, { type, body }),
     drivePicture: (id, bytes) => drivePics.set(id, bytes),
     fileById: (id) => byId.get(id) ?? null,

@@ -2,6 +2,7 @@
 //   node tests/bridge.mjs
 import { createBridge } from './mock-bridge.mjs';
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 
 const ADMIN = 'test-admin-code-1234';
 const devA = 'a'.repeat(64), devB = 'b'.repeat(64);
@@ -421,6 +422,129 @@ console.log('live:');
     C.post({ action: 'setRole', adminCode: ADMIN, id: coachId, role: 'coach' });
     C.post({ action: 'setStatus', adminCode: ADMIN, id: coachId, status: 'revoked' });
     assert.equal(err(C.post({ action: 'setCoachMatch', deviceKey: coach, liveId: 'M1', min: 20 })), 'not_approved');
+  });
+}
+
+// The gallery: parents upload straight to Cloudinary with a signature the
+// bridge makes; the list lives in gallery.json. Published at once, hidden
+// by any parent, restored or deleted by the manager.
+console.log('gallery:');
+{
+  const G = createBridge({ adminCode: ADMIN });
+  const approve = (key, name) => {
+    G.post({ action: 'requestAccess', deviceKey: key, name });
+    const id = G.post({ action: 'listUsers', adminCode: ADMIN }).result.find((u) => u.name === name).id;
+    G.post({ action: 'setStatus', adminCode: ADMIN, id, status: 'approved' });
+    return id;
+  };
+  const noa = 'n'.repeat(64), gal = 'g'.repeat(64), stranger = 's'.repeat(64);
+  const noaId = approve(noa, 'אמא של נועם');
+  approve(gal, 'אבא של גיא');
+  const upload = (key, kind = 'image', extra = {}) => {
+    const sig = G.post({ action: 'signUpload', deviceKey: key, kind });
+    if (!sig.ok) return sig;
+    return G.post({ action: 'addGalleryItem', deviceKey: key, pid: sig.result.public_id, w: 1600, h: 1200, match: { date: '2026-09-19', opponent: 'בני לוד' }, ...extra });
+  };
+
+  test('without Cloudinary keys the gallery is off, and nothing is signed', () => {
+    assert.equal(G.post({ action: 'getGallery', deviceKey: noa }).result.enabled, false);
+    assert.equal(err(G.post({ action: 'signUpload', deviceKey: noa, kind: 'image' })), 'no_gallery');
+  });
+
+  G.setProp('CLOUDINARY_CLOUD', 'mg-demo');
+  G.setProp('CLOUDINARY_KEY', '123456');
+  G.setProp('CLOUDINARY_SECRET', 'shh-secret');
+
+  test('only an approved device gets a signature', () => {
+    assert.equal(err(G.post({ action: 'signUpload', deviceKey: stranger, kind: 'image' })), 'not_approved');
+    assert.equal(err(G.post({ action: 'getGallery', deviceKey: stranger })), 'not_approved');
+  });
+
+  test('the signature is Cloudinary\'s: sorted params and the secret, and the secret never leaves', () => {
+    const r = G.post({ action: 'signUpload', deviceKey: noa, kind: 'image' });
+    const { public_id, timestamp, allowed_formats, signature } = r.result;
+    const expected = createHash('sha1').update(`allowed_formats=${allowed_formats}&public_id=${public_id}&timestamp=${timestamp}shh-secret`).digest('hex');
+    assert.equal(signature, expected);
+    assert.ok(!JSON.stringify(r).includes('shh-secret'));
+    assert.match(public_id, /^mg\/[a-z0-9]+$/);
+    assert.ok(!allowed_formats.includes('mp4'), 'an image signature allows video formats');
+  });
+
+  test('an upload is published at once and carries the uploader\'s name', () => {
+    const r = upload(noa);
+    assert.ok(r.ok, JSON.stringify(r));
+    const g = G.post({ action: 'getGallery', deviceKey: gal }).result;
+    assert.equal(g.items.length, 1);
+    assert.equal(g.items[0].byName, 'אמא של נועם');
+    assert.equal(g.items[0].mine, false);
+    assert.equal('by' in g.items[0], false, 'a parent gets another device\'s id');
+  });
+
+  test('a file id the device was not signed for cannot be listed', () => {
+    const sig = G.post({ action: 'signUpload', deviceKey: noa, kind: 'image' }).result;
+    assert.equal(err(G.post({ action: 'addGalleryItem', deviceKey: gal, pid: sig.public_id })), 'bad_upload');
+    assert.equal(err(G.post({ action: 'addGalleryItem', deviceKey: gal, pid: 'mg/made-up' })), 'bad_upload');
+  });
+
+  test('the daily limit is kept per device and per kind', () => {
+    G.post({ action: 'setGallery', adminCode: ADMIN, dayPhotos: 2, dayVideos: 1 });
+    assert.ok(upload(gal).ok && upload(gal).ok);
+    assert.equal(err(G.post({ action: 'signUpload', deviceKey: gal, kind: 'image' })), 'quota');
+    assert.ok(upload(gal, 'video', { dur: 40 }).ok, 'the photo limit also stopped a video');
+    assert.equal(G.post({ action: 'getGallery', deviceKey: gal }).result.left.video, 0);
+    G.post({ action: 'setGallery', adminCode: ADMIN, dayPhotos: 30, dayVideos: 3 });
+  });
+
+  let item;
+  test('any parent hides; the item leaves everyone else\'s gallery, the uploader still sees it', () => {
+    item = G.post({ action: 'getGallery', deviceKey: gal }).result.items.find((x) => x.byName === 'אמא של נועם');
+    assert.ok(G.post({ action: 'hideGalleryItem', deviceKey: gal, id: item.id, why: 'mine' }).ok);
+    assert.ok(!G.post({ action: 'getGallery', deviceKey: gal }).result.items.some((x) => x.id === item.id));
+    const own = G.post({ action: 'getGallery', deviceKey: noa }).result.items.find((x) => x.id === item.id);
+    assert.equal(own.status, 'hidden');
+    assert.equal('hiddenBy' in own, false, 'the uploader learns who hid it');
+  });
+
+  test('the manager sees who hid it and why, and restores it', () => {
+    const it = G.post({ action: 'getGallery', adminCode: ADMIN }).result.items.find((x) => x.id === item.id);
+    assert.deepEqual([it.hiddenBy.name, it.hiddenBy.why], ['אבא של גיא', 'mine']);
+    assert.equal(G.post({ action: 'adminPing', adminCode: ADMIN }).result.galleryWaiting, 1);
+    assert.equal(err(G.post({ action: 'restoreGalleryItem', deviceKey: noa, id: item.id })), 'bad_code');
+    G.post({ action: 'restoreGalleryItem', adminCode: ADMIN, id: item.id });
+    assert.ok(G.post({ action: 'getGallery', deviceKey: gal }).result.items.some((x) => x.id === item.id));
+  });
+
+  test('only the uploader deletes their own; the file goes from Cloudinary too', () => {
+    assert.equal(err(G.post({ action: 'deleteGalleryItem', deviceKey: gal, id: item.id })), 'not_yours');
+    assert.ok(G.post({ action: 'deleteGalleryItem', deviceKey: noa, id: item.id }).ok);
+    assert.ok(!G.post({ action: 'getGallery', deviceKey: noa }).result.items.some((x) => x.id === item.id));
+    const call = G.fetched.find((f) => f.url === 'https://api.cloudinary.com/v1_1/mg-demo/image/destroy');
+    assert.ok(call && call.opts.payload.public_id === item.pid, 'no destroy call to Cloudinary');
+  });
+
+  test('review mode holds new uploads back from others; closed takes uploads away', () => {
+    G.post({ action: 'setGallery', adminCode: ADMIN, mode: 'review' });
+    const r = upload(noa).result;
+    assert.equal(r.status, 'pending');
+    assert.ok(!G.post({ action: 'getGallery', deviceKey: gal }).result.items.some((x) => x.id === r.id));
+    G.post({ action: 'setGallery', adminCode: ADMIN, mode: 'closed' });
+    assert.equal(err(G.post({ action: 'signUpload', deviceKey: noa, kind: 'image' })), 'closed');
+    assert.equal(err(G.post({ action: 'setGallery', deviceKey: noa, mode: 'open' })), 'bad_code');
+    G.post({ action: 'setGallery', adminCode: ADMIN, mode: 'open' });
+  });
+
+  test('a blocked device keeps watching but cannot upload', () => {
+    G.post({ action: 'blockUploader', adminCode: ADMIN, id: noaId, blocked: true });
+    assert.equal(err(G.post({ action: 'signUpload', deviceKey: noa, kind: 'image' })), 'blocked');
+    assert.equal(G.post({ action: 'getGallery', deviceKey: noa }).result.blocked, true);
+    G.post({ action: 'blockUploader', adminCode: ADMIN, id: noaId, blocked: false });
+    assert.ok(G.post({ action: 'signUpload', deviceKey: noa, kind: 'image' }).ok);
+  });
+
+  test('the gallery never lands in the season file', () => {
+    assert.equal(G.driveFile('season.json'), null);
+    assert.ok(G.driveFile('gallery.json'));
+    assert.ok(!G.driveFile('gallery.json').includes(noa), 'a raw device key in Drive');
   });
 }
 

@@ -73,6 +73,14 @@ const DEFAULT_MIN_MINUTES = 20;
 const MAX_MIN_MINUTES = 200;
 const MAX_ABSENT = 80;
 const ROLES = ['parent', 'coach'];
+const GALLERY_FILE = 'gallery.json';
+const GALLERY_MODES = ['open', 'review', 'closed'];
+const HIDE_WHY = ['mine', 'unfit'];
+const MAX_GALLERY_ITEMS = 3000;
+const DAY_MS = 24 * 60 * 60 * 1000;
+const SIGN_TTL_S = 60 * 60;
+const MAX_SIGNS_PER_HOUR = 80;
+const UPLOAD_FORMATS = { image: 'jpg,jpeg,png,webp,heic,heif', video: 'mp4,mov,m4v,webm,3gp' };
 /* מי צופה עכשיו: מסך הלייב שואל כל 4 שניות. מכשיר שלא שאל חצי דקה —
    סגר את המסך או שהטלפון בכיס. */
 const WATCH_FRESH_MS = 30 * 1000;
@@ -103,6 +111,11 @@ function handle_(req) {
     case 'getLive':       return getLive_(req);
     case 'getPoster':     return getPoster_(req);
     case 'claimLive':     return claimLive_(req);
+    case 'getGallery':    return getGallery_(req);
+    case 'signUpload':    return signUpload_(req);
+    case 'addGalleryItem': return addGalleryItem_(req);
+    case 'hideGalleryItem': return hideGalleryItem_(req);
+    case 'deleteGalleryItem': return deleteGalleryItem_(req);
     // מאמן או מנהל
     case 'setCoachMatch': return setCoachMatch_(req);
     // שולט במשחק (מנהל או מכשיר שמימש קוד)
@@ -120,6 +133,9 @@ function handle_(req) {
     case 'setLiveCode':   return setLiveCode_(req);
     case 'clearLiveControl': return clearLiveControl_(req);
     case 'clearLive':     return clearLive_(req);
+    case 'restoreGalleryItem': return restoreGalleryItem_(req);
+    case 'setGallery':    return setGallery_(req);
+    case 'blockUploader': return blockUploader_(req);
     default: throw fail_('פעולה לא מוכרת: ' + req.action, 'bad_action');
   }
 }
@@ -697,13 +713,270 @@ function setCoachMatch_(req) {
   });
 }
 
+/* ---------- גלריה ----------
+   הקבצים עצמם ב-Cloudinary, לא בדרייב: ההורים מעלים ישירות מהטלפון, והגשר
+   רק חותם. החתימה (מפתח סודי ב-Script properties) קובעת את שם הקובץ ואת
+   סוגי הקבצים המותרים, ותקפה שעה; בלי חתימה Cloudinary מסרב. הרשימה —
+   מי העלה מה, לאיזה משחק, מה הוסתר — בקובץ נפרד בדרייב, gallery.json: הורים
+   כותבים אליו, והוא לא צריך להתנגש בשמירות של המנהל לעונה.
+   פרסום מיידי ("open"), והסתרה בידי כל הורה; המנהל מחזיר או מוחק. "review"
+   ו-"closed" הם מתג חירום. הורה לא מקבל מזהי מכשירים ולא את מי שהסתיר. */
+
+function cloudinary_() {
+  const p = PropertiesService.getScriptProperties();
+  const cloud = String(p.getProperty('CLOUDINARY_CLOUD') || '').trim();
+  const key = String(p.getProperty('CLOUDINARY_KEY') || '').trim();
+  const secret = String(p.getProperty('CLOUDINARY_SECRET') || '').trim();
+  if (!/^[a-z0-9_-]{2,64}$/i.test(cloud) || !key || !secret) return null;
+  return { cloud: cloud, key: key, secret: secret };
+}
+
+function sha1Hex_(text) {
+  const digest = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_1, String(text), Utilities.Charset.UTF_8);
+  return digest.map((b) => ('0' + (b & 0xff).toString(16)).slice(-2)).join('');
+}
+
+/* החתימה של Cloudinary: הפרמטרים ממוינים, key=value מחוברים ב-&, והסוד בסוף. */
+function cloudSign_(params, secret) {
+  return sha1Hex_(Object.keys(params).sort().map((k) => k + '=' + params[k]).join('&') + secret);
+}
+
+function gallery_() {
+  const g = readJson_(GALLERY_FILE, null) || {};
+  const s = g.settings || {};
+  return {
+    version: Number(g.version) || 0,
+    settings: {
+      mode: GALLERY_MODES.indexOf(s.mode) >= 0 ? s.mode : 'open',
+      dayPhotos: isFinite(s.dayPhotos) ? Number(s.dayPhotos) : 30,
+      dayVideos: isFinite(s.dayVideos) ? Number(s.dayVideos) : 3,
+    },
+    items: Array.isArray(g.items) ? g.items : [],
+    blocked: Array.isArray(g.blocked) ? g.blocked : [],
+  };
+}
+
+function saveGallery_(g) {
+  g.version = g.version + 1;
+  writeJson_(GALLERY_FILE, g);
+}
+
+/* מי מעלה: המכשיר, גם כשהוא של המנהל (קוד מנהל לא מזהה טלפון). */
+function uploader_(req, who) {
+  if (!who.admin) return { id: who.id, name: who.name };
+  if (String(req.deviceKey || '').length < MIN_DEVICE_KEY) return { id: 'admin', name: 'צוות הקבוצה' };
+  const id = deviceId_(req);
+  const u = access_().users[id];
+  return { id: id, name: u && u.name ? u.name : 'צוות הקבוצה' };
+}
+
+function galleryId_() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+}
+
+function usedToday_(g, id, kind) {
+  const since = Date.now() - DAY_MS;
+  return g.items.filter((it) => it.by === id && it.kind === kind && Date.parse(it.at) > since).length;
+}
+
+function leftToday_(g, id) {
+  return {
+    image: Math.max(0, g.settings.dayPhotos - usedToday_(g, id, 'image')),
+    video: Math.max(0, g.settings.dayVideos - usedToday_(g, id, 'video')),
+  };
+}
+
+function publicItem_(it, me, admin) {
+  const out = {
+    id: it.id, kind: it.kind, pid: it.pid, w: it.w || null, h: it.h || null, dur: it.dur || null,
+    match: it.match || null, byName: it.byName, at: it.at, mine: it.by === me, status: it.status,
+  };
+  if (admin) {
+    out.by = it.by;
+    if (it.hiddenBy) out.hiddenBy = { name: it.hiddenBy.name, why: it.hiddenBy.why, at: it.hiddenBy.at };
+  } else if (!out.mine) {
+    out.status = 'live';
+  }
+  return out;
+}
+
+function getGallery_(req) {
+  const who = viewer_(req);
+  const c = cloudinary_();
+  if (!c) return { enabled: false };
+  const g = gallery_();
+  const me = uploader_(req, who).id;
+  const items = g.items
+    .filter((it) => who.admin || it.status === 'live' || it.by === me)
+    .map((it) => publicItem_(it, me, who.admin))
+    .sort((a, b) => String(b.at).localeCompare(String(a.at)));
+  const out = {
+    enabled: true, cloud: c.cloud, mode: g.settings.mode, version: g.version,
+    dayPhotos: g.settings.dayPhotos, dayVideos: g.settings.dayVideos,
+    left: leftToday_(g, me), blocked: g.blocked.indexOf(me) >= 0, items: items,
+  };
+  if (who.admin) {
+    const users = access_().users;
+    out.blockedList = g.blocked.map((id) => ({ id: id, name: users[id] ? users[id].name : 'מכשיר שהוסר' }));
+  }
+  return out;
+}
+
+function signUpload_(req) {
+  const who = viewer_(req);
+  const c = cloudinary_();
+  if (!c) throw fail_('הגלריה עוד לא הופעלה', 'no_gallery');
+  const kind = req.kind === 'video' ? 'video' : 'image';
+  const g = gallery_();
+  const me = uploader_(req, who);
+  if (!who.admin && g.settings.mode === 'closed') throw fail_('העלאות סגורות כרגע', 'closed');
+  if (!who.admin && g.blocked.indexOf(me.id) >= 0) throw fail_('אין אפשרות להעלות מהמכשיר הזה', 'blocked');
+  if (!who.admin && leftToday_(g, me.id)[kind] <= 0) throw fail_('הגעתם למכסה היומית', 'quota');
+  const cache = CacheService.getScriptCache();
+  const countKey = 'signs:' + me.id;
+  const signs = Number(cache.get(countKey) || 0);
+  if (!who.admin && signs >= MAX_SIGNS_PER_HOUR) throw fail_('יותר מדי העלאות — נסו שוב מאוחר יותר', 'quota');
+  cache.put(countKey, String(signs + 1), SIGN_TTL_S);
+  const params = { allowed_formats: UPLOAD_FORMATS[kind], public_id: 'mg/' + galleryId_(), timestamp: Math.floor(Date.now() / 1000) };
+  cache.put('sig:' + params.public_id, JSON.stringify({ by: me.id, kind: kind }), SIGN_TTL_S);
+  return {
+    cloud: c.cloud, apiKey: c.key, kind: kind, timestamp: params.timestamp,
+    public_id: params.public_id, allowed_formats: params.allowed_formats, signature: cloudSign_(params, c.secret),
+  };
+}
+
+function cleanMatchRef_(m) {
+  if (!m || typeof m !== 'object') return null;
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(String(m.date)) ? String(m.date) : null;
+  if (!date) return null;
+  return { date: date, opponent: String(m.opponent || '').slice(0, 60) };
+}
+
+const num_ = (v, max) => (isFinite(v) && Number(v) > 0 ? Math.min(max, Math.round(Number(v))) : null);
+
+function addGalleryItem_(req) {
+  const who = viewer_(req);
+  const me = uploader_(req, who);
+  const cache = CacheService.getScriptCache();
+  const sig = JSON.parse(cache.get('sig:' + String(req.pid || '')) || 'null');
+  // Only a file this device was just allowed to upload: an id picked by
+  // the client would let a parent list someone else's file as their own.
+  if (!sig || sig.by !== me.id) throw fail_('ההעלאה לא אושרה', 'bad_upload');
+  return withLock_(() => {
+    const g = gallery_();
+    if (!who.admin && g.settings.mode === 'closed') throw fail_('העלאות סגורות כרגע', 'closed');
+    if (!who.admin && g.blocked.indexOf(me.id) >= 0) throw fail_('אין אפשרות להעלות מהמכשיר הזה', 'blocked');
+    if (!who.admin && leftToday_(g, me.id)[sig.kind] <= 0) throw fail_('הגעתם למכסה היומית', 'quota');
+    if (g.items.length >= MAX_GALLERY_ITEMS) throw fail_('הגלריה מלאה', 'too_big');
+    const it = {
+      id: galleryId_(), kind: sig.kind, pid: String(req.pid),
+      w: num_(req.w, 20000), h: num_(req.h, 20000), dur: sig.kind === 'video' ? num_(req.dur, 36000) : null,
+      match: cleanMatchRef_(req.match), by: me.id, byName: me.name, at: new Date().toISOString(),
+      status: g.settings.mode === 'review' && !who.admin ? 'pending' : 'live',
+    };
+    g.items.push(it);
+    saveGallery_(g);
+    cache.remove('sig:' + it.pid);
+    return publicItem_(it, me.id, who.admin);
+  });
+}
+
+function findItem_(g, id) {
+  const it = g.items.find((x) => x.id === String(id || ''));
+  if (!it) throw fail_('הפריט לא נמצא', 'not_found');
+  return it;
+}
+
+function hideGalleryItem_(req) {
+  const who = viewer_(req);
+  if (HIDE_WHY.indexOf(req.why) < 0) throw fail_('סיבה לא מוכרת', 'bad_why');
+  const me = uploader_(req, who);
+  return withLock_(() => {
+    const g = gallery_();
+    const it = findItem_(g, req.id);
+    if (it.status === 'live') {
+      it.status = 'hidden';
+      it.hiddenBy = { id: me.id, name: me.name, why: req.why, at: new Date().toISOString() };
+      saveGallery_(g);
+    }
+    return { ok: true };
+  });
+}
+
+function destroyCloud_(c, it) {
+  const params = { public_id: it.pid, timestamp: Math.floor(Date.now() / 1000) };
+  try {
+    UrlFetchApp.fetch('https://api.cloudinary.com/v1_1/' + c.cloud + '/' + (it.kind === 'video' ? 'video' : 'image') + '/destroy', {
+      method: 'post', muteHttpExceptions: true,
+      payload: { public_id: params.public_id, timestamp: String(params.timestamp), api_key: c.key, signature: cloudSign_(params, c.secret) },
+    });
+  } catch (e) { /* the row is gone either way; an orphan file costs storage only */ }
+}
+
+function deleteGalleryItem_(req) {
+  const who = viewer_(req);
+  const me = uploader_(req, who);
+  return withLock_(() => {
+    const g = gallery_();
+    const it = findItem_(g, req.id);
+    if (!who.admin && it.by !== me.id) throw fail_('אפשר למחוק רק העלאה שלך', 'not_yours');
+    g.items = g.items.filter((x) => x !== it);
+    saveGallery_(g);
+    const c = cloudinary_();
+    if (c) destroyCloud_(c, it);
+    return { ok: true };
+  });
+}
+
+function restoreGalleryItem_(req) {
+  requireAdmin_(req);
+  return withLock_(() => {
+    const g = gallery_();
+    const it = findItem_(g, req.id);
+    it.status = 'live';
+    delete it.hiddenBy;
+    saveGallery_(g);
+    return { ok: true };
+  });
+}
+
+function setGallery_(req) {
+  requireAdmin_(req);
+  return withLock_(() => {
+    const g = gallery_();
+    if (req.mode != null) {
+      if (GALLERY_MODES.indexOf(req.mode) < 0) throw fail_('מצב לא מוכר', 'bad_mode');
+      g.settings.mode = req.mode;
+    }
+    const lim = (v, max) => Math.max(0, Math.min(max, Math.round(Number(v))));
+    if (req.dayPhotos != null && isFinite(req.dayPhotos)) g.settings.dayPhotos = lim(req.dayPhotos, 500);
+    if (req.dayVideos != null && isFinite(req.dayVideos)) g.settings.dayVideos = lim(req.dayVideos, 50);
+    saveGallery_(g);
+    return g.settings;
+  });
+}
+
+function blockUploader_(req) {
+  requireAdmin_(req);
+  const id = String(req.id || '');
+  if (!/^[0-9a-f]{32}$/.test(id)) throw fail_('מכשיר לא מוכר', 'bad_id');
+  return withLock_(() => {
+    const g = gallery_();
+    g.blocked = g.blocked.filter((x) => x !== id);
+    if (req.blocked) g.blocked.push(id);
+    saveGallery_(g);
+    return { blocked: g.blocked.length };
+  });
+}
+
 /* ---------- מנהל ---------- */
 
 function adminPing_(req) {
   requireAdmin_(req);
   const users = access_().users;
   const pending = Object.keys(users).filter((k) => users[k].status === 'pending').length;
-  return { folder: root_().getName(), pending: pending };
+  const galleryWaiting = gallery_().items.filter((it) => it.status !== 'live').length;
+  return { folder: root_().getName(), pending: pending, galleryWaiting: galleryWaiting };
 }
 
 function listUsers_(req) {

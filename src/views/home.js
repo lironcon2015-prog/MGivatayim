@@ -1,5 +1,5 @@
 import { topBy, opponentLogo } from '../season.js';
-import { longDate, clock, pct, dec, esc, safeUrl, splitDuration, pad2, wazeLink } from '../format.js';
+import { longDate, clock, pct, dec, esc, safeUrl, splitDuration, pad2, wazeLink, navLink } from '../format.js';
 import { icon } from '../icons.js';
 import { crestImg, oppLogo, roundText, sectionHead, formPill, matchRow, fixtureRow, leaderRow, tile, splitBar, linkRow, videoCard } from '../components.js';
 
@@ -14,7 +14,7 @@ function nextMatchCard(s) {
   if (!nm?.opponent || !nm?.kickoff) return `<div class="card hero">${eyebrow()}<div class="empty">אין משחק קרוב בלוח.</div></div>`;
 
   const kick = new Date(nm.kickoff);
-  const waze = safeUrl(nm.venue?.waze) || wazeLink(nm.venue?.address);
+  const waze = navLink(nm.venue?.waze) || wazeLink(nm.venue?.address);
   // Short names are optional: the manager's form asks for one name per team,
   // and a missing short form must not reach the page as "undefined".
   const us = s.team.short || s.team.name;

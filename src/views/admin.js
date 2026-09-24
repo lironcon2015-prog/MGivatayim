@@ -1,5 +1,5 @@
 import { call } from '../bridge.js';
-import { esc, safeUrl, israelIso, splitKickoff, stamp, currentSeasonLabel, shortDate, byNumber } from '../format.js';
+import { esc, safeUrl, navLink, israelIso, splitKickoff, stamp, currentSeasonLabel, shortDate, byNumber } from '../format.js';
 import { POSITIONS, primaryPos, posLabel } from '../positions.js';
 import { readRows, parseDelimited, detectColumns, rowsToPlayers, planImport, applyImport, FIELDS } from '../importer.js';
 import { DEFAULT_FORMAT, DEFAULT_SIZE, cleanFormat, cleanSize } from '../live/model.js';
@@ -46,7 +46,7 @@ const NEXT_FIELDS = [
   { key: 'arrival', label: 'שעת התכנסות', type: 'time' },
   { key: 'venue.name', label: 'שם המגרש' },
   { key: 'venue.address', label: 'כתובת', hint: 'קישור ה-Waze נבנה מהכתובת' },
-  { key: 'venue.waze', label: 'קישור Waze (לא חובה)', type: 'url' },
+  { key: 'venue.waze', label: 'קישור Waze (לא חובה)', type: 'nav', hint: 'קישור, או קואורדינטות כמו 31.956020,34.834553' },
   { key: 'kit', label: 'תלבושת', placeholder: 'כחול / לבן / כחול' },
 ];
 
@@ -204,9 +204,10 @@ function fieldHtml(field, path, value, obj) {
       input = `<textarea ${attrs} rows="3">${esc(value ?? '')}</textarea>`;
       break;
     default: {
-      const type = field.type === 'number' ? 'number' : field.type || 'text';
+      const type = field.type === 'number' ? 'number' : field.type === 'nav' ? 'text' : field.type || 'text';
       const extra = field.type === 'number' ? ' inputmode="numeric" min="0" step="1"'
-        : field.type === 'url' ? ' dir="ltr" inputmode="url"' : '';
+        : field.type === 'url' ? ' dir="ltr" inputmode="url"'
+        : field.type === 'nav' ? ' dir="ltr" autocapitalize="off" spellcheck="false"' : '';
       input = `<input type="${type}" ${attrs}${extra} value="${esc(value ?? '')}"${field.placeholder ? ` placeholder="${esc(field.placeholder)}"` : ''} />`;
     }
   }
@@ -244,6 +245,7 @@ function validate(d) {
   for (const f of NEXT_FIELDS) {
     const v = nm && getPath(nm, f.key);
     if (f.type === 'url' && v && !safeUrl(v)) { errs.push(`המשחק הבא: ${f.label} חייב להתחיל ב-https://`); at('games'); }
+    if (f.type === 'nav' && v && !navLink(v)) { errs.push(`המשחק הבא: ${f.label} — קישור שמתחיל ב-https:// או קואורדינטות`); at('games'); }
   }
   return errs;
 }

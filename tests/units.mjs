@@ -309,6 +309,12 @@ await test('the Waze link searches the address alone', async () => {
   assert.equal(wazeLink('שדרות ירושלים 24, גבעתיים'), 'https://www.waze.com/ul?q=' + encodeURIComponent('שדרות ירושלים 24, גבעתיים'));
   assert.ok(!wazeLink('x').includes('navigate='), 'navigate=yes needs coordinates; with q it opened Waze empty');
   assert.equal(wazeLink('  '), null);
+  const { navLink } = await import('../src/format.js');
+  assert.equal(navLink(' 31.956020, 34.834553 '), 'https://www.waze.com/ul?ll=31.956020,34.834553&navigate=yes', 'coordinates become a Waze route');
+  assert.equal(navLink('https://maps.app.goo.gl/abc'), 'https://maps.app.goo.gl/abc');
+  assert.equal(navLink('95.1,34.8'), null, 'out of range');
+  assert.equal(navLink('רחוב הרצל'), null, 'a bare string is not a relative link');
+  assert.equal(navLink('javascript:alert(1)'), null);
 });
 
 await test('a fixture played live on another day leaves the schedule', async () => {

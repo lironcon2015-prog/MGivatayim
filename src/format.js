@@ -131,3 +131,19 @@ export const wazeLink = (address) => {
   const a = String(address || '').trim();
   return a ? `https://www.waze.com/ul?q=${encodeURIComponent(a)}` : null;
 };
+
+// The manager's own navigation link for a game: a link as pasted, or bare
+// coordinates ("31.956020,34.834553", what Google Maps shows for a location
+// shared on WhatsApp), which become a Waze route — ll is where navigate=yes
+// works. Anything else is no link: a bare string would pass as a relative URL.
+const COORDS = /^\s*(-?\d{1,2}(?:\.\d+)?)\s*,\s*(-?\d{1,3}(?:\.\d+)?)\s*$/;
+export function navLink(value) {
+  const v = String(value || '').trim();
+  const c = v.match(COORDS);
+  if (c) {
+    const [lat, lng] = [Number(c[1]), Number(c[2])];
+    return Math.abs(lat) <= 90 && Math.abs(lng) <= 180 ? `https://www.waze.com/ul?ll=${c[1]},${c[2]}&navigate=yes` : null;
+  }
+  if (!/^https?:\/\//i.test(v)) return null;
+  try { return new URL(v).href; } catch { return null; }
+}

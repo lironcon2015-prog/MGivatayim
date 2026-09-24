@@ -123,3 +123,4 @@ export async function uploadOne(file, match, { onProgress, asAdmin = false } = {
 
 export const hideItem = (id, why, { asAdmin = false } = {}) => call('hideGalleryItem', { id, why }, { asAdmin });
 export const deleteItem = (id, { asAdmin = false } = {}) => call('deleteGalleryItem', { id }, { asAdmin });
+export const deleteItems = (ids, { asAdmin = false } = {}) => call('deleteGalleryItem', { ids }, { asAdmin });

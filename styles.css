@@ -1282,3 +1282,31 @@ button.match:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px
 .gl-sub + .gl-linked { margin-top: 0; }
 .gl-linked .note { margin: 0 .15rem; }
 .gl-linked .video + .video { margin-top: 0; }
+
+/* Picking several items: a gold ring and check on the chosen, the rest of
+   the grid (other parents' items) dimmed and inert. */
+.gl-tile.pick .gl-check {
+  position: absolute; top: 6px; right: 6px; width: 24px; height: 24px; border-radius: 50%;
+  display: grid; place-items: center; background: rgba(4, 8, 14, .6); border: 2px solid rgba(255, 255, 255, .85); color: var(--on-gold);
+}
+.gl-tile.pick .gl-check svg { width: 14px; height: 14px; }
+.gl-tile.pick.on { box-shadow: inset 0 0 0 3px var(--gold); }
+.gl-tile.pick.on .gl-check { background: var(--gold); border-color: var(--gold); }
+.gl-tile.pick.on img { opacity: .8; }
+.gl-tile.nopick { cursor: default; }
+.gl-tile.nopick img { opacity: .3; }
+.gl-selbar {
+  position: fixed; z-index: 45; inset-inline: 12px; bottom: calc(12px + env(safe-area-inset-bottom));
+  max-width: calc(var(--shell) - 8px); margin: 0 auto;
+  display: flex; align-items: center; gap: 6px; padding: .55rem .6rem; padding-inline-start: 1rem;
+  border-radius: var(--r-pill); background: rgba(10, 17, 29, .92); border: 1px solid var(--gold-line);
+  -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); box-shadow: var(--shadow-lift);
+}
+body.with-nav .gl-selbar { bottom: calc(var(--nav-space) + .5rem); }
+.gl-selbar > span { flex: 1; min-width: 0; font-size: .85rem; font-weight: 700; }
+.gl-selbar .btn { flex: none; }
+[data-gallery]:has(.gl-selbar) { padding-bottom: 72px; }
+.field .saving { color: var(--gold); font-weight: 700; margin-inline-start: .35rem; }
+.seg.busy button[aria-selected="true"] { animation: seg-saving 1s ease-in-out infinite; }
+@keyframes seg-saving { 50% { opacity: .55; } }
+.gl-selbar > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

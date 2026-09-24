@@ -903,28 +903,36 @@ function hideGalleryItem_(req) {
   });
 }
 
-function destroyCloud_(c, it) {
-  const params = { public_id: it.pid, timestamp: Math.floor(Date.now() / 1000) };
-  try {
-    UrlFetchApp.fetch('https://api.cloudinary.com/v1_1/' + c.cloud + '/' + (it.kind === 'video' ? 'video' : 'image') + '/destroy', {
-      method: 'post', muteHttpExceptions: true,
-      payload: { public_id: params.public_id, timestamp: String(params.timestamp), api_key: c.key, signature: cloudSign_(params, c.secret) },
-    });
-  } catch (e) { /* the row is gone either way; an orphan file costs storage only */ }
+/* Several files in one go: fetchAll sends the destroy calls side by side,
+   so deleting thirty photos takes as long as deleting one. */
+function destroyCloud_(c, items) {
+  const ts = Math.floor(Date.now() / 1000);
+  const reqs = items.map((it) => ({
+    url: 'https://api.cloudinary.com/v1_1/' + c.cloud + '/' + (it.kind === 'video' ? 'video' : 'image') + '/destroy',
+    method: 'post', muteHttpExceptions: true,
+    payload: { public_id: it.pid, timestamp: String(ts), api_key: c.key, signature: cloudSign_({ public_id: it.pid, timestamp: ts }, c.secret) },
+  }));
+  try { UrlFetchApp.fetchAll(reqs); } catch (e) { /* the rows are gone either way; an orphan file costs storage only */ }
 }
 
+const MAX_DELETE = 100;
+
+/* One item (`id`) or several (`ids`). All or nothing: a parent's selection
+   that holds someone else's item is refused whole, not half-done. */
 function deleteGalleryItem_(req) {
   const who = viewer_(req);
   const me = uploader_(req, who);
+  const ids = Array.isArray(req.ids) ? req.ids.map(String) : [String(req.id || '')];
+  if (!ids.length || ids.length > MAX_DELETE) throw fail_('בחירה לא תקינה', 'bad_ids');
   return withLock_(() => {
     const g = gallery_();
-    const it = findItem_(g, req.id);
-    if (!who.admin && it.by !== me.id) throw fail_('אפשר למחוק רק העלאה שלך', 'not_yours');
-    g.items = g.items.filter((x) => x !== it);
+    const doomed = ids.map((id) => findItem_(g, id));
+    if (!who.admin && doomed.some((it) => it.by !== me.id)) throw fail_('אפשר למחוק רק העלאות שלך', 'not_yours');
+    g.items = g.items.filter((x) => doomed.indexOf(x) < 0);
     saveGallery_(g);
     const c = cloudinary_();
-    if (c) destroyCloud_(c, it);
-    return { ok: true };
+    if (c) destroyCloud_(c, doomed);
+    return { ok: true, deleted: doomed.length };
   });
 }
 

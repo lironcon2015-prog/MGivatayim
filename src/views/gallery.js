@@ -2,7 +2,7 @@ import { esc, shortDate, plural } from '../format.js';
 import { icon } from '../icons.js';
 import { openSheet, confirmSheet, toast } from '../ui/sheet.js';
 import {
-  loadGallery, cachedGallery, thumbUrl, fullUrl, posterUrl, saveUrl, uploadOne, hideItem, deleteItem, kindOf, MAX_VIDEO_S,
+  loadGallery, cachedGallery, thumbUrl, fullUrl, posterUrl, saveUrl, uploadOne, hideItem, deleteItem, deleteItems, kindOf, MAX_VIDEO_S,
 } from '../gallery.js';
 import { linkedVideosHtml, sortedVideos } from './media.js';
 import { photoMatches } from '../fixtures.js';
@@ -41,25 +41,38 @@ const videos_ = (n) => plural(n, 'סרטון אחד', 'שני סרטונים', '
 // "3 תמונות וסרטון אחד", "תמונה אחת ו-2 סרטונים".
 const and = (a, b) => (!a ? b : !b ? a : `${a} ו${/^\d/.test(b) ? '-' : ''}${b}`);
 
-function tile(g, it, extra = '') {
+// Selection (several items deleted at once): a parent picks among their own
+// uploads, the manager among all. The bridge checks the same rule.
+const canPick = (it, asAdmin) => asAdmin || it.mine;
+
+function tile(g, it, sel) {
   const own = it.mine && it.status !== 'live'
     ? `<span class="gl-flag">${it.status === 'hidden' ? 'מוסתרת' : 'ממתינה'}</span>` : '';
-  return `<button type="button" class="gl-tile${it.status !== 'live' ? ' dim' : ''}" data-open="${esc(it.id)}" aria-label="${it.kind === 'video' ? 'סרטון' : 'תמונה'} של ${esc(it.byName)}">
+  const label = `${it.kind === 'video' ? 'סרטון' : 'תמונה'} של ${esc(it.byName)}`;
+  if (sel?.on) {
+    const ok = canPick(it, sel.asAdmin), on = sel.ids.has(it.id);
+    return `<button type="button" class="gl-tile pick${on ? ' on' : ''}${ok ? '' : ' nopick'}" data-pick="${esc(it.id)}" aria-pressed="${on}" aria-label="${label}"${ok ? '' : ' disabled'}>
+      <img src="${esc(thumbUrl(g, it))}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.remove()" />
+      ${ok ? `<span class="gl-check" aria-hidden="true">${on ? icon('check') : ''}</span>` : ''}
+    </button>`;
+  }
+  return `<button type="button" class="gl-tile${it.status !== 'live' ? ' dim' : ''}" data-open="${esc(it.id)}" aria-label="${label}">
       <img src="${esc(thumbUrl(g, it))}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.remove()" />
       ${it.kind === 'video' ? `<span class="gl-vid num">${icon('play')}${it.dur ? `${Math.floor(it.dur / 60)}:${String(Math.round(it.dur % 60)).padStart(2, '0')}` : ''}</span>` : ''}
-      ${own}${extra}
+      ${own}
     </button>`;
 }
 
-function groupsHtml(g, items, open) {
+function groupsHtml(g, items, open, sel) {
   return groups(items).map((grp) => {
-    const whole = open.has(grp.key) || grp.items.length <= GROUP_SHOW;
+    // Picking shows every tile: a "+12" would hide what is being chosen.
+    const whole = sel?.on || open.has(grp.key) || grp.items.length <= GROUP_SHOW;
     const shown = whole ? grp.items : grp.items.slice(0, GROUP_SHOW - 1);
     const rest = grp.items.length - shown.length;
     return `<div class="gl-group">
       <div class="gl-head">${grp.match ? `מול ${esc(grp.match.opponent)} <span class="num">${esc(shortDate(grp.match.date))}</span>` : 'מהעונה'}
         <span class="num">${items_(grp.items.length)}</span></div>
-      <div class="gl-grid">${shown.map((it) => tile(g, it)).join('')}
+      <div class="gl-grid">${shown.map((it) => tile(g, it, sel)).join('')}
         ${rest ? `<button type="button" class="gl-tile gl-more num" dir="ltr" data-more="${esc(grp.key)}" aria-label="עוד ${rest}">+${rest}</button>` : ''}</div>
     </div>`;
   }).join('');
@@ -71,7 +84,17 @@ function tabFor(photos, videoCount) {
   return !photos.length && videoCount ? 'videos' : 'photos';
 }
 
-function galleryHtml(g, s, open) {
+function selBar(sel) {
+  const n = sel.ids.size;
+  return `<div class="gl-selbar" role="region" aria-label="בחירה">
+    <span>${!n ? 'בחרו למחיקה' : `<b class="num">${n}</b> ${n === 1 ? 'נבחר' : 'נבחרו'}`}</span>
+    <button type="button" class="btn small secondary" data-sel="all">הכל</button>
+    <button type="button" class="btn small danger" data-sel="delete"${n && !sel.busy ? '' : ' disabled'}>${icon('trash')} ${sel.busy ? 'מוחק…' : 'מחיקה'}</button>
+    <button type="button" class="btn small secondary" data-sel="cancel"${sel.busy ? ' disabled' : ''}>ביטול</button>
+  </div>`;
+}
+
+function galleryHtml(g, s, open, sel) {
   const canUpload = g.mode !== 'closed' && !g.blocked;
   const items = visible(g);
   const photos = items.filter((it) => it.kind !== 'video');
@@ -80,14 +103,16 @@ function galleryHtml(g, s, open) {
   const videoCount = clips.length + linked.length;
   const tab = tabFor(photos, videoCount);
   const body = tab === 'photos'
-    ? (photos.length ? groupsHtml(g, photos, open)
+    ? (photos.length ? groupsHtml(g, photos, open, sel)
       : `<div class="card gl-empty"><div class="empty">עוד אין כאן תמונות.${canUpload ? ' אפשר להיות הראשונים.' : ''}</div></div>`)
     : (!videoCount ? `<div class="card gl-empty"><div class="empty">עוד אין סרטונים.${canUpload ? ' אפשר להעלות קטע מהמשחק.' : ''}</div></div>`
       : `${linked.length ? `${clips.length ? '<div class="gl-sub">תקצירים ומשחקים</div>' : ''}<div class="gl-linked">${linkedVideosHtml(s)}</div>` : ''}
-         ${clips.length ? `${linked.length ? '<div class="gl-sub">צולם במגרש</div>' : ''}${groupsHtml(g, clips, open)}` : ''}`);
+         ${clips.length ? `${linked.length ? '<div class="gl-sub">צולם במגרש</div>' : ''}${groupsHtml(g, clips, open, sel)}` : ''}`);
+  const pickable = (tab === 'photos' ? photos : clips).some((it) => canPick(it, sel.asAdmin));
   return `<section>
     <div class="sec-head">${icon('photo')}<h2>הגלריה של הקבוצה</h2>
-      <button type="button" class="help-btn" data-help aria-label="איך זה עובד">?</button></div>
+      <button type="button" class="help-btn" data-help aria-label="איך זה עובד">?</button>
+      ${pickable && !sel.on ? `<span class="aside"><button type="button" class="chip-tool" data-sel="start">${icon('check')} בחירה</button></span>` : ''}</div>
     ${canUpload ? `<button type="button" class="btn" data-upload>${icon('upload')} העלאת תמונות וסרטונים</button>
       <input type="file" data-files accept="image/*,video/*" multiple hidden />` : ''}
     <div class="seg gl-tabs" role="tablist" aria-label="תמונות או סרטונים">
@@ -95,7 +120,8 @@ function galleryHtml(g, s, open) {
       <button type="button" role="tab" data-gtab="videos" aria-selected="${tab === 'videos'}">סרטונים${videoCount ? ` <span class="num">${videoCount}</span>` : ''}</button>
     </div>
     ${body}
-  </section>`;
+  </section>
+  ${sel.on ? selBar(sel) : ''}`;
 }
 
 /* ---- help ---- */
@@ -113,7 +139,7 @@ function helpSheet(g) {
 
       <h3>${icon('photo')} מה קורה אחרי ההעלאה</h3>
       <p>${review ? 'ההעלאה מופיעה בגלריה של כולם אחרי בדיקה קצרה' : 'ההעלאה מופיעה מיד בגלריה של כולם'}, עם השם שלכם.
-        העלאה שלכם אפשר למחוק בכל זמן: פותחים אותה ולוחצים <b>"מחיקה"</b>.</p>
+        העלאה שלכם אפשר למחוק בכל זמן: פותחים אותה ולוחצים <b>"מחיקה"</b>. כמה בבת אחת: <b>"בחירה"</b> ליד הכותרת, מסמנים ומוחקים.</p>
 
       <h3>${icon('eyeoff')} הסתרה</h3>
       <p>רואים תמונה של הילד שלכם ומעדיפים שלא תופיע? או משהו שלא מתאים לגלריה? פותחים את התמונה ולוחצים <b>"הסתרה"</b>.
@@ -330,6 +356,9 @@ export function wireGallery(root, s, { isAdmin = () => false } = {}) {
   const open = new Set();
   let g = cachedGallery();
   const asAdmin = isAdmin();
+  const sel = { on: false, ids: new Set(), busy: false, asAdmin };
+  const endSelect = () => { sel.on = false; sel.ids.clear(); sel.busy = false; };
+  const inTab = () => visible(g).filter((it) => (shownTab === 'videos' ? it.kind === 'video' : it.kind !== 'video'));
 
   const paint = () => {
     if (!alive) return;
@@ -338,7 +367,7 @@ export function wireGallery(root, s, { isAdmin = () => false } = {}) {
     if (!g?.enabled) return;
     const items = visible(g);
     shownTab = tabFor(items.filter((it) => it.kind !== 'video'), items.filter((it) => it.kind === 'video').length + s.videos.length);
-    host.innerHTML = galleryHtml(g, s, open);
+    host.innerHTML = galleryHtml(g, s, open, sel);
     hydratePosters(host);
   };
   const refresh = async () => {
@@ -352,13 +381,46 @@ export function wireGallery(root, s, { isAdmin = () => false } = {}) {
     if (t.dataset.help !== undefined) { helpSheet(g); return; }
     if (t.dataset.upload !== undefined) { host.querySelector('[data-files]').click(); return; }
     if (t.dataset.more !== undefined) { open.add(t.dataset.more); paint(); return; }
-    if (t.dataset.gtab) { shownTab = t.dataset.gtab; paint(); return; }
+    if (t.dataset.gtab) { shownTab = t.dataset.gtab; endSelect(); paint(); return; }
+    if (t.dataset.pick) {
+      if (sel.ids.has(t.dataset.pick)) sel.ids.delete(t.dataset.pick); else sel.ids.add(t.dataset.pick);
+      paint();
+      return;
+    }
+    if (t.dataset.sel === 'start') { sel.on = true; paint(); return; }
+    if (t.dataset.sel === 'cancel') { endSelect(); paint(); return; }
+    if (t.dataset.sel === 'all') {
+      const all = inTab().filter((it) => canPick(it, asAdmin)).map((it) => it.id);
+      const every = all.every((id) => sel.ids.has(id));
+      sel.ids = every ? new Set() : new Set(all);
+      paint();
+      return;
+    }
+    if (t.dataset.sel === 'delete') { deleteSelected(); return; }
     if (t.dataset.open) {
       const kindOk = (it) => (shownTab === 'videos' ? it.kind === 'video' : it.kind !== 'video');
       const list = groups(visible(g).filter(kindOk)).flatMap((grp) => grp.items);
       viewer(g, list, Math.max(0, list.findIndex((it) => it.id === t.dataset.open)), { asAdmin, onChange: refresh });
     }
   });
+  async function deleteSelected() {
+    const n = sel.ids.size;
+    if (!n || sel.busy) return;
+    const what = plural(n, 'פריט אחד', 'שני פריטים', 'פריטים');
+    if (!(await confirmSheet({ title: `למחוק ${what}?`, text: 'הם יימחקו לגמרי מהגלריה, אצל כולם.', ok: 'מחיקה', cancel: 'חזרה', danger: true }))) return;
+    sel.busy = true;
+    paint();
+    try {
+      await deleteItems([...sel.ids], { asAdmin });
+      toast(`${what} ${n === 1 ? 'נמחק' : 'נמחקו'} מהגלריה.`);
+      endSelect();
+    } catch (err) {
+      sel.busy = false;
+      toast(esc(err.message), { kind: 'err' });
+    }
+    await refresh();
+  }
+
   host.addEventListener('change', (e) => {
     if (!e.target.matches('[data-files]')) return;
     const files = [...e.target.files];

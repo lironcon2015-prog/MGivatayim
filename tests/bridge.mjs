@@ -522,6 +522,18 @@ console.log('gallery:');
     assert.ok(call && call.opts.payload.public_id === item.pid, 'no destroy call to Cloudinary');
   });
 
+  test('several items go in one call; a selection with someone else\'s is refused whole', () => {
+    const a = upload(noa).result, b2 = upload(noa).result, theirs = upload(gal).result;
+    assert.equal(err(G.post({ action: 'deleteGalleryItem', deviceKey: noa, ids: [a.id, theirs.id] })), 'not_yours');
+    const left = () => G.post({ action: 'getGallery', adminCode: ADMIN }).result.items.map((x) => x.id);
+    assert.ok([a.id, b2.id, theirs.id].every((id) => left().includes(id)), 'a refused selection deleted something');
+    const before = G.fetched.length;
+    assert.equal(G.post({ action: 'deleteGalleryItem', deviceKey: noa, ids: [a.id, b2.id] }).result.deleted, 2);
+    assert.ok(![a.id, b2.id].some((id) => left().includes(id)));
+    assert.equal(G.fetched.length - before, 2, 'each file is destroyed at Cloudinary');
+    assert.equal(G.post({ action: 'deleteGalleryItem', adminCode: ADMIN, ids: [theirs.id] }).result.deleted, 1, 'the manager deletes anyone\'s');
+  });
+
   test('review mode holds new uploads back from others; closed takes uploads away', () => {
     G.post({ action: 'setGallery', adminCode: ADMIN, mode: 'review' });
     const r = upload(noa).result;

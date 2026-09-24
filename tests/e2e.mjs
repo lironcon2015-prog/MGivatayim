@@ -775,6 +775,51 @@ await step('the uploader deletes their own photo', async () => {
   await parent.click('.sheet [data-ok]');
   await parent.locator('[data-gallery] .gl-empty').waitFor();
   expect(galleryFile().items.length === 0, 'still in gallery.json');
+});
+
+await step('several items are deleted at once by picking them; a parent picks only their own', async () => {
+  await other.reload();
+  await other.setInputFiles('[data-files]', { name: 'b.png', mimeType: 'image/png', buffer: PNG });
+  await other.click('.sheet [data-go]');
+  await other.locator('[data-gallery] .gl-tile').first().waitFor({ timeout: 8000 });
+  await parent.reload();
+  await parent.setInputFiles('[data-files]', [{ name: 'a1.png', mimeType: 'image/png', buffer: PNG }, { name: 'a2.png', mimeType: 'image/png', buffer: PNG }]);
+  await parent.click('.sheet [data-go]');
+  await parent.locator('[data-gallery] .gl-tile').nth(2).waitFor({ timeout: 8000 });
+  await parent.click('[data-sel="start"]');
+  expect(await parent.locator('.gl-tile.pick.nopick').count() === 1, 'another parent\'s photo is pickable');
+  await parent.click('[data-sel="all"]');
+  expect(await parent.locator('.gl-tile.pick.on').count() === 2, 'select all did not take both of mine');
+  await parent.click('[data-sel="delete"]');
+  await parent.click('.sheet [data-ok]');
+  await parent.locator('.gl-selbar').waitFor({ state: 'detached' });
+  const left = galleryFile().items;
+  expect(left.length === 1 && left[0].byName === 'אמא של דניאל', 'left: ' + JSON.stringify(left.map((x) => x.byName)));
+});
+
+await step('the manager picks anyone\'s items; the uploads switch answers at once', async () => {
+  await admin.goto(APP + '#/media');
+  await admin.click('[data-sel="start"]');
+  await admin.locator('.gl-tile.pick:not(.nopick)').first().click();
+  await admin.click('[data-sel="delete"]');
+  await admin.click('.sheet [data-ok]');
+  await admin.locator('.gl-selbar').waitFor({ state: 'detached' });
+  expect(galleryFile().items.length === 0, 'the manager could not delete a parent\'s item');
+  // A slow bridge: the switch must move before it answers.
+  await admin.route(BRIDGE, async (r) => {
+    if ((r.request().postData() || '').includes('"setGallery"')) await new Promise((z) => setTimeout(z, 1500));
+    await r.continue();
+  });
+  await admin.goto(APP + '#/admin');
+  await admin.click('[data-tab="media"]');
+  await admin.click('[data-g-mode="review"]');
+  await admin.locator('[data-g-mode="review"][aria-selected="true"]').waitFor({ timeout: 400 });
+  await admin.locator('.field .saving').waitFor({ timeout: 400 });
+  await admin.locator('.field .saving').waitFor({ state: 'detached', timeout: 8000 });
+  expect(galleryFile().settings.mode === 'review', 'mode not saved');
+  await admin.click('[data-g-mode="open"]');
+  await admin.locator('.field .saving').waitFor({ state: 'detached', timeout: 8000 });
+  await admin.unroute(BRIDGE);
   const id = bridge.post({ action: 'listUsers', adminCode: ADMIN }).result.find((u) => u.name === 'אמא של דניאל').id;
   bridge.post({ action: 'removeUser', adminCode: ADMIN, id });
 });

@@ -285,6 +285,7 @@ export function mountAdmin(view, ctx) {
   let messageKind = '';
   let saving = false;
   let gallery = null;        // the team gallery, as the manager sees it (bridge, not the season draft)
+  let modeSaving = false;    // the uploads switch moved; the bridge has not answered yet
 
   const pendingCount = () => (users || []).filter((u) => u.status === 'pending').length;
   const galleryWaiting = () => (gallery?.items || []).filter((it) => it.status !== 'live');
@@ -625,8 +626,8 @@ export function mountAdmin(view, ctx) {
       <section>
         <div class="sec-head">${icon('photo')}<h2>גלריה</h2><span class="h-count num">${live}</span></div>
         <div class="card">
-          <div class="field"><span>העלאות</span></div>
-          <div class="seg" role="group" aria-label="העלאות">${modes.map(([m, l]) =>
+          <div class="field"><span>העלאות${modeSaving ? ' <b class="saving" role="status">שומר…</b>' : ''}</span></div>
+          <div class="seg${modeSaving ? ' busy' : ''}" role="group" aria-label="העלאות" aria-busy="${modeSaving}">${modes.map(([m, l]) =>
             `<button type="button" data-g-mode="${m}" aria-selected="${gallery.mode === m}" aria-pressed="${gallery.mode === m}">${l}</button>`).join('')}</div>
           <p class="note">פתוחות: כל העלאה מופיעה מיד. באישור: ממתינה לך כאן. סגורות: אין כפתור העלאה.</p>
           <div class="grid-2" style="margin-top: 1rem">
@@ -872,7 +873,26 @@ export function mountAdmin(view, ctx) {
       if (tab === 'media') loadGallery();
       return;
     }
-    if (t.dataset.gMode) { galleryAct('setGallery', { mode: t.dataset.gMode }); return; }
+    // The switch moves at once and says it is saving: the bridge takes a
+    // second or two, and a switch that waits for it reads as a missed tap.
+    if (t.dataset.gMode) {
+      const mode = t.dataset.gMode;
+      if (!gallery || modeSaving || gallery.mode === mode) return;
+      const prev = gallery.mode;
+      gallery.mode = mode;
+      modeSaving = true;
+      paint();
+      try {
+        await call('setGallery', { mode }, { asAdmin: true });
+        toast(`העלאות: ${{ open: 'פתוחות', review: 'באישור', closed: 'סגורות' }[mode]}`);
+      } catch (err) {
+        gallery.mode = prev;
+        toast(esc(err.message), { kind: 'err' });
+      }
+      modeSaving = false;
+      await loadGallery();
+      return;
+    }
     if (t.dataset.gRestore) { t.disabled = true; galleryAct('restoreGalleryItem', { id: t.dataset.gRestore }, 'חזרה לגלריה'); return; }
     if (t.dataset.gDelete) {
       if (!confirm('למחוק לגמרי מהגלריה?')) return;

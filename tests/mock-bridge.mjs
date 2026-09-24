@@ -111,6 +111,7 @@ export function createBridge({ adminCode = 'test-admin-code-1234' } = {}) {
       },
     },
     UrlFetchApp: {
+      fetchAll: (reqs) => reqs.map((r) => sandbox.UrlFetchApp.fetch(r.url, r)),
       fetch: (url, opts) => {
         fetched.push({ url, opts });
         const hit = web.get(url);

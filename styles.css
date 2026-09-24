@@ -1310,3 +1310,14 @@ body.with-nav .gl-selbar { bottom: calc(var(--nav-space) + .5rem); }
 .seg.busy button[aria-selected="true"] { animation: seg-saving 1s ease-in-out infinite; }
 @keyframes seg-saving { 50% { opacity: .55; } }
 .gl-selbar > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Which game an upload belongs to: a list of choices, all on screen. */
+.mp-list { display: grid; gap: 6px; margin-top: .45rem; }
+.mp-opt {
+  display: flex; align-items: center; gap: .65rem; padding: .62rem .85rem; border-radius: 14px; cursor: pointer;
+  border: 1px solid var(--line-strong); background: var(--well); font-size: .92rem; font-weight: 600;
+}
+.mp-opt:has(input:checked) { border-color: var(--gold-line); background: var(--gold-soft); color: var(--gold); }
+.mp-opt input { accent-color: var(--gold); width: 17px; height: 17px; margin: 0; flex: none; }
+.mp-opt .num { margin-inline-start: auto; color: var(--muted); font-weight: 600; font-size: .84rem; }
+.mp-more { margin-top: .5rem; }

@@ -711,6 +711,10 @@ await step('a parent uploads a photo; it is in the gallery at once, under their 
   await parent.locator('[data-gallery] [data-upload]').waitFor({ timeout: 8000 });
   await parent.setInputFiles('[data-files]', { name: 'goal.png', mimeType: 'image/png', buffer: PNG });
   await parent.locator('.sheet', { hasText: 'העלאה לגלריה' }).waitFor();
+  // Every game played so far is a choice on the screen, not only the latest.
+  const played = seasonFile().matches.length;
+  const choices = await parent.locator('.sheet .mp-opt input').count();
+  expect(played > 1 && choices === played + 1, `games to choose: ${choices}, played: ${played}`);
   await parent.click('.sheet [data-go]');
   await parent.locator('[data-gallery] .gl-tile').first().waitFor({ timeout: 8000 });
   const items = galleryFile().items;

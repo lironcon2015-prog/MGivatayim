@@ -17,6 +17,7 @@ import { hydratePosters } from '../posters.js';
    (highlights, whole matches), so videos are in one place. */
 
 const GROUP_SHOW = 6;
+const MATCHES_SHOWN = 4;
 let shownTab = null;    // 'photos' | 'videos', kept across visits
 
 // A manager gets hidden items too — they belong in the manager's list, not
@@ -176,20 +177,30 @@ function uploadSheet(files, s, g, { asAdmin, onDone }) {
     title: 'העלאה לגלריה',
     subtitle: and(images && plural(images, 'תמונה אחת', 'שתי תמונות', 'תמונות'), videos && plural(videos, 'סרטון אחד', 'שני סרטונים', 'סרטונים')) + (rows.length === 1 ? ' נבחר' : ' נבחרו'),
     tall: true,
-    body: `<label class="field"><span>מאיזה משחק?</span>
-        <select data-match>${matches.map((m, i) => `<option value="${i}">מול ${esc(m.opponent)} · ${esc(shortDate(m.date))}</option>`).join('')}
-          <option value="">בלי משחק מסוים</option></select></label>
+    // The games as a visible list, not a native picker: every choice is on
+    // the screen, and nothing depends on how a phone draws a <select>.
+    body: `<div class="field"><span>מאיזה משחק?</span></div>
+      <div class="mp-list" role="radiogroup" aria-label="מאיזה משחק">
+        ${matches.map((m, i) => `<label class="mp-opt"${i >= MATCHES_SHOWN ? ' hidden' : ''}><input type="radio" name="match" value="${i}"${i === 0 ? ' checked' : ''} />
+          <span>מול ${esc(m.opponent)}</span><span class="num">${esc(shortDate(m.date))}</span></label>`).join('')}
+        <label class="mp-opt"><input type="radio" name="match" value=""${matches.length ? '' : ' checked'} /><span>בלי משחק מסוים</span></label>
+      </div>
+      ${matches.length > MATCHES_SHOWN ? `<button type="button" class="linkish mp-more" data-more-matches>${((n) => (n === 1 ? 'עוד משחק אחד' : n === 2 ? 'עוד שני משחקים' : `עוד ${n} משחקים`))(matches.length - MATCHES_SHOWN)}</button>` : ''}
       <div class="up-list" data-list>${rows.map(rowHtml).join('')}</div>
       <p class="note">כל קובץ מופיע בגלריה ברגע שהוא עולה, עם השם שלך. סרטון: עד ${MAX_VIDEO_S} שניות.</p>
       <button type="button" class="btn" data-go${rows.some((r) => r.state === 'wait') ? '' : ' disabled'}>${icon('upload')} העלאה</button>`,
     onMount: ({ el }) => {
       const redraw = (r) => { el.querySelector(`[data-row="${r.i}"]`).outerHTML = rowHtml(r); };
+      el.querySelector('[data-more-matches]')?.addEventListener('click', (e) => {
+        el.querySelectorAll('.mp-opt[hidden]').forEach((o) => { o.hidden = false; });
+        e.currentTarget.remove();
+      });
       el.querySelector('[data-go]').addEventListener('click', async (e) => {
         if (busy) return;
         busy = true;
         const btn = e.currentTarget;
         btn.disabled = true;
-        const pick = el.querySelector('[data-match]').value;
+        const pick = el.querySelector('input[name=match]:checked')?.value ?? '';
         const m = pick === '' ? null : matches[Number(pick)];
         const match = m ? { date: m.date, opponent: m.opponent } : null;
         const todo = rows.filter((r) => r.state === 'wait');

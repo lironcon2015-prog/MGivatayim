@@ -57,6 +57,21 @@ function withHomeVenue(game, home) {
   return { ...game, venue: { ...v, name: home.name || '', address: home.address || '' } };
 }
 
+// Opponent crests: { [opponent name]: ref }, a ref being a Drive file id in
+// the bridge's posters folder (putLogo, fetched with getPoster). Keyed by
+// name, so the crest follows the opponent to the next-match card, the live
+// board and a second meeting later in the season. Rebuilt entry by entry:
+// the ref lands in an HTML attribute.
+export const logoKey = (name) => String(name || '').replace(/\s+/g, ' ').trim();
+function cleanLogos(m) {
+  const out = {};
+  if (m && typeof m === 'object') {
+    for (const [k, v] of Object.entries(m)) if (logoKey(k) && /^[\w-]{10,100}$/.test(String(v))) out[logoKey(k)] = String(v);
+  }
+  return out;
+}
+export const opponentLogo = (season, name) => season?.opponentLogos?.[logoKey(name)] || null;
+
 export function buildSeason(input, now = new Date()) {
   // Every list may be missing or empty: the data file is filled in by hand,
   // often section by section, and a season that has not kicked off yet has
@@ -70,6 +85,7 @@ export function buildSeason(input, now = new Date()) {
     videos: input.videos ?? [],
     links: input.links ?? [],
     analysis: { items: [], ...(input.analysis ?? {}) },
+    opponentLogos: cleanLogos(input.opponentLogos),
   };
   const chronological = [...raw.matches].sort((a, b) => a.date.localeCompare(b.date));
   const recent = [...chronological].reverse();

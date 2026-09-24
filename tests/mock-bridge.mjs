@@ -99,6 +99,8 @@ export function createBridge({ adminCode = 'test-admin-code-1234' } = {}) {
       // & 0xff, and an unsigned shim would hide a missing mask.
       computeDigest: (alg, str) => [...createHash(alg).update(str, 'utf8').digest()].map((b) => (b > 127 ? b - 256 : b)),
       base64Encode: (bytes) => Buffer.from(bytes.map((b) => b & 0xff)).toString('base64'),
+      base64Decode: (str) => [...Buffer.from(str, 'base64')].map((b) => (b > 127 ? b - 256 : b)),
+      newBlob: (bytes, type, name) => makeBlob(bytes, type, name),
     },
     DriveApp: {
       getFoldersByName: (n) => iterator(folders.filter((f) => f.name === n)),

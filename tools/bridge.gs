@@ -129,6 +129,7 @@ function handle_(req) {
     case 'removeUser':    return removeUser_(req);
     case 'putSeason':     return putSeason_(req);
     case 'makePoster':    return makePoster_(req);
+    case 'putLogo':       return putLogo_(req);
     case 'startLive':     return startLive_(req);
     case 'setLiveCode':   return setLiveCode_(req);
     case 'clearLiveControl': return clearLiveControl_(req);
@@ -410,6 +411,25 @@ function makePoster_(req) {
   while (old.hasNext()) old.next().setTrashed(true);
   const saved = dir.createFile(blob.setName(name));
   return { ref: saved.getId() };
+}
+
+/* מנהל בלבד: סמל של קבוצה יריבה, שהמנהל העלה מהטלפון (מוקטן שם). נשמר
+   באותה תיקייה כמו תמונות הסרטונים, כדי שהורים יקבלו אותו ב-getPoster —
+   ולא בנתוני העונה, שכל סמל היה מנפח. */
+const LOGO_TYPES = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp' };
+const MAX_LOGO_BYTES = 200 * 1024;
+function putLogo_(req) {
+  requireAdmin_(req);
+  const mime = String(req.mime || '');
+  if (!LOGO_TYPES[mime]) throw fail_('סוג תמונה לא נתמך', 'bad_image');
+  const data = String(req.data || '');
+  if (!data || data.length > MAX_LOGO_BYTES * 4 / 3 + 4 || !/^[A-Za-z0-9+/]+=*$/.test(data)) throw fail_('התמונה גדולה מדי או פגומה', 'bad_image');
+  const bytes = Utilities.base64Decode(data);
+  const name = 'logo-' + hash_(data) + '.' + LOGO_TYPES[mime];
+  const dir = posterDir_();
+  const same = dir.getFilesByName(name);
+  while (same.hasNext()) { const f = same.next(); if (!f.isTrashed()) return { ref: f.getId() }; }
+  return { ref: dir.createFile(Utilities.newBlob(bytes, mime, name)).getId() };
 }
 
 /* כל מכשיר מאושר. ref הוא מזהה קובץ בדרייב, ולכן חובה לוודא שהקובץ יושב

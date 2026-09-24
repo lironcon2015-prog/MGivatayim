@@ -192,6 +192,15 @@ await test('success rate is points taken out of points available', async () => {
   assert.equal(buildSeason({}).overall.pointsRate, 0, 'no matches, no division by zero');
 });
 
+await test('opponent crests: kept by name, and only a Drive id reaches the page', async () => {
+  const { buildSeason, opponentLogo } = await import('../src/season.js');
+  const s = buildSeason({ opponentLogos: { ' הפועל  כוכבים ': 'abcDEF12345_-x', 'בני לוד': '"><img src=x onerror=alert(1)>', x: 7 } });
+  assert.deepEqual(s.opponentLogos, { 'הפועל כוכבים': 'abcDEF12345_-x' });
+  assert.equal(opponentLogo(s, 'הפועל כוכבים '), 'abcDEF12345_-x');
+  assert.equal(opponentLogo(s, 'בני לוד'), null);
+  assert.deepEqual(buildSeason({}).opponentLogos, {});
+});
+
 await test('fixtures: dates and times as spreadsheets write them', async () => {
   const { parseDate, parseTime, parseHome } = await import('../src/fixtures.js');
   assert.equal(parseDate('19/09/2026').date, '2026-09-19');

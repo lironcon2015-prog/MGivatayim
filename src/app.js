@@ -1,4 +1,4 @@
-import { buildSeason } from './season.js';
+import { buildSeason, opponentLogo } from './season.js';
 import { esc, seasonLabel } from './format.js';
 import { crestImg } from './components.js';
 import { icon } from './icons.js';
@@ -365,6 +365,7 @@ function render() {
       size: () => LM.cleanSize(s.settings?.size),
       matches: () => s.recent,
       schedule: () => s.schedule,
+      logo: (name) => opponentLogo(s, name),
     });
     return;
   }

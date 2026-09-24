@@ -7,8 +7,9 @@ import { formatEditorHtml, wireFormatEditor } from './live.js';
 import { videoOrder } from './media.js';
 import { openSheet, toast } from '../ui/sheet.js';
 import { icon } from '../icons.js';
-import { roundText } from '../components.js';
-import { preparePosters } from '../posters.js';
+import { roundText, oppLogo } from '../components.js';
+import { preparePosters, uploadLogo, hydratePosters } from '../posters.js';
+import { logoKey } from '../season.js';
 import { thumbUrl } from '../gallery.js';
 import { detectFixtureColumns, rowsToFixtures, applyFixtureImport, upcomingFixtures, FIXTURE_FIELDS } from '../fixtures.js';
 
@@ -329,6 +330,7 @@ export function mountAdmin(view, ctx) {
   let message = '';
   let messageKind = '';
   let saving = false;
+  let logoBusy = false;
   let gallery = null;        // the team gallery, as the manager sees it (bridge, not the season draft)
   let modeSaving = false;    // the uploads switch moved; the bridge has not answered yet
 
@@ -360,6 +362,7 @@ export function mountAdmin(view, ctx) {
         set: (n) => { draft.settings = { ...(draft.settings || {}), size: n }; touch(); },
       });
     }
+    hydratePosters(view);
     view.querySelector('[data-import-fixtures]')?.addEventListener('change', async (e) => {
       const file = e.target.files?.[0];
       e.target.value = '';
@@ -772,6 +775,20 @@ export function mountAdmin(view, ctx) {
     </section>`;
   }
 
+  // The opponent's crest, uploaded here and kept by name (season.opponentLogos):
+  // it shows on the next-match card and the live board, and again whenever
+  // the same team comes round.
+  function logoHtml(name) {
+    if (!logoKey(name)) return '';
+    const ref = draft.opponentLogos?.[logoKey(name)];
+    return `<div class="logo-row">
+        <span class="sc-disc">${esc(logoKey(name).slice(0, 2))}${oppLogo(ref, name)}</span>
+        <span class="ei-main"><b>סמל היריבה</b><small>${ref ? 'במשחק הבא ובלייב' : 'עוד לא הועלה'}</small></span>
+        <label class="btn small secondary">${logoBusy ? 'מעלה…' : ref ? 'החלפה' : 'העלאה'}<input type="file" accept="image/*" data-logo-file="${esc(logoKey(name))}" hidden${logoBusy ? ' disabled' : ''} /></label>
+        ${ref ? `<button type="button" class="linkish" data-logo-del="${esc(logoKey(name))}">הסרה</button>` : ''}
+      </div>`;
+  }
+
   function nextMatchHtml() {
     const nm = draft.nextMatch;
     const nextFixture = nm ? null : upcomingFixtures(draft.fixtures, draft.matches)[0];
@@ -782,10 +799,12 @@ export function mountAdmin(view, ctx) {
             <div class="row-btns">
               <button type="button" class="btn small" id="played">המשחק התקיים — הזנת תוצאה</button>
               <button type="button" class="btn small secondary" id="no-next">אין משחק קרוב</button>
-            </div>`
+            </div>
+            <div data-logo-host>${logoHtml(nm.opponent)}</div>`
           : `${nextFixture
               ? `<div class="next-auto"><span class="ei-main"><b>${esc(nextFixture.opponent)}</b><small><span class="num">${esc(shortDate(nextFixture.date))}</span>${nextFixture.time ? ` · <span class="num">${esc(nextFixture.time)}</span>` : ' · שעה טרם נקבעה'}</small></span><span class="chip">מהלוח</span></div>
-                 <p class="note">ההורים רואים אותו כמשחק הבא. התכנסות ותלבושת מוסיפים כאן.</p>`
+                 <p class="note">ההורים רואים אותו כמשחק הבא. התכנסות ותלבושת מוסיפים כאן.</p>
+                 <div data-logo-host>${logoHtml(nextFixture.opponent)}</div>`
               : '<div class="empty">אין משחק קרוב בלוח.</div>'}
              <button type="button" class="btn small secondary wide" id="add-next">+ ${nextFixture ? 'הוספת פרטים (התכנסות, תלבושת)' : 'קביעת משחק הבא'}</button>`}
         </div>
@@ -882,8 +901,26 @@ export function mountAdmin(view, ctx) {
 
   /* ---- events ---- */
 
+  async function onLogoFile(el) {
+    const file = el.files?.[0];
+    const key = el.dataset.logoFile;
+    el.value = '';
+    if (!file) return;
+    logoBusy = true; paint();
+    try {
+      const ref = await uploadLogo(file);
+      draft.opponentLogos = { ...(draft.opponentLogos || {}), [key]: ref };
+      touch();
+    } catch (err) { toast(esc(err.message || 'ההעלאה נכשלה'), { kind: 'err', ms: 7000 }); }
+    logoBusy = false; paint();
+  }
+
   const onInput = (e) => {
     const el = e.target;
+    if (el.dataset.logoFile != null) {
+      if (e.type === 'change') onLogoFile(el);
+      return;
+    }
     if (el.dataset.gLimit) {
       if (e.type === 'change' && el.value !== '') galleryAct('setGallery', { [el.dataset.gLimit]: Number(el.value) }, 'המגבלה עודכנה');
       return;
@@ -914,6 +951,11 @@ export function mountAdmin(view, ctx) {
         if (sum) sum.innerHTML = summaryHtml(list, getPath(draft, list.path)[idx]);
       }
     }
+    // The crest row follows the opponent's name as it is typed.
+    if (path === 'nextMatch.opponent') {
+      const host = view.querySelector('[data-logo-host]');
+      if (host) { host.innerHTML = logoHtml(el.value); hydratePosters(host); }
+    }
     touch();
   };
 
@@ -930,6 +972,13 @@ export function mountAdmin(view, ctx) {
   const onClick = async (e) => {
     const t = e.target.closest('button');
     if (!t) return;
+    if (t.dataset.logoDel != null) {
+      const next = { ...(draft.opponentLogos || {}) };
+      delete next[t.dataset.logoDel];
+      draft.opponentLogos = next;
+      touch(); paint();
+      return;
+    }
     if (t.dataset.tab) {
       tab = t.dataset.tab;
       paint();

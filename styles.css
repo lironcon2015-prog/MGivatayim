@@ -213,6 +213,12 @@ section { margin-top: 1.9rem; }
 .side.us .disc { background: var(--gold-fill); color: var(--on-gold); border-color: transparent; box-shadow: 0 0 30px var(--gold-glow); }
 /* The real crest is already a finished round badge: no fill behind it, only the halo. */
 .side.us .disc.has-img { background: none; border: 0; overflow: hidden; }
+/* An opponent's uploaded crest sits over its initials, which show until the
+   image arrives (and stay if it never does). */
+.side .disc, .sc-disc { position: relative; }
+.disc .opp-logo, .sc-disc .opp-logo { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; border-radius: 50%; }
+.opp-logo:not([src]) { visibility: hidden; }
+.disc:has(.opp-logo[src]), .sc-disc:has(.opp-logo[src]) { color: transparent; background: none; border-color: transparent; }
 .side strong { display: block; font-size: 1rem; line-height: 1.3; }
 .side span { font-size: .76rem; color: var(--faint); }
 .vs { text-align: center; padding: 0 .2rem; }
@@ -554,6 +560,8 @@ section { margin-top: 1.9rem; }
 .next-auto { display: flex; align-items: center; gap: .7rem; }
 .next-auto .ei-main b { font-size: 1.05rem; }
 .next-auto .ei-main small { font-size: .8rem; }
+.logo-row { display: flex; align-items: center; gap: .7rem; margin-top: .9rem; padding-top: .9rem; border-top: 1px solid var(--line); }
+.logo-row .sc-disc { width: 44px; height: 44px; font-size: .85rem; flex: none; }
 .invite-kind { margin-bottom: .8rem; }
 .invite-kind button { font-size: .8rem; }
 .invite-more summary { cursor: pointer; font-size: .82rem; font-weight: 700; color: var(--gold); margin-top: .6rem; }

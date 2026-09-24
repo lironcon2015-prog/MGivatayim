@@ -1,7 +1,7 @@
 import { outcomeOf, OUTCOMES } from './season.js';
 import { esc, safeUrl } from './format.js';
 import { icon } from './icons.js';
-import { youtubeThumb } from './posters.js';
+import { youtubeThumb, cachedPosterUrl } from './posters.js';
 
 // "מחזור 7", "משחק אימון", or nothing — never "מחזור null" for a match
 // entered without one.
@@ -14,6 +14,16 @@ const whenHtml = (iso) => {
   const [year, month, day] = String(iso).split('-');
   return `<span class="when"><b class="num">${esc(`${day}.${month}`)}</b><span class="num">${esc(year)}</span></span>`;
 };
+
+// An opponent's crest inside its initials disc (.disc, .sc-disc), when the
+// manager uploaded one: the initials stay until the image arrives
+// (hydratePosters), and a crest already fetched this session is drawn at once,
+// so a re-render of the live board does not blink.
+export function oppLogo(ref, name) {
+  if (!ref) return '';
+  const src = cachedPosterUrl(ref);
+  return `<img class="opp-logo" data-poster="${esc(ref)}"${src ? ` src="${esc(src)}"` : ''} alt="סמל ${esc(name)}" decoding="async" onerror="this.remove()" />`;
+}
 
 export const CLASS_OF = { win: 'is-win', draw: 'is-draw', loss: 'is-loss' };
 

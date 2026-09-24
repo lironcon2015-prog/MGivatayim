@@ -177,6 +177,10 @@ await step('manager fills a season and saves it', async () => {
   await admin.fill('[data-kick="date"]', '2030-10-05');
   await admin.fill('[data-kick="time"]', '10:30');
   await admin.fill('[data-path="nextMatch.venue.address"]', 'שדרות ירושלים 24, גבעתיים');
+  // The opponent's crest: uploaded here, kept by name, shown to parents below.
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64');
+  await admin.setInputFiles('[data-logo-file="הפועל כוכבים"]', { name: 'crest.png', mimeType: 'image/png', buffer: png });
+  await admin.locator('.logo-row .opp-logo[src]').waitFor({ timeout: 8000 });
   await admin.click('#save');
   await waitText(admin, 'נשמר');
   const saved = JSON.parse(bridge.driveFile('season.json'));
@@ -185,6 +189,7 @@ await step('manager fills a season and saves it', async () => {
   expect(saved.season.matches[0].gf === 2 && typeof saved.season.matches[0].gf === 'number', 'score not stored as a number');
   expect(saved.season.team.homeVenue?.address === 'רחוב המעיין 4, גבעתיים', 'home ground not saved: ' + JSON.stringify(saved.season.team));
   expect(!JSON.stringify(saved).includes('__open'), 'UI state leaked into the saved data');
+  expect(/^[\w-]{10,}$/.test(saved.season.opponentLogos?.['הפועל כוכבים'] || ''), 'crest not stored by name: ' + JSON.stringify(saved.season.opponentLogos));
 });
 
 await step('a save blocked by a field on another tab opens that tab', async () => {
@@ -229,6 +234,7 @@ await step('after approval the parent sees the season', async () => {
   await parent.click('#recheck');
   await waitText(parent, 'בני לוד');
   await waitText(parent, 'הפועל כוכבים');
+  await parent.locator('.hero .side:not(.us) .opp-logo[src^="blob:"]').waitFor({ timeout: 8000 });
   const t = await text(parent);
   expect(t.includes('איתי'), 'player missing');
 });

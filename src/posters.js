@@ -5,6 +5,7 @@
 //
 // YouTube needs none of this: its thumbnail is a fixed public address.
 import { call } from './bridge.js';
+import { getAdminCode } from './store.js';
 
 const DB = 'mg-posters';
 const STORE = 'posters';
@@ -56,6 +57,8 @@ function toBlob({ mime, data }) {
   return new Blob([bytes], { type: mime || 'image/jpeg' });
 }
 
+export const cachedPosterUrl = (ref) => urls.get(ref) || null;
+
 // A displayable URL for a stored poster, or null if there is none.
 export function posterUrl(ref) {
   if (!ref) return Promise.resolve(null);
@@ -65,7 +68,9 @@ export function posterUrl(ref) {
     let blob = null;
     try { blob = await tx('readonly', (s) => s.get(ref)); } catch { /* no cache: fetch */ }
     if (!blob) {
-      try { blob = toBlob(await call('getPoster', { ref })); } catch { return null; }
+      // The manager's own phone need not be an approved device: the code
+      // is what lets it read.
+      try { blob = toBlob(await call('getPoster', { ref }, { asAdmin: !!getAdminCode() })); } catch { return null; }
       try { await tx('readwrite', (s) => s.put(blob, ref)); } catch { /* shown, just not kept */ }
     }
     const u = URL.createObjectURL(blob);
@@ -80,9 +85,30 @@ export function posterUrl(ref) {
 // image that fails to arrive leaves the plain gradient card behind it.
 export function hydratePosters(root) {
   root.querySelectorAll('img[data-poster]').forEach(async (img) => {
+    if (img.getAttribute('src')) return;
     const u = await posterUrl(img.dataset.poster);
     if (u && img.isConnected) img.src = u;
   });
+}
+
+// An opponent's crest, picked on the manager's phone: redrawn at most
+// LOGO_EDGE px (a badge is shown at 72px), PNG to keep a transparent
+// background, and handed to the bridge (putLogo), which keeps it with the
+// posters. Returns the ref the season stores under the opponent's name.
+const LOGO_EDGE = 256;
+export async function uploadLogo(file) {
+  if (!String(file?.type).startsWith('image/')) throw new Error('צריך לבחור קובץ תמונה');
+  let bmp;
+  try { bmp = await createImageBitmap(file); } catch { throw new Error('לא הצלחנו לקרוא את התמונה'); }
+  const k = Math.min(1, LOGO_EDGE / Math.max(bmp.width, bmp.height));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round(bmp.width * k));
+  canvas.height = Math.max(1, Math.round(bmp.height * k));
+  canvas.getContext('2d').drawImage(bmp, 0, 0, canvas.width, canvas.height);
+  bmp.close?.();
+  const [mime, data] = canvas.toDataURL('image/png').match(/^data:([^;]+);base64,(.*)$/).slice(1);
+  const { ref } = await call('putLogo', { mime, data }, { asAdmin: true });
+  return ref;
 }
 
 // Manager's save: every video whose link has no poster yet (or changed)

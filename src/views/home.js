@@ -1,7 +1,7 @@
-import { topBy } from '../season.js';
+import { topBy, opponentLogo } from '../season.js';
 import { longDate, clock, pct, dec, esc, safeUrl, splitDuration, pad2, wazeLink } from '../format.js';
 import { icon } from '../icons.js';
-import { crestImg, roundText, sectionHead, formPill, matchRow, fixtureRow, leaderRow, tile, splitBar, linkRow, videoCard } from '../components.js';
+import { crestImg, oppLogo, roundText, sectionHead, formPill, matchRow, fixtureRow, leaderRow, tile, splitBar, linkRow, videoCard } from '../components.js';
 
 // "Next match" is the page's lead card, so its title lives inside it as a
 // gold eyebrow instead of a section head above it.
@@ -26,7 +26,7 @@ function nextMatchCard(s) {
 
   const disc = (side) =>
     `<div class="side ${side.us ? 'us' : ''}">
-      <div class="disc ${side.us && s.team.crestUrl ? 'has-img' : ''}">${side.us ? crestImg(s.team) : esc(side.name.slice(0, 2))}</div>
+      <div class="disc ${side.us && s.team.crestUrl ? 'has-img' : ''}">${side.us ? crestImg(s.team) : esc(side.name.slice(0, 2)) + oppLogo(opponentLogo(s, nm.opponent), nm.opponent)}</div>
       <strong>${esc(side.name)}</strong><span>${side.role}</span>
     </div>`;
 

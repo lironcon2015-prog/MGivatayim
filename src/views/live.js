@@ -2,7 +2,8 @@ import * as M from '../live/model.js';
 import { serverNow } from '../live/sync.js';
 import { esc, splitKickoff, shortName, shortDate, byNumber } from '../format.js';
 import { icon } from '../icons.js';
-import { crestImg, roundText } from '../components.js';
+import { crestImg, oppLogo, roundText } from '../components.js';
+import { hydratePosters } from '../posters.js';
 import { POSITIONS, posLabel, isKeeper, layout, subGroups } from '../positions.js';
 import { openSheet, confirmSheet, toast, buzz } from '../ui/sheet.js';
 import { liveMinutesHtml, hasShortfall, coachFormEvent, coachSheet, matchMinutesHtml } from './minutes.js';
@@ -228,7 +229,7 @@ export function mountLive(view, ctx) {
       <div class="sc-row">
         <div class="sc-team us"><span class="sc-crest">${crest}</span><b>${esc(ctx.team.name)}</b><small>${st.home ? 'בית' : 'חוץ'}</small></div>
         <div class="sc-score num" aria-label="${sc.us} : ${sc.them}"><span class="ours" data-us>${sc.us}</span><span class="sep">:</span><span data-them>${sc.them}</span></div>
-        <div class="sc-team"><span class="sc-disc">${esc((st.opponent || '?').slice(0, 2))}</span><b>${esc(st.opponent || 'יריבה')}</b><small>${st.home ? 'חוץ' : 'בית'}</small></div>
+        <div class="sc-team"><span class="sc-disc">${esc((st.opponent || '?').slice(0, 2))}${oppLogo(ctx.logo?.(st.opponent), st.opponent || 'יריבה')}</span><b>${esc(st.opponent || 'יריבה')}</b><small>${st.home ? 'חוץ' : 'בית'}</small></div>
       </div>
       ${scorersHtml(st)}
       <div class="sc-clock"><span class="num" data-clock></span><span class="sc-extra num" data-extra></span></div>
@@ -392,6 +393,7 @@ export function mountLive(view, ctx) {
       view.innerHTML = `${scoreboard(st)}${tabs}<div data-mn-host>${liveMinutesHtml(st, now(), cfg, { folded: store.getFolded() === alertKey(st) })}</div>`;
       lastMinute = minuteKey(st);
       window.scrollTo(0, scroll);
+      hydratePosters(view);
       tick();
       return;
     }
@@ -415,6 +417,7 @@ export function mountLive(view, ctx) {
       ${st.status === 'ended' ? endedPanel(st) : ''}
       ${!S.canControl && st.status !== 'ended' ? '<p class="gate-foot"><button type="button" class="linkish" data-act="claim">יש לי קוד שליטה במשחק</button></p>' : ''}`;
     window.scrollTo(0, scroll);
+    hydratePosters(view);
     tick();
   }
 

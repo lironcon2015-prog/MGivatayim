@@ -118,6 +118,18 @@ test('video posters: made by the manager, read by approved devices only', () => 
   assert.ok(season);
   assert.equal(err(b.post({ action: 'getPoster', deviceKey: devA, ref: season })), 'not_found', 'getPoster must not read files outside posters/');
   assert.equal(err(b.post({ action: 'getPoster', deviceKey: devA, ref: yt })), 'not_found', 'a trashed image is gone');
+
+  // Opponent crests: the manager uploads the bytes, parents read them back.
+  const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 1, 2, 3]).toString('base64');
+  assert.equal(err(b.post({ action: 'putLogo', deviceKey: devA, mime: 'image/png', data: png })), 'bad_code', 'a parent cannot upload a crest');
+  assert.equal(err(b.post({ action: 'putLogo', adminCode: ADMIN, mime: 'text/html', data: png })), 'bad_image');
+  assert.equal(err(b.post({ action: 'putLogo', adminCode: ADMIN, mime: 'image/png', data: '<svg>' })), 'bad_image');
+  assert.equal(err(b.post({ action: 'putLogo', adminCode: ADMIN, mime: 'image/png', data: 'A'.repeat(300 * 1024) })), 'bad_image', 'size cap');
+  const logo = b.post({ action: 'putLogo', adminCode: ADMIN, mime: 'image/png', data: png }).result.ref;
+  const shown = b.post({ action: 'getPoster', deviceKey: devA, ref: logo }).result;
+  assert.equal(shown.mime, 'image/png');
+  assert.equal(shown.data, png);
+  assert.equal(b.post({ action: 'putLogo', adminCode: ADMIN, mime: 'image/png', data: png }).result.ref, logo, 'the same image is kept once');
 });
 
 test('a save over a stale version is rejected, not silently overwritten', () => {

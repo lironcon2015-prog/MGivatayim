@@ -201,11 +201,31 @@ export function mountLive(view, ctx) {
     li.classList.add('flash');
   }
 
+  // The manager sees who has the live screen open right now (the bridge
+  // keeps it for half a minute after the last poll). Parents do not.
+  function watchChip(st) {
+    const w = S.control?.watchers;
+    if (!S.isAdmin || !w || st.status === 'ended') return '';
+    return `<button type="button" class="watch-chip" data-act="watchers" aria-label="${w.length} צופים עכשיו">${icon('eye')}<span class="num">${w.length}</span></button>`;
+  }
+
+  function watchersSheet() {
+    const w = S.control?.watchers || [];
+    openSheet({
+      title: 'צופים עכשיו',
+      subtitle: w.length ? `${w.length} מכשירים עם מסך הלייב פתוח` : '',
+      body: w.length
+        ? `<div class="card rows">${w.map((x) => `<div class="user-row"><span class="who"><b>${esc(x.name)}</b></span>${x.coach ? '<span class="chip">מאמן</span>' : ''}</div>`).join('')}</div>
+           <p class="note">מכשיר נספר כל עוד מסך הלייב פתוח בו. טלפון שננעל או עבר למסך אחר יורד מהרשימה תוך חצי דקה.</p>`
+        : '<div class="empty">אף אחד לא צופה כרגע.</div>',
+    });
+  }
+
   function scoreboard(st) {
     const sc = M.score(st);
     const crest = crestImg(ctx.team);
     return `<section class="live-top"><div class="card score-card">
-      <div class="sc-head">${statusChip(st)}<span class="sc-period">${st.status === 'running' ? esc(M.periodName(st.format, st.period)) : esc(M.describeFormat(st.format))}</span></div>
+      <div class="sc-head">${statusChip(st)}<span class="sc-side">${watchChip(st)}<span class="sc-period">${st.status === 'running' ? esc(M.periodName(st.format, st.period)) : esc(M.describeFormat(st.format))}</span></span></div>
       <div class="sc-row">
         <div class="sc-team us"><span class="sc-crest">${crest}</span><b>${esc(ctx.team.name)}</b><small>${st.home ? 'בית' : 'חוץ'}</small></div>
         <div class="sc-score num" aria-label="${sc.us} : ${sc.them}"><span class="ours" data-us>${sc.us}</span><span class="sep">:</span><span data-them>${sc.them}</span></div>
@@ -855,6 +875,7 @@ export function mountLive(view, ctx) {
     if (a === 'new') { t.disabled = true; newMatch(); return; }
     if (a === 'pick') { pickFixtureSheet(); return; }
     if (a === 'claim') { claimSheet(); return; }
+    if (a === 'watchers') { watchersSheet(); return; }
     if (!st) return;
     if (a === 'start') {
       // A result saved against a blank opponent is a row nobody can read.
@@ -924,6 +945,7 @@ export function mountLive(view, ctx) {
   view.addEventListener('click', onClick);
   view.addEventListener('change', onChange);
   const unsub = S.subscribe(render);
+  S.watching = true;
   S.setPoll(4000);
   render();
   const timer = setInterval(tick, 250);
@@ -933,6 +955,7 @@ export function mountLive(view, ctx) {
     unsub();
     view.removeEventListener('click', onClick);
     view.removeEventListener('change', onChange);
+    S.watching = false;
     S.setPoll(20000);
   };
 }

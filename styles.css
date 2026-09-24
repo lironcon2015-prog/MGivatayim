@@ -695,6 +695,18 @@ body.with-nav .toast { bottom: calc(var(--nav-space) + 10px); }
 }
 .sc-head { display: flex; align-items: center; justify-content: space-between; gap: .5rem; min-height: 26px; }
 .sc-period { font-size: .76rem; color: var(--faint); font-weight: 700; }
+.sc-side { display: inline-flex; align-items: center; gap: .55rem; margin-inline-start: auto; }
+/* With the manager's watcher count the head can outgrow a phone: it wraps
+   as whole pieces, never mid-phrase. */
+.sc-head { flex-wrap: wrap; row-gap: .4rem; }
+.sc-head > .chip, .sc-period { white-space: nowrap; }
+.watch-chip {
+  display: inline-flex; align-items: center; gap: .3rem; font: inherit; font-size: .76rem; font-weight: 800; cursor: pointer;
+  padding: .18rem .6rem; border-radius: var(--r-pill); border: 1px solid var(--line-strong);
+  background: rgba(255, 255, 255, .05); color: var(--muted);
+}
+.watch-chip svg { width: 14px; height: 14px; }
+.watch-chip:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 .chip {
   display: inline-flex; align-items: center; gap: .4rem; font-size: .74rem; font-weight: 800;
   padding: .22rem .65rem; border-radius: 999px; background: rgba(255, 255, 255, .07); color: var(--muted);

@@ -321,6 +321,14 @@ await step('a watching parent sees the goal, with the scorer, without reloading'
   expect(await parent.locator('.ctl-goal').count() === 0, 'a watching parent sees controls');
 });
 
+await step('the manager sees how many watch, and who; a parent does not', async () => {
+  await admin.locator('.watch-chip', { hasText: '1' }).waitFor({ timeout: 8000 });
+  await admin.click('.watch-chip');
+  await admin.locator('.sheet', { hasText: 'אבא של איתי' }).waitFor();
+  await admin.click('.sheet-x');
+  expect(await parent.locator('.watch-chip').count() === 0, 'a parent sees the watcher count');
+});
+
 await step('tapping a player on the pitch substitutes them', async () => {
   await admin.locator('button.pl', { hasText: 'איתי' }).click();
   await admin.locator('.pick', { hasText: 'תומר עזרא' }).click();

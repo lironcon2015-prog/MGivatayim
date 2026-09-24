@@ -73,6 +73,10 @@ const DEFAULT_MIN_MINUTES = 20;
 const MAX_MIN_MINUTES = 200;
 const MAX_ABSENT = 80;
 const ROLES = ['parent', 'coach'];
+/* מי צופה עכשיו: מסך הלייב שואל כל 4 שניות. מכשיר שלא שאל חצי דקה —
+   סגר את המסך או שהטלפון בכיס. */
+const WATCH_FRESH_MS = 30 * 1000;
+const WATCH_TTL_S = 120;
 
 /* ---------- הכניסה ---------- */
 
@@ -453,6 +457,12 @@ function checkLiveState_(state) {
 function getLive_(req) {
   const who = viewer_(req);
   const l = live_();
+  // נוכחות בלבד, במטמון ולא בדרייב: כתיבה לקובץ כל 4 שניות מכל טלפון
+  // הייתה חונקת את הגשר. מפתח לכל מכשיר — בלי רשימה משותפת שאפשר לדרוס.
+  const cache = CacheService.getScriptCache();
+  if (!who.admin && req.watching && l.state && l.state.status !== 'ended') {
+    cache.put('watch:' + who.id, String(Date.now()), WATCH_TTL_S);
+  }
   const out = {
     version: l.version, updatedAt: l.updatedAt || null, serverNow: Date.now(),
     canControl: canControl_(who, l), isAdmin: who.admin,
@@ -463,11 +473,24 @@ function getLive_(req) {
       codeActive: !!(l.meta.code && l.meta.code.hash),
       attemptsLeft: l.meta.code ? MAX_CODE_ATTEMPTS - (l.meta.code.attempts || 0) : 0,
       controllers: (l.meta.controllers || []).map((id) => (users[id] ? users[id].name : 'מכשיר שהוסר')),
+      watchers: watchers_(users, cache),
     };
   }
   if (req.since != null && Number(req.since) === Number(l.version)) out.unchanged = true;
   else out.state = l.state;
   return out;
+}
+
+/* רק מכשירים שמאושרים עכשיו: מי שבוטל לא מופיע גם אם שאל לפני רגע. */
+function watchers_(users, cache) {
+  const ids = Object.keys(users).filter((id) => users[id].status === 'approved');
+  if (!ids.length) return [];
+  const seen = cache.getAll(ids.map((id) => 'watch:' + id));
+  const now = Date.now();
+  return ids
+    .filter((id) => now - Number(seen['watch:' + id] || 0) < WATCH_FRESH_MS)
+    .map((id) => ({ name: users[id].name, coach: users[id].role === 'coach' }))
+    .sort((a, b) => String(a.name).localeCompare(String(b.name), 'he'));
 }
 
 function startLive_(req) {

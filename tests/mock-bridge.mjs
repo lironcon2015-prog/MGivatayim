@@ -87,6 +87,7 @@ export function createBridge({ adminCode = 'test-admin-code-1234' } = {}) {
         get: (k) => cache.get(k) ?? null,
         put: (k, v) => { cache.set(k, v); },
         remove: (k) => { cache.delete(k); },
+        getAll: (keys) => Object.fromEntries(keys.filter((k) => cache.has(k)).map((k) => [k, cache.get(k)])),
       }),
     },
     LockService: { getScriptLock: () => ({ tryLock: () => true, releaseLock: () => {} }) },

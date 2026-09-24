@@ -207,6 +207,21 @@ console.log('live:');
     assert.equal(r2.state, undefined);
   });
 
+  test('the manager sees who has the live screen open, and only the manager', () => {
+    L.post({ action: 'getLive', deviceKey: parent, watching: true });
+    L.post({ action: 'getLive', deviceKey: other });   // app open, not on the live screen
+    const w = L.post({ action: 'getLive', adminCode: ADMIN }).result.control.watchers;
+    assert.deepEqual(w, [{ name: 'אבא של איתי', coach: false }]);
+    assert.equal(L.post({ action: 'getLive', deviceKey: other, watching: true }).result.control, undefined);
+    assert.equal(L.post({ action: 'getLive', adminCode: ADMIN }).result.control.watchers.length, 2);
+  });
+
+  test('watching is kept in the cache, never written to Drive', () => {
+    const before = L.writes;
+    L.post({ action: 'getLive', deviceKey: parent, watching: true });
+    assert.equal(L.writes, before);
+  });
+
   test('an approved parent without a code cannot update the match', () => {
     assert.equal(err(L.post({ action: 'putLive', deviceKey: parent, baseVersion: 1, state: state() })), 'not_controller');
   });
@@ -258,6 +273,7 @@ console.log('live:');
 
   test('revoking a parent\'s access also ends their control', () => {
     L.post({ action: 'setStatus', adminCode: ADMIN, id: parentId, status: 'revoked' });
+    assert.ok(!L.post({ action: 'getLive', adminCode: ADMIN }).result.control.watchers.some((x) => x.name === 'אבא של איתי'), 'a revoked device still listed as watching');
     assert.equal(err(L.post({ action: 'putLive', deviceKey: parent, baseVersion: 4, state: state() })), 'not_approved');
     L.post({ action: 'setStatus', adminCode: ADMIN, id: parentId, status: 'approved' });
   });

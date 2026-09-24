@@ -40,7 +40,8 @@ export class LiveSession {
     this.version = null;
     this.canControl = false;
     this.isAdmin = false;
-    this.control = null;       // manager only: code / controllers
+    this.control = null;       // manager only: code / controllers / watchers
+    this.watching = false;     // the live screen is open: counts as a viewer
     this.pending = [];         // actions applied here, not yet accepted
     this.sync = 'idle';        // idle · sending · offline · error
     this.error = '';
@@ -96,7 +97,9 @@ export class LiveSession {
   async fetch({ full = false } = {}) {
     const t0 = Date.now();
     try {
-      const r = await call('getLive', full || this.version == null ? {} : { since: this.version }, { asAdmin: this.asAdmin() });
+      const params = full || this.version == null ? {} : { since: this.version };
+      if (this.watching) params.watching = true;
+      const r = await call('getLive', params, { asAdmin: this.asAdmin() });
       learnTime(r.serverNow, t0, Date.now());
       let changed = !this.loaded || r.canControl !== this.canControl || JSON.stringify(r.control) !== JSON.stringify(this.control);
       this.canControl = !!r.canControl;

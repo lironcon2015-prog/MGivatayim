@@ -6,6 +6,7 @@
 // YouTube needs none of this: its thumbnail is a fixed public address.
 import { call } from './bridge.js';
 import { getAdminCode } from './store.js';
+import { opaqueBounds, unsharp } from './imaging.js';
 
 const DB = 'mg-posters';
 const STORE = 'posters';
@@ -91,22 +92,56 @@ export function hydratePosters(root) {
   });
 }
 
-// An opponent's crest, picked on the manager's phone: redrawn at most
-// LOGO_EDGE px (a badge is shown at 72px), PNG to keep a transparent
-// background, and handed to the bridge (putLogo), which keeps it with the
-// posters. Returns the ref the season stores under the opponent's name.
-const LOGO_EDGE = 256;
+// An opponent's crest, picked on the manager's phone: its transparent margin
+// cut away, scaled down in halves (one big drawImage step is what made small
+// crests look soft), lightly sharpened, and kept at LOGO_EDGE px — three
+// device pixels for every CSS pixel of the 72px disc, with room to spare.
+// PNG keeps a transparent background. A detailed crest can make a 512px PNG
+// larger than the bridge takes (MAX_LOGO_BYTES in bridge.gs), so it steps
+// down until it fits. Returns the ref the season stores under the name.
+const LOGO_EDGE = 512;
+const LOGO_MIN_EDGE = 256;
+const MAX_LOGO_B64 = Math.floor(200 * 1024 * 4 / 3);
+const canvasOf = (w, h) => Object.assign(document.createElement('canvas'), { width: w, height: h });
+const smooth = (c) => { const ctx = c.getContext('2d'); ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high'; return ctx; };
+
+function scaled(src, box, edge) {
+  const k = Math.min(1, edge / Math.max(box.w, box.h));
+  const w = Math.max(1, Math.round(box.w * k)), h = Math.max(1, Math.round(box.h * k));
+  let cur = canvasOf(box.w, box.h);
+  smooth(cur).drawImage(src, box.x, box.y, box.w, box.h, 0, 0, box.w, box.h);
+  while (cur.width >= w * 2 && cur.height >= h * 2) {
+    const half = canvasOf(Math.ceil(cur.width / 2), Math.ceil(cur.height / 2));
+    smooth(half).drawImage(cur, 0, 0, half.width, half.height);
+    cur = half;
+  }
+  const out = canvasOf(w, h);
+  const ctx = smooth(out);
+  ctx.drawImage(cur, 0, 0, w, h);
+  const img = ctx.getImageData(0, 0, w, h);
+  unsharp(img.data, w, h);
+  ctx.putImageData(img, 0, 0);
+  return out;
+}
+
 export async function uploadLogo(file) {
   if (!String(file?.type).startsWith('image/')) throw new Error('צריך לבחור קובץ תמונה');
   let bmp;
   try { bmp = await createImageBitmap(file); } catch { throw new Error('לא הצלחנו לקרוא את התמונה'); }
-  const k = Math.min(1, LOGO_EDGE / Math.max(bmp.width, bmp.height));
-  const canvas = document.createElement('canvas');
-  canvas.width = Math.max(1, Math.round(bmp.width * k));
-  canvas.height = Math.max(1, Math.round(bmp.height * k));
-  canvas.getContext('2d').drawImage(bmp, 0, 0, canvas.width, canvas.height);
+  const src = canvasOf(bmp.width, bmp.height);
+  const sctx = src.getContext('2d');
+  sctx.drawImage(bmp, 0, 0);
   bmp.close?.();
-  const [mime, data] = canvas.toDataURL('image/png').match(/^data:([^;]+);base64,(.*)$/).slice(1);
+  const box = opaqueBounds(sctx.getImageData(0, 0, src.width, src.height).data, src.width, src.height)
+    || { x: 0, y: 0, w: src.width, h: src.height };
+  let edge = Math.min(LOGO_EDGE, Math.max(box.w, box.h));
+  let url;
+  for (;;) {
+    url = scaled(src, box, edge).toDataURL('image/png');
+    if (url.length - url.indexOf(',') - 1 <= MAX_LOGO_B64 || edge <= LOGO_MIN_EDGE) break;
+    edge = Math.max(LOGO_MIN_EDGE, Math.round(edge * 0.75));
+  }
+  const [mime, data] = url.match(/^data:([^;]+);base64,(.*)$/).slice(1);
   const { ref } = await call('putLogo', { mime, data }, { asAdmin: true });
   return ref;
 }

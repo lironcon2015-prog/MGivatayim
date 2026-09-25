@@ -431,6 +431,32 @@ await test('a gallery upload can go to any past game — with a result or only o
   assert.deepEqual(got, ['מכבי יפו', 'הפועל כפר סבא', 'בני לוד']);
 });
 
+await test('an uploaded crest loses its transparent margin', async () => {
+  const { opaqueBounds } = await import('../src/imaging.js');
+  const w = 10, h = 12, px = new Uint8ClampedArray(w * h * 4);
+  const set = (x, y, a) => { px[(y * w + x) * 4 + 3] = a; };
+  set(3, 2, 255); set(6, 8, 255); set(4, 5, 128);
+  set(0, 0, 5);                                  // a faint fringe does not count
+  assert.deepEqual(opaqueBounds(px, w, h), { x: 3, y: 2, w: 4, h: 7 });
+  assert.equal(opaqueBounds(new Uint8ClampedArray(16), 2, 2), null);
+});
+
+await test('sharpening lifts an edge, leaves flat colour, alpha and empty pixels alone', async () => {
+  const { unsharp } = await import('../src/imaging.js');
+  const w = 6, h = 3, px = new Uint8ClampedArray(w * h * 4);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const i = (y * w + x) * 4, v = x < 3 ? 60 : 180;
+    px.set(x === 5 ? [0, 0, 0, 0] : [v, v, v, 200], i);
+  }
+  unsharp(px, w, h, 0.5);
+  const at = (x, y = 1) => px[(y * w + x) * 4];
+  assert.equal(at(0), 60, 'flat colour moved');
+  assert.ok(at(2) < 60 && at(3) > 180, `edge not sharpened: ${at(2)} ${at(3)}`);
+  assert.equal(at(4), 180, 'a transparent neighbour darkened its edge');
+  assert.deepEqual([...px.slice((1 * w + 5) * 4, (1 * w + 5) * 4 + 4)], [0, 0, 0, 0]);
+  assert.equal(px[(1 * w + 2) * 4 + 3], 200, 'alpha changed');
+});
+
   console.log(`\nunits: ${passed} passed, ${failures.length} failed`);
   process.exit(failures.length ? 1 : 0);
 }

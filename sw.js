@@ -13,7 +13,7 @@ const CORE = [
   './assets/crest.png',
   './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png', './icons/favicon-32.png',
   './src/app.js', './src/bridge.js', './src/components.js', './src/config.js',
-  './src/fixtures.js', './src/format.js', './src/gallery.js', './src/icons.js', './src/importer.js', './src/install.js', './src/positions.js',
+  './src/fixtures.js', './src/format.js', './src/gallery.js', './src/icons.js', './src/imaging.js', './src/importer.js', './src/install.js', './src/positions.js',
   './src/minutes.js', './src/posters.js', './src/season.js', './src/store.js', './src/updater.js',
   './src/live/model.js', './src/live/sync.js', './src/ui/sheet.js',
   './src/views/admin.js', './src/views/gallery.js', './src/views/gate.js', './src/views/home.js',

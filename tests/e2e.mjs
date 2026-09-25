@@ -9,6 +9,7 @@ import { chromium } from 'playwright';
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
+import { deflateSync, crc32 } from 'node:zlib';
 import { extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createBridge, serveBridge } from './mock-bridge.mjs';
@@ -42,6 +43,22 @@ async function step(name, fn) {
   catch (e) { failures.push(name); console.log('  ✗', name, '\n     ', e.message.split('\n')[0]); }
 }
 const expect = (cond, msg) => { if (!cond) throw new Error(msg); };
+
+// A PNG of w×h, opaque gold where `fill` says, transparent elsewhere.
+function rgbaPng(w, h, fill) {
+  const raw = Buffer.alloc((w * 4 + 1) * h);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    if (fill(x, y)) raw.set([232, 185, 49, 255], y * (w * 4 + 1) + 1 + x * 4);
+  }
+  const chunk = (type, data) => {
+    const len = Buffer.alloc(4); len.writeUInt32BE(data.length);
+    const body = Buffer.concat([Buffer.from(type), data]);
+    const crc = Buffer.alloc(4); crc.writeUInt32BE(crc32(body));
+    return Buffer.concat([len, body, crc]);
+  };
+  const ihdr = Buffer.alloc(13); ihdr.writeUInt32BE(w, 0); ihdr.writeUInt32BE(h, 4); ihdr.set([8, 6, 0, 0, 0], 8);
+  return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', ihdr), chunk('IDAT', deflateSync(raw)), chunk('IEND', Buffer.alloc(0))]);
+}
 
 // Each role is its own browser context: separate storage, so separate device.
 async function device(label) {
@@ -178,9 +195,13 @@ await step('manager fills a season and saves it', async () => {
   await admin.fill('[data-kick="time"]', '10:30');
   await admin.fill('[data-path="nextMatch.venue.address"]', 'שדרות ירושלים 24, גבעתיים');
   // The opponent's crest: uploaded here, kept by name, shown to parents below.
-  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64');
-  await admin.setInputFiles('[data-logo-file="הפועל כוכבים"]', { name: 'crest.png', mimeType: 'image/png', buffer: png });
-  await admin.locator('.logo-row .opp-logo[src]').waitFor({ timeout: 8000 });
+  // It comes with a transparent margin, which the upload cuts away: 40×40
+  // with a 10×30 shield in it arrives as 10×30.
+  await admin.setInputFiles('[data-logo-file="הפועל כוכבים"]', { name: 'crest.png', mimeType: 'image/png', buffer: rgbaPng(40, 40, (x, y) => x >= 10 && x < 20 && y >= 5 && y < 35) });
+  const logo = admin.locator('.logo-row .opp-logo[src]');
+  await logo.waitFor({ timeout: 8000 });
+  const dims = await logo.evaluate(async (i) => { await i.decode(); return `${i.naturalWidth}x${i.naturalHeight}`; });
+  expect(dims === '10x30', 'crest margin not cropped: ' + dims);
   await admin.click('#save');
   await waitText(admin, 'נשמר');
   const saved = JSON.parse(bridge.driveFile('season.json'));

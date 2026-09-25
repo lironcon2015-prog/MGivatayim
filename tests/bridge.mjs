@@ -161,6 +161,39 @@ test('another device is unaffected by the first one\'s approval', () => {
   assert.equal(b.post({ action: 'hello', deviceKey: devB }).result.status, 'none');
 });
 
+test('a new access request mails the owner, at most once in a while', () => {
+  const c = createBridge({ adminCode: ADMIN });
+  const key = (i) => String(i).padStart(64, 'm');
+  c.post({ action: 'requestAccess', deviceKey: key(1), name: 'דנה כהן' });
+  assert.equal(c.mails.length, 1);
+  assert.equal(c.mails[0].to, 'owner@example.com');
+  assert.match(c.mails[0].subject, /דנה כהן/);
+  assert.match(c.mails[0].body, /#\/admin/);
+  assert.ok(!c.mails[0].body.includes(key(1)), 'the device key went out by mail');
+  // Sending again from the same phone is not a new request.
+  c.post({ action: 'requestAccess', deviceKey: key(1), name: 'דנה' });
+  // Another request inside the window waits for the next mail.
+  c.post({ action: 'requestAccess', deviceKey: key(2), name: 'יוסי' });
+  assert.equal(c.mails.length, 1, 'mailed again inside the window');
+  c.clearCache();                                   // the window is over
+  c.post({ action: 'requestAccess', deviceKey: key(3), name: 'רוני' });
+  assert.equal(c.mails.length, 2);
+  assert.match(c.mails[1].body, /ממתינות עכשיו 3 בקשות/);
+  // NOTIFY_EMAIL picks the address; "off" turns it off.
+  c.setProp('NOTIFY_EMAIL', 'manager@example.com'); c.clearCache();
+  c.post({ action: 'requestAccess', deviceKey: key(4), name: 'גל' });
+  assert.equal(c.mails.at(-1).to, 'manager@example.com');
+  c.setProp('NOTIFY_EMAIL', 'off'); c.clearCache();
+  c.post({ action: 'requestAccess', deviceKey: key(5), name: 'עדי' });
+  assert.equal(c.mails.length, 3);
+});
+
+test('a mail that fails does not fail the request', () => {
+  const c = createBridge({ adminCode: ADMIN });
+  c.mails.push = () => { throw new Error('quota'); };
+  assert.equal(c.post({ action: 'requestAccess', deviceKey: 'f'.repeat(64), name: 'נועה' }).result.status, 'pending');
+});
+
 test('pending requests are capped', () => {
   const c = createBridge({ adminCode: ADMIN });
   let last;

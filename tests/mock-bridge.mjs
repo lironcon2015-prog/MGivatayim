@@ -78,6 +78,7 @@ export function createBridge({ adminCode = 'test-admin-code-1234' } = {}) {
   const web = new Map();
   const fetched = [];
   const drivePics = new Map();
+  const mails = [];
 
   const sandbox = {
     console,
@@ -126,6 +127,8 @@ export function createBridge({ adminCode = 'test-admin-code-1234' } = {}) {
         };
       },
     },
+    MailApp: { sendEmail: (to, subject, body) => { mails.push({ to, subject, body }); } },
+    Session: { getEffectiveUser: () => ({ getEmail: () => 'owner@example.com' }) },
     ContentService: {
       MimeType: { JSON: 'application/json' },
       createTextOutput: (text) => ({ text, setMimeType() { return this; } }),
@@ -144,6 +147,7 @@ export function createBridge({ adminCode = 'test-admin-code-1234' } = {}) {
     driveFile: (name) => folders[0]?.files.find((f) => f.name === name)?.text ?? null,
     clearCache: () => cache.clear(),
     fetched,
+    mails,
     web: (url, type, body) => web.set(url, { type, body }),
     drivePicture: (id, bytes) => drivePics.set(id, bytes),
     fileById: (id) => byId.get(id) ?? null,

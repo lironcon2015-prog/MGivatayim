@@ -294,8 +294,33 @@ function requestAccess_(req) {
     if (pending >= MAX_PENDING) throw fail_('יש יותר מדי בקשות ממתינות. פנו למנהל.', 'too_many');
     a.users[id] = { name: name, status: 'pending', requestedAt: new Date().toISOString() };
     writeJson_(ACCESS_FILE, a);
+    notifyRequest_(name, pending + 1);
     return { status: 'pending', name: name };
   });
+}
+
+/* מייל למנהל על בקשת גישה חדשה (בקשת בעל הריפו) — רק על בקשה חדשה, לא על
+   שליחה חוזרת מאותו מכשיר. כתובת הגשר ציבורית, ולכן לכל היותר מייל אחד בכל
+   MAIL_EVERY_S: בקשות מזויפות לא יציפו את התיבה ולא יגמרו את מכסת המיילים
+   היומית. הנמען: NOTIFY_EMAIL ב-Script properties, אחרת בעל החשבון שהגשר רץ
+   בו; "off" מכבה. טקסט רגיל, לא HTML — השם מגיע מהמבקש. מייל שנכשל לא מכשיל
+   את הבקשה. דורש הרשאת שליחת מייל: גוגל מבקש לאשר בפריסה הראשונה אחרי. */
+const MAIL_EVERY_S = 10 * 60;
+const APP_URL = 'https://lironcon2015-prog.github.io/MGivatayim/';
+function notifyRequest_(name, pending) {
+  try {
+    const set = String(PropertiesService.getScriptProperties().getProperty('NOTIFY_EMAIL') || '').trim();
+    if (set.toLowerCase() === 'off') return;
+    const to = set || Session.getEffectiveUser().getEmail();
+    if (!to) return;
+    const cache = CacheService.getScriptCache();
+    if (cache.get('mail:access')) return;
+    cache.put('mail:access', '1', MAIL_EVERY_S);
+    const waiting = pending > 1 ? '\n\nממתינות עכשיו ' + pending + ' בקשות.' : '';
+    MailApp.sendEmail(to, 'בקשת גישה חדשה: ' + name,
+      'התקבלה בקשת גישה לאפליקציה של הקבוצה: ' + name + '.' + waiting +
+      '\n\nלאישור: ניהול ← גישה\n' + APP_URL + '#/admin');
+  } catch (e) { /* המנהל יראה את הבקשה באפליקציה גם בלי מייל */ }
 }
 
 function getSeason_(req) {

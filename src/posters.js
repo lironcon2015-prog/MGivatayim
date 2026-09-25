@@ -103,6 +103,8 @@ const LOGO_EDGE = 512;
 const LOGO_MIN_EDGE = 256;
 const MAX_LOGO_B64 = Math.floor(200 * 1024 * 4 / 3);
 const canvasOf = (w, h) => Object.assign(document.createElement('canvas'), { width: w, height: h });
+// The default smoothing is the fast kind: a crest shrunk with it comes out
+// jagged at its edges and lettering.
 const smooth = (c) => { const ctx = c.getContext('2d'); ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high'; return ctx; };
 
 function scaled(src, box, edge) {

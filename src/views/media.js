@@ -1,5 +1,6 @@
 import { esc, safeUrl } from '../format.js';
 import { sectionHead, videoCard, roundText } from '../components.js';
+import { cachedGallery } from '../gallery.js';
 
 /* The media screen: the team gallery on top (photos | videos), useful links
    below. Videos live in one place — the manager's linked videos (YouTube,
@@ -27,14 +28,24 @@ export function linkedVideosHtml(s) {
 
 // What the gallery's host shows before it loads, and for good when the
 // gallery is off: the linked videos, as the screen was before the gallery.
-function videosOnly(s) {
+export function videosOnly(s) {
   const videos = sortedVideos(s);
   if (!videos.length) return `<section>${sectionHead('סרטונים', '', 'film')}<div class="card"><div class="empty">טרם הועלו סרטונים לעונה.</div></div></section>`;
   return `<section>${sectionHead('סרטונים', esc(roundText(videos[0].round)), 'film')}${linkedVideosHtml(s)}</section>`;
 }
 
+// The host before wireGallery paints: the gallery draws itself over it in the
+// same tick when a copy is kept; "loading" when the device never had one, so
+// the pre-gallery screen does not flash before the gallery.
+function hostHtml(s) {
+  const g = cachedGallery();
+  if (g?.enabled) return '';
+  if (g) return videosOnly(s);
+  return `<section>${sectionHead('הגלריה של הקבוצה', '', 'photo')}<div class="card"><div class="empty">טוען…</div></div></section>`;
+}
+
 export function renderMedia(s) {
-  return `<div data-gallery>${videosOnly(s)}</div>
+  return `<div data-gallery>${hostHtml(s)}</div>
 
   <section>
     ${sectionHead('קישורים שימושיים', '', 'link')}

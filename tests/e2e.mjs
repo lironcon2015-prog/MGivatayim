@@ -836,6 +836,21 @@ await step('photos and videos show apart; the linked videos sit in the videos ta
   await parent.click('[data-gtab="photos"]');
 });
 
+await step('reopening the media screen shows the gallery at once, not the pre-gallery screen while it loads', async () => {
+  // A slow bridge, as Apps Script often is: the kept copy must carry the first frame.
+  const slow = async (r) => { if ((r.request().postData() || '').includes('"getGallery"')) await new Promise((ok) => setTimeout(ok, 2500)); await r.continue().catch(() => {}); };
+  await parent.route(BRIDGE, slow);
+  await parent.goto(APP + '#/');
+  await parent.reload();
+  await parent.locator('.hero').waitFor();
+  await parent.evaluate(() => { location.hash = '#/media'; });
+  await parent.waitForTimeout(300);
+  const first = await parent.locator('[data-gallery]').innerText();
+  expect(!first.includes('טרם הועלו סרטונים') && await parent.locator('[data-gallery] [data-upload]').count() === 1, 'the first frame was not the gallery: ' + first.slice(0, 80));
+  await parent.waitForTimeout(2800);
+  await parent.unroute(BRIDGE, slow);
+});
+
 await step('the help explains uploading, hiding and where photos go — and never mentions a manager', async () => {
   await parent.click('[data-gallery] [data-help]');
   const sheet = parent.locator('.sheet', { hasText: 'איך הגלריה עובדת' });

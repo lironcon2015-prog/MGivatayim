@@ -4,7 +4,7 @@ import { openSheet, confirmSheet, toast } from '../ui/sheet.js';
 import {
   loadGallery, cachedGallery, thumbUrl, fullUrl, posterUrl, saveUrl, uploadOne, hideItem, deleteItem, deleteItems, kindOf, MAX_VIDEO_S,
 } from '../gallery.js';
-import { linkedVideosHtml, sortedVideos } from './media.js';
+import { linkedVideosHtml, sortedVideos, videosOnly } from './media.js';
 import { photoMatches } from '../fixtures.js';
 import { hydratePosters } from '../posters.js';
 
@@ -20,6 +20,7 @@ const MATCHES_SHOWN = 4;
 const ALBUMS_SHOWN = 6;
 const STRIP = 10;
 let shownTab = null;    // 'photos' | 'videos', kept across visits
+let tabFixed = false;   // set by a tap, an upload, or the first fresh answer
 let album = null;       // the key of the game page open, or null for the overview
 let allAlbums = false;  // "all games" pressed
 
@@ -68,8 +69,11 @@ function tile(g, it, sel) {
 }
 
 // The tab a visit opens on: photos, unless there are none and videos wait.
+// A paint from the kept copy does not fix it — the fresh answer may choose
+// otherwise — but after that it stays put, so a tab does not jump away when
+// its last photo is deleted.
 function tabFor(photos, videoCount) {
-  if (shownTab) return shownTab;
+  if (tabFixed && shownTab) return shownTab;
   return !photos.length && videoCount ? 'videos' : 'photos';
 }
 
@@ -423,11 +427,12 @@ export function wireGallery(root, s, { isAdmin = () => false } = {}) {
 
   const paint = () => {
     if (!alive) return;
-    // Off (or not loaded yet): the host keeps the linked videos it was
-    // rendered with.
-    if (!g?.enabled) return;
+    // Not loaded yet: the host keeps what it was rendered with ("loading",
+    // or a kept copy). Off, or no answer and no copy: the linked videos alone.
+    if (!g?.enabled) { if (g || loaded) host.innerHTML = videosOnly(s); return; }
     const items = visible(g);
     shownTab = tabFor(photosOf(items), clipsOf(items).length + s.videos.length);
+    if (loaded) tabFixed = true;
     const grp = openAlbum();
     if (!grp) { album = null; endSelect(); }
     host.innerHTML = grp ? albumHtml(g, grp, sel) : overviewHtml(g, s);
@@ -438,10 +443,12 @@ export function wireGallery(root, s, { isAdmin = () => false } = {}) {
   // picked files a moment before would lose the upload sheet.
   // After an action (upload, delete) the screen is always redrawn.
   let shown = null;
+  let loaded = false;
   const refresh = async ({ quiet = false } = {}) => {
     try { g = await loadGallery({ asAdmin }); } catch { /* keep what is shown */ }
+    loaded = true;
     const now = JSON.stringify(g);
-    if (quiet && now === shown) return;
+    if (quiet && now === shown) { if (shownTab) tabFixed = true; return; }
     shown = now;
     paint();
   };
@@ -455,7 +462,7 @@ export function wireGallery(root, s, { isAdmin = () => false } = {}) {
     if (t.dataset.album !== undefined) { album = t.dataset.album; endSelect(); paint(); toTop(); return; }
     if (t.dataset.back !== undefined) { album = null; endSelect(); paint(); toTop(); return; }
     if (t.dataset.allAlbums !== undefined) { allAlbums = true; paint(); return; }
-    if (t.dataset.gtab) { shownTab = t.dataset.gtab; endSelect(); paint(); return; }
+    if (t.dataset.gtab) { shownTab = t.dataset.gtab; tabFixed = true; endSelect(); paint(); return; }
     if (t.dataset.pick) {
       if (sel.ids.has(t.dataset.pick)) sel.ids.delete(t.dataset.pick); else sel.ids.add(t.dataset.pick);
       paint();
@@ -504,13 +511,13 @@ export function wireGallery(root, s, { isAdmin = () => false } = {}) {
         asAdmin,
         preset,
         // Land on the tab of what was just uploaded.
-        onDone: (kinds) => { shownTab = kinds.includes('image') ? 'photos' : 'videos'; refresh(); },
+        onDone: (kinds) => { shownTab = kinds.includes('image') ? 'photos' : 'videos'; tabFixed = true; refresh(); },
       });
     }
   });
 
   paint();
-  if (g?.enabled) shown = JSON.stringify(g);
+  if (g) shown = JSON.stringify(g);
   refresh({ quiet: true });
   return () => { alive = false; };
 }

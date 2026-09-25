@@ -11,11 +11,17 @@ export const MAX_VIDEO_BYTES = 100 * 1024 * 1024;
 const MAX_EDGE = 1600;
 const JPEG_Q = 0.82;
 
-let last = null;
+// The last answer is kept on the device (mg:gallery), like the season: the
+// media screen draws the gallery from it at once. Without it the first visit
+// of a session showed the pre-gallery screen ("no videos yet") for the second
+// the bridge took, and then swapped the gallery in.
+const KEY = 'mg:gallery';
+let last = (() => { try { return JSON.parse(localStorage.getItem(KEY) || 'null'); } catch { return null; } })();
 export const cachedGallery = () => last;
 
 export async function loadGallery({ asAdmin = false } = {}) {
   last = await call('getGallery', {}, { asAdmin });
+  try { localStorage.setItem(KEY, JSON.stringify(last)); } catch { /* full or private: memory only */ }
   return last;
 }
 

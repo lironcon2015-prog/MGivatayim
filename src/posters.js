@@ -104,7 +104,12 @@ export async function uploadLogo(file) {
   const canvas = document.createElement('canvas');
   canvas.width = Math.max(1, Math.round(bmp.width * k));
   canvas.height = Math.max(1, Math.round(bmp.height * k));
-  canvas.getContext('2d').drawImage(bmp, 0, 0, canvas.width, canvas.height);
+  const ctx = canvas.getContext('2d');
+  // The default smoothing is the fast kind: a crest shrunk with it comes out
+  // jagged at its edges and lettering.
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(bmp, 0, 0, canvas.width, canvas.height);
   bmp.close?.();
   const [mime, data] = canvas.toDataURL('image/png').match(/^data:([^;]+);base64,(.*)$/).slice(1);
   const { ref } = await call('putLogo', { mime, data }, { asAdmin: true });

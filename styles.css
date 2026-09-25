@@ -172,6 +172,10 @@ section { margin-top: 1.9rem; }
 .sec-head { display: flex; align-items: center; gap: .5rem; margin-bottom: .75rem; }
 .sec-head > svg { width: 22px; height: 22px; flex: none; color: var(--gold); }
 .sec-head h2 { font-size: 1.2rem; white-space: nowrap; }
+.sec-head .coach-only, .mn-home .coach-only, .live-tabs .coach-only {
+  font-size: .72rem; font-weight: 600; color: var(--faint); white-space: nowrap; margin-inline-start: .35rem;
+}
+.sec-head h2 .coach-only { font-size: .78rem; }
 .sec-head .aside { margin-inline-start: auto; font-size: .8rem; color: var(--faint); font-weight: 600; }
 .sec-head .aside a { color: var(--gold); text-decoration: none; }
 

@@ -65,9 +65,16 @@ export function crestImg(team) {
 
 // The gold glyph before a title is what separates one block of the page from
 // the next now that every card sits on the same glowing ground.
-export function sectionHead(title, aside = '', glyph = '') {
-  return `<div class="sec-head">${glyph ? icon(glyph) : ''}<h2>${esc(title)}</h2>${aside ? `<span class="aside">${aside}</span>` : ''}</div>`;
+export function sectionHead(title, aside = '', glyph = '', { coachOnly = false } = {}) {
+  return `<div class="sec-head">${glyph ? icon(glyph) : ''}<h2>${esc(title)}${coachOnly ? COACH_ONLY : ''}</h2>${aside ? `<span class="aside">${aside}</span>` : ''}</div>`;
 }
+
+// On every way into what parents never see — the minutes, in all four places
+// they open from — so the coach knows what is theirs alone (the owner's
+// request). Those places are drawn only for the coach and the manager, so
+// the manager sees the note too. Inside the live minutes tab there is none:
+// the tab already carries it.
+export const COACH_ONLY = '<span class="coach-only">(רק למאמן)</span>';
 
 // The scoreline is assembled from two separate numbers with our goals pinned
 // to the first slot, never from a "2:1" string in the data. Which side of the

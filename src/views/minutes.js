@@ -11,7 +11,7 @@ import * as MN from '../minutes.js';
 import { esc, shortName, shortDate } from '../format.js';
 import { icon } from '../icons.js';
 import { openSheet } from '../ui/sheet.js';
-import { sectionHead } from '../components.js';
+import { sectionHead, COACH_ONLY } from '../components.js';
 import { outcomeOf } from '../season.js';
 import { posLabel } from '../positions.js';
 
@@ -110,7 +110,7 @@ export function homeAlertHtml(state, cfg) {
   if (!short.length) return '';
   return `<section><div class="mn-alert mn-home">
       <span class="mn-alert-ic">${icon('clock')}</span>
-      <div><p><b>${short.length === 1 ? 'שחקן אחד בספסל' : `${short.length} שחקנים בספסל`} מתחת ל-<span class="num">${mins(cfg.min)}</span></b> לפני ${lastPeriodText(state.format)}</p>
+      <div><p><b>${short.length === 1 ? 'שחקן אחד בספסל' : `${short.length} שחקנים בספסל`} מתחת ל-<span class="num">${mins(cfg.min)}</span></b> לפני ${lastPeriodText(state.format)}${COACH_ONLY}</p>
       <p class="mn-home-names">${short.map((r) => esc(shortName(r.name))).join(' · ')}</p></div>
       <a class="btn small" href="#/live" data-mn-go>לרשימת הדקות</a>
     </div></section>`;
@@ -122,7 +122,7 @@ export const hasShortfall = (state, cfg) => MN.shortfall(state, cfg).length > 0;
 export function matchMinutesHtml(state, cfg) {
   const rows = MN.liveRows({ ...state, status: 'ended' }, null, cfg);
   return `<div class="mn-sheet">
-      <div class="sec-head">${icon('clock')}<h2>דקות משחק</h2><span class="aside">רף <span class="num">${mins(cfg.min)}</span> · <button type="button" class="linkish" data-mn="edit">נוכחות ורף</button></span></div>
+      <div class="sec-head">${icon('clock')}<h2>דקות משחק${COACH_ONLY}</h2><span class="aside">רף <span class="num">${mins(cfg.min)}</span> · <button type="button" class="linkish" data-mn="edit">נוכחות ורף</button></span></div>
       <div class="mn-list">${rowsHtml({ ...state, status: 'ended' }, rows, cfg.min)}</div>
     </div>`;
 }
@@ -212,11 +212,11 @@ export function coachSheet(state, getCfg, save) {
 export function seasonMinutesHtml(s) {
   const sm = MN.seasonMinutes(s, s.coach);
   if (!sm.matches.length) {
-    return `<section>${sectionHead('דקות משחק', '', 'clock')}
+    return `<section>${sectionHead('דקות משחק', '', 'clock', { coachOnly: true })}
       <div class="card"><div class="empty">עוד לא נשמר משחק חי. הדקות נספרות מההרכב והחילופים של משחקים שתועדו בלייב.</div></div></section>`;
   }
   return `<section id="minutes">
-    ${sectionHead('דקות משחק', `<span class="num">${sm.matches.length}</span> משחקים מתועדים`, 'clock')}
+    ${sectionHead('דקות משחק', `<span class="num">${sm.matches.length}</span> משחקים מתועדים`, 'clock', { coachOnly: true })}
     <div class="seg" role="tablist" id="mn-tabs">
       <button role="tab" type="button" data-mnview="table" aria-selected="true">טבלה</button>
       <button role="tab" type="button" data-mnview="map" aria-selected="false">מפה</button>

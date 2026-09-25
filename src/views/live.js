@@ -2,7 +2,7 @@ import * as M from '../live/model.js';
 import { serverNow } from '../live/sync.js';
 import { esc, splitKickoff, shortName, shortDate, byNumber } from '../format.js';
 import { icon } from '../icons.js';
-import { crestImg, keepImages, oppLogo, roundText } from '../components.js';
+import { crestImg, keepImages, oppLogo, roundText, COACH_ONLY } from '../components.js';
 import { hydratePosters } from '../posters.js';
 import { POSITIONS, posLabel, isKeeper, layout, subGroups } from '../positions.js';
 import { openSheet, confirmSheet, toast, buzz } from '../ui/sheet.js';
@@ -387,7 +387,7 @@ export function mountLive(view, ctx) {
     if (!coach) tab = 'match';
     const tabs = coach ? `<div class="seg live-tabs" role="tablist">
         <button role="tab" type="button" data-tab="match" aria-selected="${tab === 'match'}">משחק</button>
-        <button role="tab" type="button" data-tab="minutes" aria-selected="${tab === 'minutes'}">דקות${hasShortfall(st, cfg) ? '<i class="live-dot" aria-label="יש התראה"></i>' : ''}</button>
+        <button role="tab" type="button" data-tab="minutes" aria-selected="${tab === 'minutes'}">דקות${COACH_ONLY}${hasShortfall(st, cfg) ? '<i class="live-dot" aria-label="יש התראה"></i>' : ''}</button>
       </div>` : '';
 
     const restoreImages = keepImages(view);

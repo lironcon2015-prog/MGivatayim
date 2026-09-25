@@ -491,6 +491,7 @@ await step('the scorer\'s total comes from the match events', async () => {
 
 await step('minutes per player are the manager\'s only', async () => {
   expect(await parent.locator('#minutes').count() === 0, 'a parent sees the minutes section');
+  expect(await parent.locator('.coach-only').count() === 0, 'a parent sees an "only the coach" note');
   const cached = await parent.evaluate(() => JSON.parse(localStorage.getItem('mg:season') || 'null'));
   expect(cached && cached.season.players.every((p) => !('minutes' in p)), 'minutes reached the parent\'s device');
   expect(cached.season.matches.every((m) => !('lineup' in m)), 'a past lineup reached the parent\'s device');
@@ -733,6 +734,10 @@ await step('a device the manager marks as coach sees playing time; a parent does
   await coach.click('#recheck');
   await coach.goto(APP + '#/stats');
   await coach.locator('#minutes .mn-table').waitFor({ timeout: 8000 });
+  // What parents never see says so, to the coach and to the manager.
+  expect(await coach.locator('#minutes .sec-head .coach-only').innerText() === '(רק למאמן)', 'the coach\'s minutes carry no "only the coach" note');
+  await admin.goto(APP + '#/stats');
+  await admin.locator('#minutes .sec-head .coach-only').waitFor({ timeout: 8000 });
   await coach.locator('#minutes [data-mnview="map"]').click();
   await coach.locator('#minutes .mn-map .mn-cell').first().waitFor();
   await coach.locator('#minutes .mn-pl').first().click();
@@ -757,6 +762,7 @@ await step('before kick-off the coach sets the minimum and who came; a parent se
   await until(() => liveFile().opponent === 'הפועל מבחן', 'the opponent to be saved');
   const id = liveFile().id;
   await coach.goto(APP + '#/live');
+  await coach.locator('[data-tab="minutes"] .coach-only').waitFor({ timeout: 8000 });
   await coach.locator('[data-tab="minutes"]').click({ timeout: 8000 });
   await coach.locator('[data-mn-step="5"]').click();
   await until(() => coachFile().matches?.[id]?.min === 25, 'the minimum to reach Drive');

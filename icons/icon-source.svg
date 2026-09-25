@@ -1,19 +1,22 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
   <defs>
-    <linearGradient id="ring" x1="0.21" y1="0.09" x2="0.79" y2="0.91">
-      <stop offset="0" stop-color="#F2CB55"/><stop offset="1" stop-color="#4A8FE8"/>
+    <!-- The app's brand gold, so the home-screen icon and the header crest
+         read as the same product. -->
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#F2C948"/>
+      <stop offset="100%" stop-color="#D9A720"/>
     </linearGradient>
-    <radialGradient id="sky" cx="0.8" cy="0" r="1.1">
-      <stop offset="0" stop-color="#468AEC" stop-opacity=".36"/><stop offset=".75" stop-color="#468AEC" stop-opacity="0"/>
-    </radialGradient>
-    <filter id="g1" x="-1" y="-1" width="3" height="3"><feGaussianBlur stdDeviation="145.63555555555556"/></filter>
-    <filter id="g2" x="-1" y="-1" width="3" height="3"><feGaussianBlur stdDeviation="254.86222222222221"/></filter>
-    <clipPath id="in"><circle cx="512" cy="512" r="291.2711111111111"/></clipPath>
   </defs>
-  <rect width="1024" height="1024" fill="#0A1321"/><rect width="1024" height="1024" fill="url(#sky)"/>
-  <circle cx="512" cy="512" r="327.68" fill="#4A8FE8" fill-opacity=".24" filter="url(#g2)"/>
-  <circle cx="512" cy="512" r="327.68" fill="#E8B931" fill-opacity=".32" filter="url(#g1)"/>
-  <circle cx="512" cy="512" r="327.68" fill="url(#ring)"/>
-  <circle cx="512" cy="512" r="291.2711111111111" fill="#0A1321"/>
-  <image href="../assets/crest.png" x="220.7288888888889" y="220.7288888888889" width="582.5422222222222" height="582.5422222222222" clip-path="url(#in)"/>
+
+  <!-- Full-bleed background: a maskable icon is cropped to a circle on
+       Android, and anything transparent at the edges becomes a hard corner. -->
+  <rect width="1024" height="1024" fill="url(#g)"/>
+
+  <!-- The mark sits inside the middle 60% so the circular mask never clips it. -->
+  <g transform="translate(512 512)" fill="none" stroke="#1A1204" stroke-width="34"
+     stroke-linecap="round" stroke-linejoin="round">
+    <circle r="210"/>
+    <path d="M0 -118 96 -48 59 66 -59 66 -96 -48Z" fill="#1A1204" stroke-width="28"/>
+    <path d="M0 -210V-118M96 -48l90-62M59 66l58 106M-59 66l-58 106M-96 -48l-90-62"/>
+  </g>
 </svg>

@@ -3,10 +3,9 @@
 //   node tools/make-og.mjs   — needs playwright, and Google Fonts reachable
 //
 // The crest sits in the header's element (.crest in styles.css: a ring from
-// gold to blue with a gold and a blue glow), as on the app icon; beside it
-// the guide's name on the app's navy. A new crest → run this and
-// tools/make-icons.mjs, and bump ?v= on og:image in both guides: WhatsApp
-// keeps a preview by its URL.
+// gold to blue with a gold and a blue glow); beside it the guide's name on
+// the app's navy. A new crest → run this, and bump ?v= on og:image in both
+// guides: WhatsApp keeps a preview by its URL.
 import { chromium } from 'playwright';
 import { existsSync, readFileSync } from 'node:fs';
 

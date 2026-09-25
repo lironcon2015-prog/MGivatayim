@@ -6,7 +6,7 @@
 // YouTube needs none of this: its thumbnail is a fixed public address.
 import { call } from './bridge.js';
 import { getAdminCode } from './store.js';
-import { opaqueBounds, unsharp } from './imaging.js';
+import { keyBackground, opaqueBounds, unsharp } from './imaging.js';
 
 const DB = 'mg-posters';
 const STORE = 'posters';
@@ -92,9 +92,10 @@ export function hydratePosters(root) {
   });
 }
 
-// An opponent's crest, picked on the manager's phone: its transparent margin
-// cut away, scaled down in halves (one big drawImage step is what made small
-// crests look soft), lightly sharpened, and kept at LOGO_EDGE px — three
+// An opponent's crest, picked on the manager's phone: a flat background made
+// transparent (keyBackground), the transparent margin cut away, scaled down
+// in halves (one big drawImage step is what made small crests look soft),
+// lightly sharpened, and kept at LOGO_EDGE px — three
 // device pixels for every CSS pixel of the 72px disc, with room to spare.
 // PNG keeps a transparent background. A detailed crest can make a 512px PNG
 // larger than the bridge takes (MAX_LOGO_BYTES in bridge.gs), so it steps
@@ -134,8 +135,10 @@ export async function uploadLogo(file) {
   const sctx = src.getContext('2d');
   sctx.drawImage(bmp, 0, 0);
   bmp.close?.();
-  const box = opaqueBounds(sctx.getImageData(0, 0, src.width, src.height).data, src.width, src.height)
-    || { x: 0, y: 0, w: src.width, h: src.height };
+  const px = sctx.getImageData(0, 0, src.width, src.height);
+  // Gemini's green (CREST_PROMPT), a white page or a painted checkerboard.
+  if (keyBackground(px.data, src.width, src.height)) sctx.putImageData(px, 0, 0);
+  const box = opaqueBounds(px.data, src.width, src.height) || { x: 0, y: 0, w: src.width, h: src.height };
   let edge = Math.min(LOGO_EDGE, Math.max(box.w, box.h));
   let url;
   for (;;) {

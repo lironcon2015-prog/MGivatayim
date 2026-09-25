@@ -267,6 +267,43 @@ let inviteKind = 'app';   // what the access tab's copy / WhatsApp send
 /* The screen is split by how often a part is touched: the weekly work
    (next match, results) first, the roster, the rarely edited content, and
    the one-time setup last — not one page of everything. */
+// The prompt the owner pastes into Gemini with a crest downloaded from a
+// club's site, before uploading it here. Tuned by trial: asked for a
+// comparison it drew one into the image; asked for transparency it painted
+// a checkerboard; asked to keep colours it still lightened the navy. So:
+// one crest, a flat green background (uploadLogo keys it out), colours by
+// name. Change it only after trying the change on a real crest.
+export const CREST_PROMPT = `צרף: הסמל המקורי שהורדתי מאתר הקבוצה.
+
+המשימה: להחזיר תמונה אחת בלבד, שמכילה רק את הסמל המשופר על רקע ירוק.
+
+כללי התמונה שאתה מחזיר, חובה:
+- בתמונה יש סמל אחד בלבד. לא השוואה, לא המקור לצידו, לא כותרות ולא טקסט
+  שלא קיים בסמל עצמו.
+- רקע ירוק אחיד ושטוח לגמרי, #00FF00, מקצה לקצה. בלי צל, בלי גרדיאנט
+  ובלי הילה. אם יש ירוק בסמל עצמו, השתמש במג'נטה #FF00FF.
+- אסור לצייר משבצות אפור-לבן. זו לא שקיפות, אלא ציור של שקיפות שנשאר
+  בתמונה.
+- הסמל ממלא את התמונה, עם שוליים קטנים ואחידים מסביב. לפחות 1024
+  פיקסלים בצד הארוך.
+
+מה לשפר: חדות בלבד. קווים וקצוות נקיים, בלי טשטוש, רעש, פיקסלים או
+שאריות דחיסה, כאילו הסמל יוצא מקובץ המקור של המעצב.
+
+מה אסור לשנות:
+- צבעים: אותם צבעים בדיוק. אל תבהיר, אל תכהה, אל תוריד רוויה ואל תסיט
+  גוון. צבע כהה נשאר כהה באותה מידה. כחול כהה נוטה-לסגול נשאר כזה ולא
+  הופך לכחול בהיר יותר, לכחול רגיל או לתכלת. צהוב נשאר באותו צהוב.
+- סגנון: אם הסמל שטוח, הוא נשאר שטוח. בלי תלת-ממד, בלי הבלטה, בלי ברק,
+  בלי הצללות ובלי גרדיאנטים שאין במקור.
+- טקסט: כל האותיות, בעברית ובאנגלית, מועתקות בדיוק: אותו כתיב, אותו
+  גופן, אותו מיקום. אם אות לא קריאה במקור, אל תנחש, אלא עצור ותגיד לי.
+- צורה ופרטים: אותה צורה, אותם פרופורציות ואותם פרטים. סמל עגול נשאר
+  עיגול מושלם עם קצה נקי.
+- אל תוסיף כלום: לא מסגרת, לא צל, לא הילה ולא אלמנטים חדשים.
+
+בטקסט של התשובה, לא בתמונה: כתוב במשפט אחד אם שינית משהו חוץ מהחדות.`;
+
 const TABS = [
   ['games', 'משחקים'],
   ['players', 'שחקנים'],
@@ -591,7 +628,11 @@ export function mountAdmin(view, ctx) {
   }
 
   async function copyInvite() {
-    const text = inviteText();
+    const ok = await copyText(inviteText());
+    toast(ok ? 'ההודעה הועתקה — הדביקו אותה בוואטסאפ.' : 'ההעתקה לא הצליחה. אפשר ללחוץ "שליחה בוואטסאפ".', ok ? {} : { kind: 'err' });
+  }
+
+  async function copyText(text) {
     let ok = false;
     try { await navigator.clipboard.writeText(text); ok = true; } catch {
       // Older iOS without clipboard permission: the textarea route still works.
@@ -601,7 +642,7 @@ export function mountAdmin(view, ctx) {
       try { ok = document.execCommand('copy'); } catch { ok = false; }
       ta.remove();
     }
-    toast(ok ? 'ההודעה הועתקה — הדביקו אותה בוואטסאפ.' : 'ההעתקה לא הצליחה. אפשר ללחוץ "שליחה בוואטסאפ".', ok ? {} : { kind: 'err' });
+    return ok;
   }
 
   // What needs an answer first; the invitation is sent once a season.
@@ -841,6 +882,13 @@ export function mountAdmin(view, ctx) {
           <div class="sec-head">${icon('clock')}<h2>מבנה משחק</h2></div>
           <div class="card" data-format-editor>${formatEditorHtml(cleanFormat(draft.settings?.format), cleanSize(draft.settings?.size))}
             <p class="note">ברירת המחדל לכל משחק חי. אפשר לשנות גם בפתיחת משחק מסוים.</p></div>
+        </section>
+        <section>
+          <div class="sec-head">${icon('sparkle')}<h2>שיפור סמל של יריבה</h2></div>
+          <div class="card">
+            <p class="note">סמל מאתר של קבוצה יוצא לפעמים מטושטש. מעתיקים את ההנחיה, מדביקים אותה בגמיני יחד עם הסמל, ומעלים את התוצאה במשחק הבא. הרקע הירוק שגמיני מחזיר יורד לבד בהעלאה.</p>
+            <div class="row-btns"><button type="button" class="btn secondary small" data-crest-prompt>${icon('copy')} העתקת ההנחיה</button></div>
+          </div>
         </section>`,
     }[tab]();
     const idle = !dirty && !saving && !message;
@@ -1042,6 +1090,10 @@ export function mountAdmin(view, ctx) {
     if (t.dataset.import === 'file') { view.querySelector('[data-import-file]')?.click(); return; }
     if (t.dataset.clearGames !== undefined) { clearGamesSheet(); return; }
     if (t.dataset.inviteCopy !== undefined) { copyInvite(); return; }
+    if (t.dataset.crestPrompt !== undefined) {
+      copyText(CREST_PROMPT).then((ok) => toast(ok ? 'ההנחיה הועתקה — הדביקו אותה בגמיני עם הסמל.' : 'ההעתקה לא הצליחה.', ok ? {} : { kind: 'err' }));
+      return;
+    }
     if (t.dataset.inviteKind) { inviteKind = t.dataset.inviteKind; paint(); return; }
     if (t.dataset.import === 'fixtures-file') { view.querySelector('[data-import-fixtures]')?.click(); return; }
     if (t.dataset.import === 'fixtures-paste') { pasteSheet('fixtures'); return; }

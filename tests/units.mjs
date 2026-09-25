@@ -457,6 +457,68 @@ await test('sharpening lifts an edge, leaves flat colour, alpha and empty pixels
   assert.equal(px[(1 * w + 2) * 4 + 3], 200, 'alpha changed');
 });
 
+// A w×h RGBA image from a painter: (x, y) → [r, g, b] (alpha 255).
+const paint = (w, h, f) => {
+  const px = new Uint8ClampedArray(w * h * 4);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) px.set([...f(x, y), 255], (y * w + x) * 4);
+  return px;
+};
+const NAVY = [27, 21, 85], GREEN = [7, 245, 7], WHITE = [255, 255, 255];
+const alphaAt = (px, w, x, y) => px[(y * w + x) * 4 + 3];
+
+await test('a flat green background is removed; the crest and the white inside it stay', async () => {
+  const { keyBackground } = await import('../src/imaging.js');
+  // A navy ring (6..13) round a white centre, on green — the white must stay:
+  // it does not touch the border.
+  const w = 20, h = 20;
+  const px = paint(w, h, (x, y) => (x >= 6 && x <= 13 && y >= 6 && y <= 13) ? ((x >= 8 && x <= 11 && y >= 8 && y <= 11) ? WHITE : NAVY) : GREEN);
+  assert.equal(keyBackground(px, w, h), true);
+  assert.equal(alphaAt(px, w, 0, 0), 0);
+  assert.equal(alphaAt(px, w, 5, 10), 0);
+  assert.equal(alphaAt(px, w, 6, 10), 255, 'the crest edge went');
+  assert.equal(alphaAt(px, w, 10, 10), 255, 'the white inside the crest went');
+});
+
+await test('a white page goes too, and a painted checkerboard', async () => {
+  const { keyBackground } = await import('../src/imaging.js');
+  const w = 16, h = 16, inside = (x, y) => x >= 5 && x <= 10 && y >= 5 && y <= 10;
+  const white = paint(w, h, (x, y) => inside(x, y) ? NAVY : [250, 251, 249]);
+  assert.equal(keyBackground(white, w, h), true);
+  assert.equal(alphaAt(white, w, 1, 1), 0);
+  const check = paint(w, h, (x, y) => inside(x, y) ? NAVY : ((x >> 1) + (y >> 1)) % 2 ? [216, 216, 216] : WHITE);
+  assert.equal(keyBackground(check, w, h), true);
+  assert.equal(alphaAt(check, w, 1, 1) + alphaAt(check, w, 3, 1), 0, 'a square of the checkerboard stayed');
+  assert.equal(alphaAt(check, w, 7, 7), 255);
+});
+
+await test('an edge pixel half green becomes half transparent, and loses the green', async () => {
+  const { keyBackground } = await import('../src/imaging.js');
+  const w = 12, h = 12;
+  const mix = NAVY.map((c, i) => Math.round((c + GREEN[i]) / 2));
+  const px = paint(w, h, (x, y) => (x >= 4 && x <= 7 && y >= 4 && y <= 7) ? (x === 4 ? mix : NAVY) : GREEN);
+  keyBackground(px, w, h);
+  const a = alphaAt(px, w, 4, 5), g = px[(5 * w + 4) * 4 + 1];
+  assert.ok(a > 60 && a < 200, 'alpha ' + a);
+  assert.ok(g < 60, 'green left in the edge: ' + g);
+});
+
+await test('a border that is not one plain colour is left alone', async () => {
+  const { keyBackground } = await import('../src/imaging.js');
+  const w = 16, h = 16;
+  // A photo-like border: a gradient.
+  const grad = paint(w, h, (x, y) => [x * 16, y * 16, 128]);
+  const before = Uint8ClampedArray.from(grad);
+  assert.equal(keyBackground(grad, w, h), false);
+  assert.deepEqual(grad, before);
+  // A crest cut to its edge on green on two sides: navy on a third of the
+  // border is not a second background colour.
+  const cut = paint(w, h, (x) => x < 6 ? NAVY : GREEN);
+  assert.equal(keyBackground(cut, w, h), false);
+  // Already transparent: nothing to do.
+  const clear = new Uint8ClampedArray(w * h * 4);
+  assert.equal(keyBackground(clear, w, h), false);
+});
+
   console.log(`\nunits: ${passed} passed, ${failures.length} failed`);
   process.exit(failures.length ? 1 : 0);
 }

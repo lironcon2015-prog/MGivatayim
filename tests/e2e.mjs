@@ -44,11 +44,13 @@ async function step(name, fn) {
 }
 const expect = (cond, msg) => { if (!cond) throw new Error(msg); };
 
-// A PNG of w×h, opaque gold where `fill` says, transparent elsewhere.
-function rgbaPng(w, h, fill) {
+// A PNG of w×h, opaque gold where `fill` says, and elsewhere transparent —
+// or the flat colour `bg`.
+function rgbaPng(w, h, fill, bg = null) {
   const raw = Buffer.alloc((w * 4 + 1) * h);
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
     if (fill(x, y)) raw.set([232, 185, 49, 255], y * (w * 4 + 1) + 1 + x * 4);
+    else if (bg) raw.set([...bg, 255], y * (w * 4 + 1) + 1 + x * 4);
   }
   const chunk = (type, data) => {
     const len = Buffer.alloc(4); len.writeUInt32BE(data.length);
@@ -202,6 +204,14 @@ await step('manager fills a season and saves it', async () => {
   await logo.waitFor({ timeout: 8000 });
   const dims = await logo.evaluate(async (i) => { await i.decode(); return `${i.naturalWidth}x${i.naturalHeight}`; });
   expect(dims === '10x30', 'crest margin not cropped: ' + dims);
+  // A wider shield on Gemini's flat green (CREST_PROMPT): the green goes, and
+  // with it the margin. (Another size, or the bridge would keep the same
+  // file and hand back the same ref.)
+  const was = await logo.getAttribute('data-poster');
+  await admin.setInputFiles('[data-logo-file="הפועל כוכבים"]', { name: 'crest.png', mimeType: 'image/png', buffer: rgbaPng(40, 40, (x, y) => x >= 10 && x < 22 && y >= 5 && y < 35, [7, 245, 7]) });
+  await admin.waitForFunction((w) => { const i = document.querySelector('.logo-row .opp-logo[src]'); return i && i.dataset.poster !== w; }, was, { timeout: 8000 });
+  const keyed = await admin.locator('.logo-row .opp-logo[src]').evaluate(async (i) => { await i.decode(); return `${i.naturalWidth}x${i.naturalHeight}`; });
+  expect(keyed === '12x30', 'green background not removed: ' + keyed);
   await admin.click('#save');
   await waitText(admin, 'נשמר');
   const saved = JSON.parse(bridge.driveFile('season.json'));
@@ -211,6 +221,16 @@ await step('manager fills a season and saves it', async () => {
   expect(saved.season.team.homeVenue?.address === 'רחוב המעיין 4, גבעתיים', 'home ground not saved: ' + JSON.stringify(saved.season.team));
   expect(!JSON.stringify(saved).includes('__open'), 'UI state leaked into the saved data');
   expect(/^[\w-]{10,}$/.test(saved.season.opponentLogos?.['הפועל כוכבים'] || ''), 'crest not stored by name: ' + JSON.stringify(saved.season.opponentLogos));
+});
+
+await step('the settings copy the crest prompt for Gemini', async () => {
+  await admin.context().grantPermissions(['clipboard-read', 'clipboard-write'], { origin: APP });
+  await adminTab(admin, 'team');
+  await admin.click('[data-crest-prompt]');
+  await admin.locator('.toast', { hasText: 'ההנחיה הועתקה' }).waitFor();
+  const copied = await admin.evaluate(() => navigator.clipboard.readText());
+  expect(copied.includes('#00FF00') && copied.includes('משבצות'), 'the prompt was not copied: ' + copied.slice(0, 80));
+  await adminTab(admin, 'games');
 });
 
 await step('a save blocked by a field on another tab opens that tab', async () => {

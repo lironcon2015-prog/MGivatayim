@@ -127,10 +127,13 @@ export class LiveSession {
       if (this.watching) params.watching = true;
       const r = await call('getLive', params, { asAdmin: this.asAdmin() });
       learnTime(r.serverNow, t0, Date.now());
-      let changed = !this.loaded || r.canControl !== this.canControl || !!r.hidden !== this.hidden || JSON.stringify(r.control) !== JSON.stringify(this.control);
+      let changed = !this.loaded || r.canControl !== this.canControl || !!r.hidden !== this.hidden || JSON.stringify(r.control || null) !== JSON.stringify(this.control);
       this.hidden = !!r.hidden;
       this.canControl = !!r.canControl;
       this.isAdmin = !!r.isAdmin;
+      // Only the manager gets `control`: for anyone else it is absent, and
+      // comparing undefined with the stored null read as a change on every
+      // poll — the live screen redrew itself every few seconds for parents.
       this.control = r.control || null;
       this.loaded = true;
       if (this.netDown) { this.netDown = false; changed = true; }

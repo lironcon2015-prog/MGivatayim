@@ -378,13 +378,26 @@ await step('the manager sees how many watch, and who; a parent does not', async 
   expect(await parent.locator('.watch-chip').count() === 0, 'a parent sees the watcher count');
 });
 
+await step('the live screen of a parent is not redrawn by polls that bring nothing new', async () => {
+  // The manager's answer carries `control`, a parent's does not: comparing
+  // the missing field with the stored null once read as a change on every
+  // poll, and the board (crests and all) was redrawn every few seconds.
+  await parent.evaluate(() => { document.querySelector('.sc-row').__mark = 1; });
+  await parent.waitForTimeout(3000);   // six polls at mg:pollMs = 500
+  expect(await parent.evaluate(() => document.querySelector('.sc-row').__mark === 1), 'the live board was redrawn with nothing new');
+});
+
 await step('tapping a player on the pitch substitutes them', async () => {
+  // A real change redraws the board, but the crest already on screen stays
+  // the same element: a new <img> would load again and blink.
+  await parent.evaluate(() => { document.querySelector('.sc-crest img').__mark = 1; });
   await admin.locator('button.pl', { hasText: 'איתי' }).click();
   await admin.locator('.pick', { hasText: 'תומר עזרא' }).click();
   await waitText(admin, 'כולם רואים');
   const sub = liveFile().events.find((e) => e.type === 'sub');
   expect(!!sub, 'no sub recorded');
   await parent.locator('.pl', { hasText: 'תומר' }).waitFor({ timeout: 8000 });
+  expect(await parent.evaluate(() => document.querySelector('.sc-crest img').__mark === 1), 'the crest was drawn afresh on a redraw');
 });
 
 await step('a wrong live code is refused; the right one hands the parent control', async () => {

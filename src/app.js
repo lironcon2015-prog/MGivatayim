@@ -1,6 +1,6 @@
 import { buildSeason, opponentLogo } from './season.js';
 import { esc, seasonLabel } from './format.js';
-import { crestImg } from './components.js';
+import { crestImg, keepImages } from './components.js';
 import { icon } from './icons.js';
 import { DEFAULT_CREST } from './config.js';
 import { call, bridgeConfigured } from './bridge.js';
@@ -281,6 +281,7 @@ function render() {
   teardown();
   teardown = () => {};
   const app = document.getElementById('app');
+  const restoreImages = keepImages(app);
   app.innerHTML = chrome(state.season?.team);
   const view = app.querySelector('#view');
 
@@ -388,6 +389,7 @@ function render() {
   view.innerHTML = (route.hash === '#/' ? liveBanner() + minutesAlert() : '') + route.render(s)
     + (state.stale ? '<p class="note stale">מוצגים הנתונים האחרונים שנשמרו במכשיר — אין כרגע חיבור לשרת.</p>' : '')
     + `<p class="foot">${esc(s.team.name)} · ${esc(seasonLabel(s.team))}${isAdmin() ? '' : ' · <a href="#/admin">כניסת מנהל</a>'}</p>`;
+  restoreImages();
   teardown = route.wire ? route.wire(view, s) || (() => {}) : () => {};
   hydratePosters(view);
 }

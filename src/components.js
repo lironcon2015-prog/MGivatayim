@@ -25,6 +25,32 @@ export function oppLogo(ref, name) {
   return `<img class="opp-logo" data-poster="${esc(ref)}"${src ? ` src="${esc(src)}"` : ''} alt="סמל ${esc(name)}" decoding="async" onerror="this.remove()" />`;
 }
 
+// A screen redrawn with innerHTML makes every <img> anew, and a new element
+// loads and decodes its picture again: a crest on a board redrawn every few
+// seconds blinks. Call before the redraw; the function it returns, called
+// after, moves each loaded picture back in place of its new twin (same src),
+// taking the new element's attributes. Before any wiring: a handler bound to
+// the new element would be left on the one thrown away.
+export function keepImages(root) {
+  const old = new Map();
+  root.querySelectorAll('img[src]').forEach((i) => {
+    if (!i.complete || !i.naturalWidth) return;
+    const k = i.getAttribute('src');
+    if (!old.has(k)) old.set(k, []);
+    old.get(k).push(i);
+  });
+  return (into = root) => {
+    if (!old.size) return;
+    into.querySelectorAll('img[src]').forEach((n) => {
+      const o = old.get(n.getAttribute('src'))?.shift();
+      if (!o) return;
+      for (const a of [...o.attributes]) if (!n.hasAttribute(a.name)) o.removeAttribute(a.name);
+      for (const a of [...n.attributes]) if (o.getAttribute(a.name) !== a.value) o.setAttribute(a.name, a.value);
+      n.replaceWith(o);
+    });
+  };
+}
+
 export const CLASS_OF = { win: 'is-win', draw: 'is-draw', loss: 'is-loss' };
 
 // The club's own crest, used wherever the UI means "us". It is deliberately

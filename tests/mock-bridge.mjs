@@ -118,12 +118,18 @@ export function createBridge({ adminCode = 'test-admin-code-1234' } = {}) {
       fetch: (url, opts) => {
         fetched.push({ url, opts });
         const hit = web.get(url);
+        // A registered redirect answers 302 with its Location, as Apps Script
+        // shows it when asked not to follow (followRedirects: false).
+        if (hit?.location) {
+          return { getResponseCode: () => 302, getHeaders: () => ({ Location: hit.location }), getContentText: () => '', getBlob: () => makeBlob([], 'text/html') };
+        }
         const code = hit ? 200 : 404;
         const body = hit ? Buffer.from(hit.body) : Buffer.from('not found');
         return {
           getResponseCode: () => code,
           getContentText: () => body.toString('utf8'),
           getBlob: () => makeBlob([...body], hit ? hit.type : 'text/html'),
+          getHeaders: () => ({}),
         };
       },
     },
@@ -149,6 +155,7 @@ export function createBridge({ adminCode = 'test-admin-code-1234' } = {}) {
     fetched,
     mails,
     web: (url, type, body) => web.set(url, { type, body }),
+    redirect: (url, location) => web.set(url, { location }),
     drivePicture: (id, bytes) => drivePics.set(id, bytes),
     fileById: (id) => byId.get(id) ?? null,
     driveFileId: (name) => folders[0]?.files.find((f) => f.name === name)?.getId() ?? null,

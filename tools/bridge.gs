@@ -129,6 +129,7 @@ function handle_(req) {
     case 'removeUser':    return removeUser_(req);
     case 'putSeason':     return putSeason_(req);
     case 'makePoster':    return makePoster_(req);
+    case 'expandMapLink': return expandMapLink_(req);
     case 'putLogo':       return putLogo_(req);
     case 'startLive':     return startLive_(req);
     case 'publishLive':   return publishLive_(req);
@@ -437,6 +438,51 @@ function makePoster_(req) {
   while (old.hasNext()) old.next().setTrashed(true);
   const saved = dir.createFile(blob.setName(name));
   return { ref: saved.getId() };
+}
+
+/* מנהל בלבד: קישור מקוצר של גוגל מפות (maps.app.goo.gl) → הקואורדינטות, כדי
+   שהניווט ייפתח בווייז ולא בגוגל מפות. הקישור המקוצר לא מכיל מיקום עד
+   שפותחים אותו, והדפדפן לא יכול לעקוב אחרי ההפניה (CORS). הולכים אחרי
+   הפניות רק בתוך הדומיינים של גוגל, ומחפשים קואורדינטות בכתובת הסופית ואז
+   בדף עצמו (התמונה של המפה נושאת center=lat%2Clng). */
+const MAP_HOST = /^https:\/\/(?:maps\.app\.goo\.gl|goo\.gl|(?:www\.|maps\.)?google\.[a-z.]+)\//i;
+const MAP_N = '(-?\\d{1,3}\\.\\d+)';
+const MAP_RES = [
+  new RegExp('!3d' + MAP_N + '!4d' + MAP_N),
+  new RegExp('[?&](?:q|query|ll|daddr|destination|center)=' + MAP_N + '(?:,|%2C)(?:\\+|%20)?' + MAP_N, 'i'),
+  new RegExp('/(?:search|place|dir)/' + MAP_N + '(?:,|%2C)(?:\\+|%20)?' + MAP_N, 'i'),
+  new RegExp('@' + MAP_N + ',' + MAP_N),
+  new RegExp('(?:center|markers)=' + MAP_N + '%2C' + MAP_N, 'i'),
+];
+function mapCoords_(text) {
+  for (let i = 0; i < MAP_RES.length; i++) {
+    const m = String(text || '').match(MAP_RES[i]);
+    if (m && Math.abs(Number(m[1])) <= 90 && Math.abs(Number(m[2])) <= 180) return m[1] + ',' + m[2];
+  }
+  return null;
+}
+function expandMapLink_(req) {
+  requireAdmin_(req);
+  let url = String(req.url || '').trim();
+  if (!MAP_HOST.test(url)) throw fail_('זה לא קישור של גוגל מפות', 'bad_url');
+  let page = '';
+  for (let hop = 0; hop < 5; hop++) {
+    const r = UrlFetchApp.fetch(url, { followRedirects: false, muteHttpExceptions: true });
+    const code = r.getResponseCode();
+    if (code >= 300 && code < 400) {
+      const h = r.getHeaders() || {};
+      const next = String(h.Location || h.location || '');
+      if (!next || !MAP_HOST.test(next)) break;
+      url = next;
+      if (mapCoords_(url)) break;
+      continue;
+    }
+    if (code === 200) page = r.getContentText().slice(0, 500000);
+    break;
+  }
+  const coords = mapCoords_(url) || mapCoords_(page);
+  if (!coords) throw fail_('לא נמצא מיקום בקישור', 'no_coords');
+  return { coords: coords };
 }
 
 /* מנהל בלבד: סמל של קבוצה יריבה, שהמנהל העלה מהטלפון (מוקטן שם). נשמר

@@ -1,5 +1,5 @@
 import { call } from '../bridge.js';
-import { esc, safeUrl, navLink, israelIso, splitKickoff, stamp, currentSeasonLabel, shortDate, byNumber } from '../format.js';
+import { esc, safeUrl, navLink, isGoogleMaps, isShortMapLink, mapsCoords, israelIso, splitKickoff, stamp, currentSeasonLabel, shortDate, byNumber } from '../format.js';
 import { POSITIONS, primaryPos, posLabel } from '../positions.js';
 import { readRows, parseDelimited, detectColumns, rowsToPlayers, planImport, applyImport, FIELDS } from '../importer.js';
 import { DEFAULT_FORMAT, DEFAULT_SIZE, cleanFormat, cleanSize } from '../live/model.js';
@@ -47,13 +47,13 @@ const NEXT_FIELDS = [
   { key: 'arrival', label: 'שעת התכנסות', type: 'time' },
   { key: 'venue.name', label: 'שם המגרש' },
   { key: 'venue.address', label: 'כתובת', hint: 'קישור ה-Waze נבנה מהכתובת' },
-  { key: 'venue.waze', label: 'קישור Waze (לא חובה)', type: 'nav', hint: 'קישור, או קואורדינטות כמו 31.956020,34.834553' },
+  { key: 'venue.waze', label: 'קישור Waze (לא חובה)', type: 'nav', hint: 'קישור מגוגל מפות או מווייז, או קואורדינטות כמו 31.956020,34.834553' },
   { key: 'kit', label: 'תלבושת', placeholder: 'כחול / לבן / כחול' },
 ];
 
 // A training ground's own Waze link, as for the next match: a link, or
 // coordinates as Google Maps shows them. It wins over the address.
-const WAZE_FIELD = { key: 'venue.waze', label: 'קישור Waze (לא חובה)', type: 'nav', hint: 'קישור, או קואורדינטות כמו 31.956020,34.834553', wide: true };
+const WAZE_FIELD = { key: 'venue.waze', label: 'קישור Waze (לא חובה)', type: 'nav', hint: 'קישור מגוגל מפות או מווייז, או קואורדינטות כמו 31.956020,34.834553', wide: true };
 const DAY_OPTS = DAYS.map((d, i) => [String(i), d]);
 const hours = (t) => (t.start && t.end ? `${t.start}–${t.end}` : t.start || '');
 
@@ -290,6 +290,38 @@ function validate(d) {
     const v = nm && getPath(nm, f.key);
     if (f.type === 'url' && v && !safeUrl(v)) { errs.push(`המשחק הבא: ${f.label} חייב להתחיל ב-https://`); at('games'); }
     if (f.type === 'nav' && v && !navLink(v)) { errs.push(`המשחק הבא: ${f.label} — קישור שמתחיל ב-https:// או קואורדינטות`); at('games'); }
+  }
+  return errs;
+}
+
+/* A Google Maps link in a navigation field opens Google Maps, not Waze (the
+   owner pasted one). On save it becomes the coordinates it points at, which
+   navLink routes in Waze. A short link (maps.app.goo.gl) holds none until it
+   is opened, and the browser cannot follow it (CORS): the bridge does. */
+async function resolveMapLinks(d) {
+  const errs = [];
+  const venues = [];
+  if (d.nextMatch?.venue) venues.push([d.nextMatch.venue, 'המשחק הבא', 'games']);
+  for (const list of LISTS) {
+    if (!list.fields.some((f) => f.type === 'nav')) continue;
+    for (const item of getPath(d, list.path) || []) if (item?.venue) venues.push([item.venue, `${list.title}, ${list.label(item)}`, list.tab]);
+  }
+  for (const [venue, where, t] of venues) {
+    const v = String(venue.waze || '').trim();
+    if (!isGoogleMaps(v)) continue;
+    let coords = mapsCoords(v);
+    let why = 'לא נמצא בו מיקום';
+    if (!coords && isShortMapLink(v)) {
+      try { coords = (await call('expandMapLink', { url: v }, { asAdmin: true })).coords; } catch (e) {
+        if (e.code === 'bad_action') why = 'כדי לפתוח קישור מקוצר צריך לפרוס את הגשר מחדש';
+        else if (e.code === 'network' || e.code === 'http') why = 'אין חיבור לפתוח אותו';
+      }
+    }
+    if (coords) venue.waze = coords;
+    else {
+      errs.push(`${where}: קישור של גוגל מפות — ${why}. אפשר להדביק קואורדינטות (לחיצה ארוכה על המיקום בגוגל מפות מציגה אותן).`);
+      errs.tab ??= t;
+    }
   }
   return errs;
 }
@@ -958,7 +990,12 @@ export function mountAdmin(view, ctx) {
   }
 
   async function save() {
+    saving = true; paint();
+    const mapErrs = await resolveMapLinks(draft);
+    saving = false;
     const errs = validate(draft);
+    for (const m of mapErrs) errs.push(m);
+    errs.tab ??= mapErrs.tab;
     if (errs.length) {
       message = errs.slice(0, 4).join(' ') + (errs.length > 4 ? ` (ועוד ${errs.length - 4})` : '');
       messageKind = 'err';

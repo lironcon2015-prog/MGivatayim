@@ -343,6 +343,23 @@ await test('trainings: the week is the routine plus this week\'s changes, and th
   assert.equal(buildSeason({ ...base, trainings: [], trainingChanges: [] }, tuesday).week.trainings, 0, 'no trainings, no strip');
 });
 
+await test('a Google Maps link routes in Waze by its coordinates', async () => {
+  const { navLink, mapsCoords, isShortMapLink } = await import('../src/format.js');
+  const W = (c) => `https://www.waze.com/ul?ll=${c}&navigate=yes`;
+  // The place's own pin wins over the map's centre.
+  assert.equal(navLink('https://www.google.com/maps/place/X/@32.0701,34.8105,17z/data=!3m1!4b1!4m6!3m5!1s0x0:0x0!8m2!3d32.0703!4d34.8123!16s'), W('32.0703,34.8123'));
+  assert.equal(navLink('https://www.google.com/maps/search/31.956020,+34.834553?entry=tts'), W('31.956020,34.834553'));
+  assert.equal(navLink('https://maps.google.com/?q=31.9%2C34.8'), W('31.9,34.8'));
+  assert.equal(navLink('https://www.google.com/maps/@32.07,34.81,15z'), W('32.07,34.81'));
+  assert.equal(navLink('31.956020,34.834553'), W('31.956020,34.834553'));
+  // A short link has nothing to read until the bridge opens it.
+  assert.equal(mapsCoords('https://maps.app.goo.gl/abc'), null);
+  assert.ok(isShortMapLink('https://maps.app.goo.gl/abc'));
+  assert.equal(navLink('https://waze.com/ul/abc'), 'https://waze.com/ul/abc', 'a Waze link is left as it is');
+  assert.equal(mapsCoords('https://example.com/?q=1.5,2.5'), '1.5,2.5', 'mapsCoords reads any text; navLink asks it only for Google');
+  assert.equal(navLink('https://example.com/?q=1.5,2.5'), 'https://example.com/?q=1.5,2.5');
+});
+
 await test('fixtures: an import never overwrites a result already there', async () => {
   const F = await import('../src/fixtures.js');
   const season = { matches: [{ date: '2026-08-15', opponent: 'בני יהודה', gf: 4, ga: 4, liveId: 'L1' }] };

@@ -90,6 +90,20 @@ test('player minutes and past lineups reach the manager only', () => {
   assert.equal(r.version, cur.version + 1);
 });
 
+test('a short Google Maps link is opened for its coordinates, by the manager only, within Google', () => {
+  b.redirect('https://maps.app.goo.gl/pin', 'https://www.google.com/maps/search/31.956020,+34.834553?entry=tts');
+  b.redirect('https://maps.app.goo.gl/place', 'https://www.google.com/maps/place/X/data=!4m2');
+  b.web('https://www.google.com/maps/place/X/data=!4m2', 'text/html', '<meta property="og:image" content="https://maps.google.com/maps/api/staticmap?center=32.070100%2C34.810500&amp;zoom=15">');
+  b.redirect('https://maps.app.goo.gl/away', 'https://evil.example.com/?q=1.5,2.5');
+  const go = (url, who = { adminCode: ADMIN }) => b.post({ action: 'expandMapLink', url, ...who });
+  assert.equal(err(go('https://maps.app.goo.gl/pin', { deviceKey: devA })), 'bad_code', 'a parent cannot make the bridge fetch');
+  assert.equal(go('https://maps.app.goo.gl/pin').result.coords, '31.956020,34.834553');
+  assert.equal(go('https://maps.app.goo.gl/place').result.coords, '32.070100,34.810500', 'from the page when the link has none');
+  assert.equal(err(go('https://maps.app.goo.gl/away')), 'no_coords', 'a redirect out of Google is not followed');
+  assert.ok(!b.fetched.some((f) => f.url.startsWith('https://evil.example.com')));
+  assert.equal(err(go('https://example.com/maps')), 'bad_url', 'only Google Maps links are fetched');
+});
+
 test('video posters: made by the manager, read by approved devices only', () => {
   const JPG = [0xff, 0xd8, 0xff, 0xe0, 1, 2, 3];
   b.web('https://i.ytimg.com/vi/abcDEF12345/hqdefault.jpg', 'image/jpeg', JPG);

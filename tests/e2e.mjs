@@ -689,9 +689,15 @@ await step('a training that differs from the routine is framed and flagged, and 
   await admin.fill(`[data-path="${row}.venue.waze"]`, 'not a link');
   await admin.click('#save');
   await waitText(admin, 'קישור שמתחיל ב-https://');
-  await admin.fill(`[data-path="${row}.venue.waze"]`, '31.956020,34.834553');
+  // A link copied from Google Maps opens Google Maps: saved, it becomes the
+  // coordinates it points at, a short link opened by the bridge.
+  bridge.redirect('https://maps.app.goo.gl/e2eTraining', 'https://www.google.com/maps/search/31.956020,+34.834553?entry=tts');
+  await admin.fill(`[data-path="${row}.venue.waze"]`, 'https://maps.app.goo.gl/e2eTraining');
   await admin.click('#save');
   await waitText(admin, 'נשמר');
+
+  const saved = JSON.parse(bridge.driveFile('season.json')).season.trainingChanges;
+  expect(saved.at(-1).venue.waze === '31.956020,34.834553', 'the Google Maps link was stored as ' + saved.at(-1).venue.waze);
 
   await parent.goto(APP + '#/');
   await parent.reload();

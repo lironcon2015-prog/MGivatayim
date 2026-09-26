@@ -137,12 +137,38 @@ export const wazeLink = (address) => {
 // shared on WhatsApp), which become a Waze route — ll is where navigate=yes
 // works. Anything else is no link: a bare string would pass as a relative URL.
 const COORDS = /^\s*(-?\d{1,2}(?:\.\d+)?)\s*,\s*(-?\d{1,3}(?:\.\d+)?)\s*$/;
+const inRange = (lat, lng) => Math.abs(Number(lat)) <= 90 && Math.abs(Number(lng)) <= 180;
+
+// A Google Maps link, copied from the browser or the app, opens Google Maps
+// and not Waze (the owner pasted one). Its coordinates make a Waze route:
+// the place's own pin (!3d…!4d…) first, then a searched or dropped point
+// (q=, query=, ll=, /search/lat,lng, /place/lat,lng), then the map's centre
+// (@lat,lng). A short link (maps.app.goo.gl) holds none until it is opened —
+// the manager's screen asks the bridge (expandMapLink) when saving.
+export const isGoogleMaps = (url) => /^https?:\/\/(?:(?:www\.|maps\.)?google\.[a-z.]+\/maps|maps\.google\.[a-z.]+\/|maps\.app\.goo\.gl\/|goo\.gl\/maps)/i.test(String(url || '').trim());
+export const isShortMapLink = (url) => /^https?:\/\/(?:maps\.app\.goo\.gl|goo\.gl\/maps)\//i.test(String(url || '').trim());
+const N = '(-?\\d{1,3}\\.\\d+)';
+const MAP_PATTERNS = [
+  new RegExp(`!3d${N}!4d${N}`),
+  new RegExp(`[?&](?:q|query|ll|daddr|destination|center)=${N}(?:,|%2C)(?:\\+|%20)?${N}`, 'i'),
+  new RegExp(`/(?:search|place|dir)/${N}(?:,|%2C)(?:\\+|%20)?${N}`, 'i'),
+  new RegExp(`@${N},${N}`),
+];
+export function mapsCoords(text) {
+  const t = String(text || '');
+  for (const re of MAP_PATTERNS) {
+    const m = t.match(re);
+    if (m && inRange(m[1], m[2])) return `${m[1]},${m[2]}`;
+  }
+  return null;
+}
+
 export function navLink(value) {
-  const v = String(value || '').trim();
+  let v = String(value || '').trim();
+  if (isGoogleMaps(v)) v = mapsCoords(v) || v;
   const c = v.match(COORDS);
   if (c) {
-    const [lat, lng] = [Number(c[1]), Number(c[2])];
-    return Math.abs(lat) <= 90 && Math.abs(lng) <= 180 ? `https://www.waze.com/ul?ll=${c[1]},${c[2]}&navigate=yes` : null;
+    return inRange(c[1], c[2]) ? `https://www.waze.com/ul?ll=${c[1]},${c[2]}&navigate=yes` : null;
   }
   if (!/^https?:\/\//i.test(v)) return null;
   try { return new URL(v).href; } catch { return null; }

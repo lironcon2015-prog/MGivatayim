@@ -332,6 +332,9 @@ button.wk-day:active { transform: scale(.97); }
 .wk-was dd { margin: 0; }
 .wk-was s { color: var(--faint); }
 .wk-sheet .meta-row:first-child, .wk-was + .meta-row { margin-top: 0; }
+.wk-sheet > .btn.secondary { margin-top: .6rem; }
+.tr-seg { margin-bottom: .9rem; }
+.tr-foot { margin: .8rem 0 0; text-align: center; }
 .wk-sheet .meta-row + .meta-row { margin-top: .6rem; }
 .wk-sheet.cancelled .meta-row b { text-decoration: line-through; color: var(--muted); }
 
@@ -640,11 +643,23 @@ button.wk-day:active { transform: scale(.97); }
 .more-row span { color: var(--faint); font-weight: 600; }
 
 /* The next match when it comes from the schedule: a row, not a sentence. */
-.next-auto { display: flex; align-items: center; gap: .7rem; }
-.next-auto .ei-main b { font-size: 1.05rem; }
-.next-auto .ei-main small { font-size: .8rem; }
 .logo-row { display: flex; align-items: center; gap: .7rem; margin-top: .9rem; padding-top: .9rem; border-top: 1px solid var(--line); }
 .logo-row .sc-disc { width: 44px; height: 44px; font-size: .85rem; flex: none; }
+/* The schedule: each row carries its opponent's crest (initials until there
+   is one), and the next match is marked — one list, not a card beside it. */
+.edit-item summary .ei-crest { width: 34px; height: 34px; font-size: .72rem; flex: none; }
+.ei-next {
+  margin-inline-start: .45rem; padding: 1px 7px; border-radius: var(--r-pill); vertical-align: .1em;
+  font-size: .64rem; font-weight: 800; color: var(--gold); background: var(--gold-soft); border: 1px solid var(--gold-line);
+}
+.ei-body [data-logo-host] + .btn { margin-top: 1rem; }
+.crest-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px 8px; padding: 16px 10px; }
+.crest-tile { display: grid; justify-items: center; gap: 4px; text-align: center; cursor: pointer; min-width: 0; }
+.crest-tile .sc-disc { width: 48px; height: 48px; font-size: .9rem; }
+.crest-tile b { font-size: .78rem; line-height: 1.2; overflow-wrap: anywhere; }
+.crest-tile small { font-size: .7rem; font-weight: 700; color: var(--faint); }
+.crest-tile small.up { color: var(--gold); }
+.crest-tile:focus-within { outline: 2px solid var(--gold); outline-offset: 4px; border-radius: 12px; }
 .invite-kind { margin-bottom: .8rem; }
 .invite-kind button { font-size: .8rem; }
 .invite-more summary { cursor: pointer; font-size: .82rem; font-weight: 700; color: var(--gold); margin-top: .6rem; }

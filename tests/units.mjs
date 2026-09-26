@@ -343,6 +343,43 @@ await test('trainings: the week is the routine plus this week\'s changes, and th
   assert.equal(buildSeason({ ...base, trainings: [], trainingChanges: [] }, tuesday).week.trainings, 0, 'no trainings, no strip');
 });
 
+await test('the next match folds into the schedule, with what only it had', async () => {
+  const F = await import('../src/fixtures.js');
+  const { buildSeason } = await import('../src/season.js');
+  const nm = { opponent: 'שיכון המזרח', home: false, round: null, friendly: true, kickoff: '2026-10-01T09:30:00+03:00',
+    arrival: '08:45', kit: 'לבן', venue: { name: 'שיכון', address: 'הרצל 12', waze: '31.9,34.8' } };
+  const fixtures = [{ date: '2026-10-01', time: '', opponent: 'שיכון המזרח', home: false, round: null, venue: { name: '', address: '' } },
+    { date: '2026-10-10', time: '12:00', opponent: 'בני יהודה', home: true }];
+  const r = F.mergeNextMatch({ nextMatch: nm, fixtures });
+  assert.ok(r.merged);
+  assert.equal(r.fixtures.length, 2, 'into its row, not beside it');
+  assert.deepEqual(
+    [r.fixtures[0].time, r.fixtures[0].arrival, r.fixtures[0].kit, r.fixtures[0].venue.waze, r.fixtures[0].friendly],
+    ['09:30', '08:45', 'לבן', '31.9,34.8', true]);
+  // Not on the schedule: it becomes a row.
+  const alone = F.mergeNextMatch({ nextMatch: nm, fixtures: [] });
+  assert.equal(alone.fixtures.length, 1);
+  assert.equal(alone.fixtures[0].date, '2026-10-01');
+  assert.equal(F.mergeNextMatch({ nextMatch: null, fixtures }).merged, false);
+  // Parents see the same next match from the row as they did from the record.
+  const s = buildSeason({ fixtures: r.fixtures }, new Date('2026-09-29T10:00:00Z'));
+  assert.deepEqual([s.nextMatch.opponent, s.nextMatch.arrival, s.nextMatch.kit, s.nextMatch.venue.waze, s.nextMatch.timeTbd],
+    ['שיכון המזרח', '08:45', 'לבן', '31.9,34.8', false]);
+  assert.equal(s.upcoming.length, 1, 'the next match is not listed again after it');
+});
+
+await test('a schedule imported again keeps the gathering, kit and Waze link of the same game', async () => {
+  const F = await import('../src/fixtures.js');
+  const season = { fixtures: [{ date: '2026-10-01', opponent: 'שיכון המזרח', arrival: '08:45', kit: 'לבן', venue: { name: 'שיכון', address: '', waze: '31.9,34.8' } }], matches: [] };
+  const out = F.applyFixtureImport(season, { fixtures: [
+    { date: '2026-10-01', time: '09:30', opponent: 'שיכון המזרח', home: false, venue: { name: '', address: 'הרצל 12' } },
+    { date: '2026-10-10', time: '12:00', opponent: 'בני יהודה', home: true },
+  ], results: [] });
+  const [a, b] = out.fixtures;
+  assert.deepEqual([a.time, a.arrival, a.kit, a.venue.name, a.venue.address, a.venue.waze], ['09:30', '08:45', 'לבן', 'שיכון', 'הרצל 12', '31.9,34.8']);
+  assert.equal(b.arrival, undefined, 'a new game gets nothing it did not have');
+});
+
 await test('a Google Maps link routes in Waze by its coordinates', async () => {
   const { navLink, mapsCoords, isShortMapLink } = await import('../src/format.js');
   const W = (c) => `https://www.waze.com/ul?ll=${c}&navigate=yes`;

@@ -191,15 +191,19 @@ await step('manager fills a season and saves it', async () => {
   await admin.fill('[data-path="players.0.goals"]', '2');
   await adminTab(admin, 'games');
   expect(await admin.inputValue('[data-path="matches.0.opponent"]') === 'בני לוד', 'switching tabs lost an edit');
-  await admin.click('#add-next');
-  await admin.fill('[data-path="nextMatch.opponent"]', 'הפועל כוכבים');
-  await admin.fill('[data-kick="date"]', '2030-10-05');
-  await admin.fill('[data-kick="time"]', '10:30');
-  await admin.fill('[data-path="nextMatch.venue.address"]', 'שדרות ירושלים 24, גבעתיים');
+  // The next match is the schedule's nearest row, with everything the old
+  // separate record held: gathering time, kit, the crest.
+  const fx = await newRow(admin, 'fixtures');
+  await admin.fill(`[data-path="${fx}.opponent"]`, 'הפועל כוכבים');
+  await admin.fill(`[data-path="${fx}.date"]`, '2030-10-05');
+  await admin.fill(`[data-path="${fx}.time"]`, '10:30');
+  await admin.fill(`[data-path="${fx}.venue.address"]`, 'שדרות ירושלים 24, גבעתיים');
+  await admin.fill(`[data-path="${fx}.arrival"]`, '09:45');
+  await admin.fill(`[data-path="${fx}.kit"]`, 'כחול / לבן');
   // The opponent's crest: uploaded here, kept by name, shown to parents below.
   // It comes with a transparent margin, which the upload cuts away: 40×40
   // with a 10×30 shield in it arrives as 10×30.
-  await admin.setInputFiles('[data-logo-file="הפועל כוכבים"]', { name: 'crest.png', mimeType: 'image/png', buffer: rgbaPng(40, 40, (x, y) => x >= 10 && x < 20 && y >= 5 && y < 35) });
+  await admin.setInputFiles('.logo-row [data-logo-file="הפועל כוכבים"]', { name: 'crest.png', mimeType: 'image/png', buffer: rgbaPng(40, 40, (x, y) => x >= 10 && x < 20 && y >= 5 && y < 35) });
   const logo = admin.locator('.logo-row .opp-logo[src]');
   await logo.waitFor({ timeout: 8000 });
   const dims = await logo.evaluate(async (i) => { await i.decode(); return `${i.naturalWidth}x${i.naturalHeight}`; });
@@ -208,22 +212,24 @@ await step('manager fills a season and saves it', async () => {
   // with it the margin. (Another size, or the bridge would keep the same
   // file and hand back the same ref.)
   const was = await logo.getAttribute('data-poster');
-  await admin.setInputFiles('[data-logo-file="הפועל כוכבים"]', { name: 'crest.png', mimeType: 'image/png', buffer: rgbaPng(40, 40, (x, y) => x >= 10 && x < 22 && y >= 5 && y < 35, [7, 245, 7]) });
+  await admin.setInputFiles('.logo-row [data-logo-file="הפועל כוכבים"]', { name: 'crest.png', mimeType: 'image/png', buffer: rgbaPng(40, 40, (x, y) => x >= 10 && x < 22 && y >= 5 && y < 35, [7, 245, 7]) });
   await admin.waitForFunction((w) => { const i = document.querySelector('.logo-row .opp-logo[src]'); return i && i.dataset.poster !== w; }, was, { timeout: 8000 });
   const keyed = await admin.locator('.logo-row .opp-logo[src]').evaluate(async (i) => { await i.decode(); return `${i.naturalWidth}x${i.naturalHeight}`; });
   expect(keyed === '12x30', 'green background not removed: ' + keyed);
   await admin.click('#save');
   await waitText(admin, 'נשמר');
-  // Saved, the next match folds to one row, like the lists; a tap opens it.
-  const nextRow = admin.locator('details[data-item="nextMatch"]');
+  // Saved, the row folds, marked as the next match, with its crest.
+  const nextRow = admin.locator('details[data-item^="fixtures."]', { hasText: 'הפועל כוכבים' });
   expect(await nextRow.getAttribute('open') === null, 'the next match stays open after saving');
   const nextSum = (await nextRow.locator('summary').innerText()).replace(/\s+/g, ' ');
-  expect(nextSum.includes('הפועל כוכבים') && nextSum.includes('05.10.30') && nextSum.includes('10:30'), 'next match row: ' + nextSum);
-  await nextRow.locator('summary').click();
-  await admin.locator('[data-path="nextMatch.opponent"]').waitFor();
+  expect(nextSum.includes('המשחק הבא') && nextSum.includes('05.10.30') && nextSum.includes('10:30') && nextSum.includes('התכנסות 09:45'), 'next match row: ' + nextSum);
+  await nextRow.locator('summary .opp-logo[src]').waitFor({ timeout: 8000 });
+  expect(await admin.locator('.crest-tile', { hasText: 'הפועל כוכבים' }).locator('.opp-logo[src]').count() === 1, 'the crests section lacks the uploaded crest');
   const saved = JSON.parse(bridge.driveFile('season.json'));
   expect(saved.version === 1, 'version is ' + saved.version);
-  expect(saved.season.nextMatch.kickoff === '2030-10-05T10:30:00+03:00', 'kickoff stored as ' + saved.season.nextMatch.kickoff);
+  expect(!('nextMatch' in saved.season), 'a separate next match was stored');
+  const f0 = saved.season.fixtures[0];
+  expect(f0.date === '2030-10-05' && f0.time === '10:30' && f0.arrival === '09:45' && f0.kit === 'כחול / לבן', 'next match row stored as ' + JSON.stringify(f0));
   expect(saved.season.matches[0].gf === 2 && typeof saved.season.matches[0].gf === 'number', 'score not stored as a number');
   expect(saved.season.team.homeVenue?.address === 'רחוב המעיין 4, גבעתיים', 'home ground not saved: ' + JSON.stringify(saved.season.team));
   expect(!JSON.stringify(saved).includes('__open'), 'UI state leaked into the saved data');
@@ -283,6 +289,8 @@ await step('after approval the parent sees the season on returning to the app, w
   await waitText(parent, 'בני לוד');
   await waitText(parent, 'הפועל כוכבים');
   await parent.locator('.hero .side:not(.us) .opp-logo[src^="blob:"]').waitFor({ timeout: 8000 });
+  const hero = await parent.locator('.hero').innerText();
+  expect(hero.includes('09:45') && hero.includes('כחול / לבן'), 'gathering or kit missing from the next match: ' + hero);
   const t = await text(parent);
   expect(t.includes('איתי'), 'player missing');
 });
@@ -333,7 +341,8 @@ await step('"the match was played" turns the fixture into a result row', async (
   await waitText(admin, 'גרסה 3');
   expect(await admin.inputValue('[data-path="team.league"]') === 'שינוי ממכשיר שני', 'discard did not load the newer version');
   await adminTab(admin, 'games');
-  await admin.click('#played');
+  await admin.locator('details[data-item^="fixtures."]', { hasText: 'הפועל כוכבים' }).locator('summary').click();
+  await admin.click('[data-played]');
   expect(await admin.inputValue('[data-path="matches.0.opponent"]') === 'הפועל כוכבים', 'opponent not carried over');
   expect(await admin.inputValue('[data-path="matches.0.date"]') === '2030-10-05', 'date not carried over');
   await admin.fill('[data-path="matches.0.gf"]', '1');
@@ -341,7 +350,30 @@ await step('"the match was played" turns the fixture into a result row', async (
   await admin.click('#save');
   await waitText(admin, 'גרסה 4');
   const s = JSON.parse(bridge.driveFile('season.json')).season;
-  expect(s.nextMatch === null && s.matches.length === 2, 'fixture not moved');
+  expect(s.fixtures.length === 0 && s.matches.length === 2, 'fixture not moved');
+});
+
+await step('a next match stored the old way folds into the schedule on the manager\'s next visit', async () => {
+  const cur = JSON.parse(bridge.driveFile('season.json'));
+  const legacy = { ...cur.season, nextMatch: { opponent: 'מכבי ישן', home: true, round: 3, kickoff: '2030-10-12T11:00:00+03:00', arrival: '10:15', kit: 'צהוב', venue: { name: '', address: '', waze: '' } } };
+  await admin.evaluate(([url, season, v]) => import(url).then((m) => m.call('putSeason', { season, baseVersion: v }, { asAdmin: true })), [APP + 'src/bridge.js', legacy, cur.version]);
+  await admin.goto(APP + '#/');
+  await admin.goto(APP + '#/admin');
+  await waitText(admin, 'המשחק הבא עבר ללוח המשחקים');
+  await adminTab(admin, 'games');
+  await admin.locator('details[data-item^="fixtures."]', { hasText: 'מכבי ישן' }).waitFor();
+  await admin.click('#save');
+  await waitText(admin, 'נשמר');
+  const s = JSON.parse(bridge.driveFile('season.json')).season;
+  const row = s.fixtures.find((f) => f.opponent === 'מכבי ישן');
+  expect(!('nextMatch' in s) && row && row.time === '11:00' && row.arrival === '10:15' && row.kit === 'צהוב', 'folded as ' + JSON.stringify(row));
+  // Out of the way of the steps after it.
+  const again = JSON.parse(bridge.driveFile('season.json'));
+  await admin.evaluate(([url, season, v]) => import(url).then((m) => m.call('putSeason', { season, baseVersion: v }, { asAdmin: true })),
+    [APP + 'src/bridge.js', { ...again.season, fixtures: again.season.fixtures.filter((f) => f.opponent !== 'מכבי ישן') }, again.version]);
+  await admin.goto(APP + '#/');
+  await admin.goto(APP + '#/admin');
+  await waitText(admin, `הכל שמור · גרסה ${again.version + 1}`);
 });
 
 // ---- live match ----
@@ -723,6 +755,38 @@ await step('a training that differs from the routine is framed and flagged, and 
   expect(!(await parent.locator('.sheet .meta-row', { hasText: '16:30' }).count()), 'the new hours are shown twice');
   expect(await parent.locator('.sheet a.btn[href="https://www.waze.com/ul?ll=31.956020,34.834553&navigate=yes"]').count() === 1, 'the training\'s own Waze link does not win over its address');
   await parent.locator('.sheet-x').click();
+});
+
+await step('the manager changes a training from the home screen; a parent has no such button', async () => {
+  expect(await parent.locator('[data-tr-edit]').count() === 0, 'a sheet left open');
+  await parent.locator('.week-sec .wk-day.today').click();
+  await parent.locator('.sheet .wk-sheet').waitFor();
+  expect(await parent.locator('[data-tr-edit]').count() === 0, 'a parent can change a training');
+  await parent.locator('.sheet-x').click();
+
+  await admin.goto(APP + '#/');
+  await admin.reload();
+  await admin.locator('.week-sec .wk-day.today').click();
+  await admin.click('[data-tr-edit]');
+  await admin.click('[data-tr-state="off"]');
+  await admin.click('[data-tr-save]');
+  await admin.locator('.week-sec .wk-day.today.cancelled').waitFor({ timeout: 8000 });
+  const ch = () => JSON.parse(bridge.driveFile('season.json')).season.trainingChanges.filter((c) => c.date === israelToday());
+  expect(ch().length === 1 && ch()[0].cancelled === true, 'cancelled from home: ' + JSON.stringify(ch()));
+  // Only what differs from the routine is kept: the hours were the routine's.
+  // Back to the routine, and the date has no change at all.
+  await admin.locator('.week-sec .wk-day.today').click();
+  await admin.click('[data-tr-edit]');
+  await admin.click('[data-tr-reset]');
+  await admin.locator('.week-sec .wk-day.today:not(.chg)').waitFor({ timeout: 8000 });
+  expect(ch().length === 0, 'the change is still there: ' + JSON.stringify(ch()));
+  // The manager's editor picks the new version up instead of saving over it.
+  await admin.goto(APP + '#/admin');
+  await adminTab(admin, 'team');
+  await admin.waitForTimeout(800);
+  await admin.fill('[data-path="team.league"]', 'ליגת ילדים א');
+  await admin.click('#save');
+  await waitText(admin, 'נשמר');
 });
 
 await step('a later fixture can go live now; finishing dates it today and takes it off the schedule', async () => {

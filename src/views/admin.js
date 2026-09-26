@@ -11,7 +11,7 @@ import { roundText, oppLogo } from '../components.js';
 import { preparePosters, uploadLogo, hydratePosters } from '../posters.js';
 import { logoKey } from '../season.js';
 import { thumbUrl } from '../gallery.js';
-import { detectFixtureColumns, rowsToFixtures, applyFixtureImport, upcomingFixtures, FIXTURE_FIELDS } from '../fixtures.js';
+import { detectFixtureColumns, rowsToFixtures, applyFixtureImport, upcomingFixtures, fixtureKey, mergeNextMatch, FIXTURE_FIELDS } from '../fixtures.js';
 import { DAYS, weekday } from '../trainings.js';
 
 /* ── What the manager edits ───────────────────────────────────────────────
@@ -39,18 +39,6 @@ const HOME_VENUE_FIELDS = [
   { key: 'address', label: 'כתובת', hint: 'ממנה נבנה הניווט ב-Waze', wide: true },
 ];
 
-const NEXT_FIELDS = [
-  { key: 'opponent', label: 'יריבה', required: true },
-  { key: 'home', label: 'בית / חוץ', type: 'select', options: HOME_OPTS },
-  { key: 'round', label: 'מחזור', type: 'round' },
-  { key: 'kickoff', label: 'מועד', type: 'kickoff', required: true },
-  { key: 'arrival', label: 'שעת התכנסות', type: 'time' },
-  { key: 'venue.name', label: 'שם המגרש' },
-  { key: 'venue.address', label: 'כתובת', hint: 'קישור ה-Waze נבנה מהכתובת' },
-  { key: 'venue.waze', label: 'קישור Waze (לא חובה)', type: 'nav', hint: 'קישור מגוגל מפות או מווייז, או קואורדינטות כמו 31.956020,34.834553' },
-  { key: 'kit', label: 'תלבושת', placeholder: 'כחול / לבן / כחול' },
-];
-
 // A training ground's own Waze link, as for the next match: a link, or
 // coordinates as Google Maps shows them. It wins over the address.
 const WAZE_FIELD = { key: 'venue.waze', label: 'קישור Waze (לא חובה)', type: 'nav', hint: 'קישור מגוגל מפות או מווייז, או קואורדינטות כמו 31.956020,34.834553', wide: true };
@@ -63,12 +51,15 @@ const LISTS = [
   {
     // The season's schedule. The next match is derived from it when none is
     // set by hand; a whole schedule usually arrives as a spreadsheet (importer).
-    path: 'fixtures', title: 'לוח משחקים', glyph: 'calendar', add: 'משחק', importer: 'fixtures', tab: 'games', limit: 5,
+    // The whole schedule, the next match included: it is the nearest row with
+    // no result, marked, with its gathering time, kit and Waze link (the owner:
+    // a separate "next match" was the same game twice). Every row takes them.
+    path: 'fixtures', title: 'לוח משחקים', glyph: 'calendar', add: 'משחק', importer: 'fixtures', tab: 'games', limit: 5, crest: true,
     order: (a, b) => gameKey(a).localeCompare(gameKey(b)),   // soonest first
-    note: 'משחקים שעוד לא נערכו. המשחק הבא נלקח מכאן, ומשחק עם תוצאה יורד מהלוח.',
-    blank: () => ({ date: today(), time: '', opponent: '', home: true, round: null, venue: { name: '', address: '' } }),
+    note: 'המשחק הבא הוא הקרוב שעוד אין לו תוצאה. התכנסות, תלבושת וסמל אפשר להוסיף לכל משחק.',
+    blank: () => ({ date: today(), time: '', opponent: '', home: true, round: null, venue: { name: '', address: '', waze: '' }, arrival: '', kit: '' }),
     label: (f) => `${f.date ? shortDate(f.date) + ' · ' : ''}${f.opponent || 'משחק חדש'}`,
-    sum: (f) => ({ title: f.opponent || 'משחק חדש', sub: [f.date && shortDate(f.date), f.time, f.home === false ? 'חוץ' : 'בית', roundText(f.round, f.friendly)].filter(Boolean).join(' · ') }),
+    sum: (f) => ({ title: f.opponent || 'משחק חדש', sub: [f.date && shortDate(f.date), f.time || 'שעה טרם נקבעה', f.home === false ? 'חוץ' : 'בית', roundText(f.round, f.friendly), f.arrival && `התכנסות ${f.arrival}`, f.kit].filter(Boolean).join(' · ') }),
     fields: [
       { key: 'date', label: 'תאריך', type: 'date', required: true },
       { key: 'time', label: 'שעה', type: 'time', hint: 'ריק = טרם נקבעה' },
@@ -77,6 +68,9 @@ const LISTS = [
       { key: 'round', label: 'מחזור', type: 'round' },
       { key: 'venue.name', label: 'מגרש' },
       { key: 'venue.address', label: 'כתובת', hint: 'קישור ה-Waze נבנה מהכתובת', wide: true },
+      WAZE_FIELD,
+      { key: 'arrival', label: 'התכנסות', type: 'time' },
+      { key: 'kit', label: 'תלבושת', placeholder: 'כחול / לבן / כחול' },
     ],
   },
   {
@@ -268,10 +262,6 @@ function validate(d) {
   const errs = [];
   const at = (t) => { errs.tab ??= t; };
   if (!d.team?.name?.trim()) { errs.push('חסר שם הקבוצה.'); at('team'); }
-  const nm = d.nextMatch;
-  if (nm && (nm.opponent || nm.kickoff) && !(nm.opponent && nm.kickoff)) {
-    errs.push('במשחק הבא חסרים יריבה או מועד. אפשר גם ללחוץ "אין משחק קרוב".'); at('games');
-  }
   for (const list of LISTS) {
     (getPath(d, list.path) || []).forEach((item, i) => {
       const where = `${list.title}, ${list.label(item)}`;
@@ -286,11 +276,6 @@ function validate(d) {
       void i;
     });
   }
-  for (const f of NEXT_FIELDS) {
-    const v = nm && getPath(nm, f.key);
-    if (f.type === 'url' && v && !safeUrl(v)) { errs.push(`המשחק הבא: ${f.label} חייב להתחיל ב-https://`); at('games'); }
-    if (f.type === 'nav' && v && !navLink(v)) { errs.push(`המשחק הבא: ${f.label} — קישור שמתחיל ב-https:// או קואורדינטות`); at('games'); }
-  }
   return errs;
 }
 
@@ -301,7 +286,6 @@ function validate(d) {
 async function resolveMapLinks(d) {
   const errs = [];
   const venues = [];
-  if (d.nextMatch?.venue) venues.push([d.nextMatch.venue, 'המשחק הבא', 'games']);
   for (const list of LISTS) {
     if (!list.fields.some((f) => f.type === 'nav')) continue;
     for (const item of getPath(d, list.path) || []) if (item?.venue) venues.push([item.venue, `${list.title}, ${list.label(item)}`, list.tab]);
@@ -391,7 +375,7 @@ const TABS = [
 const blankSeason = () => ({
   team: { name: 'מכבי גבעתיים', league: '', season: '' },
   settings: { format: [...DEFAULT_FORMAT], size: DEFAULT_SIZE },
-  nextMatch: null, fixtures: [], matches: [], players: [], videos: [], links: [],
+  fixtures: [], matches: [], players: [], videos: [], links: [],
   analysis: { items: [], note: '' },
 });
 
@@ -413,8 +397,17 @@ let added = 0;
 const setNew = (item, on) => Object.defineProperty(item, '__new', { value: on ? ++added : 0, writable: true, configurable: true, enumerable: false });
 const setOpen = (item, open) => Object.defineProperty(item, '__open', { value: open, writable: true, configurable: true, enumerable: false });
 
+// True when a stored next match was folded into the schedule (mergeNextMatch):
+// the draft then differs from what is saved, and says so.
 function adopt(payload) {
   draft = clone(payload?.season) || blankSeason();
+  let merged = false;
+  if (draft && 'nextMatch' in draft) {
+    const r = mergeNextMatch(draft);
+    draft.fixtures = r.fixtures;
+    merged = r.merged;
+    delete draft.nextMatch;
+  }
   draft.analysis ??= { items: [], note: '' };
   draft.analysis.items ??= [];
   draft.fixtures ??= [];
@@ -427,7 +420,8 @@ function adopt(payload) {
     if (!p.pos && p.position) p.pos = primaryPos(p);
   }
   baseVersion = payload?.version || 0;
-  dirty = false;
+  dirty = merged;
+  return merged;
 }
 
 export const hasUnsavedWork = () => dirty;
@@ -444,6 +438,11 @@ export function mountAdmin(view, ctx) {
   let usersError = '';
   let message = '';
   let messageKind = '';
+  // A stored next match folded into the schedule on load: said, and saved
+  // with the next save.
+  const take = (p) => {
+    if (adopt(p)) { message = 'המשחק הבא עבר ללוח המשחקים, עם ההתכנסות והתלבושת. שמרו כדי לסיים.'; messageKind = ''; }
+  };
   let saving = false;
   let logoBusy = false;
   let gallery = null;        // the team gallery, as the manager sees it (bridge, not the season draft)
@@ -849,8 +848,12 @@ export function mountAdmin(view, ctx) {
   // the row (name, date, score) and the fields open under it.
   function summaryHtml(list, item) {
     const m = list.sum ? list.sum(item) : { title: list.label(item) };
-    return `${m.lead !== undefined ? `<span class="ei-lead num">${esc(m.lead ?? '')}</span>` : ''}`
-      + `<span class="ei-main"><b>${esc(m.title)}</b>${m.sub ? `<small>${esc(m.sub)}</small>` : ''}</span>`
+    // The schedule shows each opponent's crest (or its initials, while there
+    // is none) and marks the row parents see as the next match.
+    const crest = list.crest ? `<span class="sc-disc ei-crest">${esc(logoKey(item.opponent).slice(0, 2))}${oppLogo(draft.opponentLogos?.[logoKey(item.opponent)], item.opponent || '')}</span>` : '';
+    const next = list.path === 'fixtures' && fixtureKey(item) === nextKey() ? '<span class="ei-next">המשחק הבא</span>' : '';
+    return `${m.lead !== undefined ? `<span class="ei-lead num">${esc(m.lead ?? '')}</span>` : ''}${crest}`
+      + `<span class="ei-main"><b>${esc(m.title)}${next}</b>${m.sub ? `<small>${esc(m.sub)}</small>` : ''}</span>`
       + (m.side ? `<span class="ei-side">${esc(m.side)}</span>` : '')
       + (m.score ? `<span class="ei-score num"><b>${esc(m.score[0] ?? '?')}</b>:${esc(m.score[1] ?? '?')}</span>` : '');
   }
@@ -886,6 +889,7 @@ export function mountAdmin(view, ctx) {
       ${items.length ? `<div class="card edit-list">${shown.map(([item, i]) => `<details class="edit-item"${item.__open ? ' open' : ''} data-item="${list.path}.${i}">
           <summary>${summaryHtml(list, item)}</summary>
           <div class="ei-body">${grid(list.fields, `${list.path}.${i}.`, item)}
+          ${list.path === 'fixtures' ? fixtureExtra(item, i) : ''}
           <button type="button" class="btn small danger" data-remove="${list.path}.${i}">${icon('trash')} מחיקה</button></div>
         </details>`).join('')}
         ${hidden ? `<button type="button" class="more-row" data-more="${list.path}">הצגת כל ה-${items.length} <span>(עוד ${hidden})</span></button>`
@@ -902,53 +906,53 @@ export function mountAdmin(view, ctx) {
     const ref = draft.opponentLogos?.[logoKey(name)];
     return `<div class="logo-row">
         <span class="sc-disc">${esc(logoKey(name).slice(0, 2))}${oppLogo(ref, name)}</span>
-        <span class="ei-main"><b>סמל היריבה</b><small>${ref ? 'במשחק הבא ובלייב' : 'עוד לא הועלה'}</small></span>
+        <span class="ei-main"><b>סמל היריבה</b><small>${ref ? 'בכל המשחקים מול היריבה' : 'עוד לא הועלה'}</small></span>
         <label class="btn small secondary">${logoBusy ? 'מעלה…' : ref ? 'החלפה' : 'העלאה'}<input type="file" accept="image/*" data-logo-file="${esc(logoKey(name))}" hidden${logoBusy ? ' disabled' : ''} /></label>
         ${ref ? `<button type="button" class="linkish" data-logo-del="${esc(logoKey(name))}">הסרה</button>` : ''}
       </div>`;
   }
 
-  // The next match folds to one row like every list row (the owner: it stayed
-  // open after the details were in, and got in the way). It opens when set
-  // up, and a successful save closes it.
-  function nextSummary(nm) {
-    const { date, time } = splitKickoff(nm.kickoff);
-    const sub = [date && shortDate(date), time, nm.home === false ? 'חוץ' : 'בית', nm.arrival && `התכנסות ${nm.arrival}`, nm.kit].filter(Boolean).join(' · ');
-    return `<span class="ei-main"><b>${esc(nm.opponent || 'משחק חדש')}</b>${sub ? `<small>${esc(sub)}</small>` : ''}</span>`;
+  // The schedule's nearest row with no result is the next match parents see.
+  const nextKey = () => { const f = upcomingFixtures(draft.fixtures, draft.matches)[0]; return f ? fixtureKey(f) : null; };
+
+  // What a schedule row adds under its fields: the opponent's crest, and
+  // "played" once the game is next or its day has come.
+  function fixtureExtra(item, i) {
+    const due = fixtureKey(item) === nextKey() || (item.date && item.date <= today());
+    return `<div data-logo-host="fixtures.${i}">${logoHtml(item.opponent)}</div>
+      ${due ? `<button type="button" class="btn small" data-played="${i}">המשחק התקיים — הזנת תוצאה</button>` : ''}`;
   }
 
-  function nextMatchHtml() {
-    const nm = draft.nextMatch;
-    const nextFixture = nm ? null : upcomingFixtures(draft.fixtures, draft.matches)[0];
+  // Every opponent on the schedule and in the results, for the start of a
+  // season: one tap per crest, kept by name for every game against them.
+  function crestsHtml() {
+    const names = [];
+    for (const g of [...(draft.fixtures || []), ...[...(draft.matches || [])].reverse()]) {
+      const k = logoKey(g?.opponent);
+      if (k && !names.includes(k)) names.push(k);
+    }
+    if (!names.length) return '';
+    const has = names.filter((n) => draft.opponentLogos?.[n]).length;
     return `<section>
-        <div class="sec-head">${icon('calendar')}<h2>המשחק הבא</h2></div>
-        <div class="card">
-          ${nm ? `<div class="edit-list"><details class="edit-item"${nm.__open ? ' open' : ''} data-item="nextMatch">
-              <summary>${nextSummary(nm)}</summary>
-              <div class="ei-body">${grid(NEXT_FIELDS, 'nextMatch.', nm)}</div>
-            </details></div>
-            <div class="row-btns">
-              <button type="button" class="btn small" id="played">המשחק התקיים — הזנת תוצאה</button>
-              <button type="button" class="btn small secondary" id="no-next">אין משחק קרוב</button>
-            </div>
-            <div data-logo-host>${logoHtml(nm.opponent)}</div>`
-          : `${nextFixture
-              ? `<div class="next-auto"><span class="ei-main"><b>${esc(nextFixture.opponent)}</b><small><span class="num">${esc(shortDate(nextFixture.date))}</span>${nextFixture.time ? ` · <span class="num">${esc(nextFixture.time)}</span>` : ' · שעה טרם נקבעה'}</small></span><span class="chip">מהלוח</span></div>
-                 <p class="note">ההורים רואים אותו כמשחק הבא. התכנסות ותלבושת מוסיפים כאן.</p>
-                 <div data-logo-host>${logoHtml(nextFixture.opponent)}</div>`
-              : '<div class="empty">אין משחק קרוב בלוח.</div>'}
-             <button type="button" class="btn small secondary wide" id="add-next">+ ${nextFixture ? 'הוספת פרטים (התכנסות, תלבושת)' : 'קביעת משחק הבא'}</button>`}
-        </div>
-      </section>`;
+      <div class="sec-head">${icon('shield')}<h2>סמלי יריבות</h2><span class="aside num">${has} מתוך ${names.length}</span></div>
+      <p class="note list-note">סמל שהועלה פעם אחת מופיע בכל משחק מול אותה יריבה.</p>
+      <div class="card crest-grid">${names.map((n) => {
+        const ref = draft.opponentLogos?.[n];
+        return `<label class="crest-tile"><span class="sc-disc">${esc(n.slice(0, 2))}${oppLogo(ref, n)}</span><b>${esc(n)}</b>
+          <small class="${ref ? '' : 'up'}">${logoBusy ? 'מעלה…' : ref ? 'החלפה' : 'העלאה'}</small>
+          <input type="file" accept="image/*" data-logo-file="${esc(n)}" hidden${logoBusy ? ' disabled' : ''} /></label>`;
+      }).join('')}</div>
+    </section>`;
   }
 
   function seasonHtml() {
     const lists = (t) => LISTS.filter((l) => l.tab === t).map(listHtml).join('');
     const list = (path) => listHtml(LISTS.find((l) => l.path === path));
     const body = {
-      // Results before the schedule: the score is the weekly edit. Trainings
-      // last: the routine is set once, and a change is the odd week.
-      games: () => nextMatchHtml() + list('matches') + list('fixtures') + list('trainings') + list('trainingChanges'),
+      // The schedule first: its top row is the next match, the weekly edit.
+      // Crests after the results; trainings last: the routine is set once,
+      // and a change is the odd week.
+      games: () => list('fixtures') + list('matches') + crestsHtml() + list('trainings') + list('trainingChanges'),
       players: () => lists('players'),
       media: () => `${galleryAdminHtml()}${lists('media')}
         <section>
@@ -1012,7 +1016,6 @@ export function mountAdmin(view, ctx) {
       message = errs.slice(0, 4).join(' ') + (errs.length > 4 ? ` (ועוד ${errs.length - 4})` : '');
       messageKind = 'err';
       if (errs.tab) tab = errs.tab;
-      if (draft.nextMatch && errs.some((m) => m.includes('משחק הבא'))) setOpen(draft.nextMatch, true);
       paint();
       return;
     }
@@ -1032,7 +1035,6 @@ export function mountAdmin(view, ctx) {
       // Saved means done with it: the rows close, and the list reads as a list
       // again. A failed save leaves them open, with what still needs fixing.
       for (const list of LISTS) for (const item of getPath(draft, list.path) || []) { setOpen(item, false); setNew(item, false); }
-      if (draft.nextMatch) setOpen(draft.nextMatch, false);
       ctx.onSaved({ version: r.version, updatedAt: r.updatedAt, season: clean });
       message = `נשמר. ההורים יראו את העדכון בפתיחה הבאה (גרסה ${r.version}).`;
       messageKind = 'ok';
@@ -1081,7 +1083,6 @@ export function mountAdmin(view, ctx) {
     } else {
       const list = LISTS.find((l) => path.startsWith(l.path + '.'));
       const fields = list ? list.fields
-        : path.startsWith('nextMatch.') ? NEXT_FIELDS
         : path.startsWith('team.homeVenue.') ? HOME_VENUE_FIELDS
         : path.startsWith('team.') ? TEAM_FIELDS : [{ key: 'note' }];
       const field = fields.find((f) => f.key === el.dataset.field) || {};
@@ -1098,8 +1099,9 @@ export function mountAdmin(view, ctx) {
       }
     }
     // The crest row follows the opponent's name as it is typed.
-    if (path === 'nextMatch.opponent') {
-      const host = view.querySelector('[data-logo-host]');
+    const opp = path.match(/^fixtures\.(\d+)\.opponent$/);
+    if (opp) {
+      const host = view.querySelector(`[data-logo-host="fixtures.${opp[1]}"]`);
       if (host) { host.innerHTML = logoHtml(el.value); hydratePosters(host); }
     }
     touch();
@@ -1222,34 +1224,18 @@ export function mountAdmin(view, ctx) {
       touch(); paint();
       return;
     }
-    if (t.id === 'add-next') {
-      // Starts from the next fixture in the schedule, when there is one: the
-      // manager only adds what the schedule does not know (gathering, kit).
-      const f = upcomingFixtures(draft.fixtures, draft.matches)[0];
-      draft.nextMatch = f
-        ? { opponent: f.opponent, home: f.home !== false, round: f.round ?? null, friendly: f.friendly === true, kickoff: f.time ? israelIso(f.date, f.time) : '', arrival: '', venue: { name: f.venue?.name || '', address: f.venue?.address || '', waze: '' }, kit: '' }
-        : { opponent: '', home: true, round: null, kickoff: '', arrival: '', venue: { name: '', address: '', waze: '' }, kit: '' };
-      setOpen(draft.nextMatch, true);
-      touch(); paint();
-      return;
-    }
-    if (t.id === 'no-next') {
-      if (!confirm('להסיר את המשחק הבא מהלוח?')) return;
-      draft.nextMatch = null;
-      touch(); paint();
-      return;
-    }
-    // The weekly flow in one tap: the fixture that was just played becomes a
-    // result row, prefilled, waiting only for the score.
-    if (t.id === 'played') {
-      const nm = draft.nextMatch;
-      if (!nm?.opponent) { message = 'אין פרטי משחק להעביר.'; messageKind = 'err'; paint(); return; }
-      const item = { date: splitKickoff(nm.kickoff).date || today(), opponent: nm.opponent, home: nm.home !== false, round: nm.round ?? null, friendly: nm.friendly === true, gf: null, ga: null };
+    // The weekly flow in one tap: the game just played leaves the schedule
+    // and becomes a result row, prefilled, waiting only for the score.
+    if (t.dataset.played != null) {
+      const idx = Number(t.dataset.played);
+      const f = draft.fixtures?.[idx];
+      if (!f) return;
+      const item = { date: f.date || today(), opponent: f.opponent, home: f.home !== false, round: f.round ?? null, friendly: f.friendly === true, gf: null, ga: null };
       for (const other of draft.matches || []) setOpen(other, false);
       setOpen(item, true);
       setNew(item, true);
       draft.matches = [item, ...(draft.matches || [])];
-      draft.nextMatch = null;
+      draft.fixtures.splice(idx, 1);
       message = 'נוסף משחק לתוצאות — מלאו את התוצאה ושמרו.';
       messageKind = '';
       dirty = true; paint();
@@ -1259,7 +1245,7 @@ export function mountAdmin(view, ctx) {
     if (t.id === 'save') { save(); return; }
     if (t.id === 'discard') {
       if (!confirm('לבטל את כל השינויים מאז השמירה האחרונה?')) return;
-      adopt(await fresh());
+      take(await fresh());
       // The conflict message that sent the manager here is answered now;
       // leaving it up would read as if the reload had failed too.
       message = ''; messageKind = '';
@@ -1282,9 +1268,13 @@ export function mountAdmin(view, ctx) {
 
   if (!draft) {
     view.innerHTML = '<section><div class="card"><div class="empty">טוען…</div></div></section>';
-    fresh().then((p) => { if (!draft) adopt(p); paint(); });
+    fresh().then((p) => { if (!draft) take(p); paint(); });
   } else {
     paint();
+    // Nothing unsaved: the season may have moved since (a training changed
+    // from the home screen, a live match finished), and saving over the old
+    // copy would only be refused. A keystroke meanwhile makes it dirty and wins.
+    if (!dirty) fresh().then((p) => { if (alive && !dirty && p?.version !== baseVersion) { take(p); paint(); } });
   }
   loadUsers();
   loadGallery();

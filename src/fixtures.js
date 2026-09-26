@@ -5,7 +5,7 @@
 // A fixture is a fact: { date, time, opponent, home, round, venue }. What is
 // derived from it — the next match, which fixtures are still ahead — is
 // computed on every load and never stored (see season.js).
-import { israelIso } from './format.js';
+import { israelIso, splitKickoff } from './format.js';
 
 /* ── Reading cells ─────────────────────────────────────────────────────── */
 
@@ -223,8 +223,8 @@ export function fixtureAsNext(f) {
   return {
     opponent: f.opponent, home: f.home !== false, round: f.round ?? null, friendly: f.friendly === true,
     kickoff: israelIso(f.date, time), timeTbd: !f.time,
-    venue: { name: f.venue?.name || '', address: f.venue?.address || '', waze: '' },
-    arrival: '', kit: '', fromFixtures: true,
+    venue: { name: f.venue?.name || '', address: f.venue?.address || '', waze: f.venue?.waze || '' },
+    arrival: f.arrival || '', kit: f.kit || '', fromFixtures: true,
   };
 }
 
@@ -233,9 +233,48 @@ export function fixtureAsNext(f) {
 // is already there — a result entered by hand or saved from a live match is
 // never overwritten by a spreadsheet.
 export function applyFixtureImport(season, { fixtures, results }) {
+  // The file knows dates, opponents and grounds; what the manager added to a
+  // game here (gathering, kit, a Waze link, a ground the file leaves empty)
+  // stays with the same game — the imported schedule replaces the old one.
+  const had = new Map((season.fixtures || []).map((f) => [fixtureKey(f), f]));
+  fixtures = fixtures.map((f) => {
+    const old = had.get(fixtureKey(f));
+    if (!old) return f;
+    const v = f.venue || {}, ov = old.venue || {};
+    return {
+      ...f, arrival: old.arrival || '', kit: old.kit || '',
+      venue: { ...v, name: v.name || ov.name || '', address: v.address || ov.address || '', waze: ov.waze || '' },
+    };
+  });
   const matches = [...(season.matches || [])];
   const have = new Set(matches.map((m) => m.date));
   let added = 0;
   for (const r of results) if (!have.has(r.date)) { matches.push(r); have.add(r.date); added++; }
   return { fixtures, matches, added };
+}
+
+// The next match used to be a record of its own beside the schedule, with
+// the gathering time, kit and Waze link only it could hold. It is now just the
+// schedule's nearest row (the owner: the two were the same game twice), and a
+// stored one folds into its row — same day and opponent, else the same day —
+// or becomes a row when the schedule does not have it.
+export function mergeNextMatch(season) {
+  const fixtures = [...(season?.fixtures || [])];
+  const nm = season?.nextMatch;
+  if (!nm?.opponent) return { fixtures, merged: false };
+  const { date, time } = splitKickoff(nm.kickoff);
+  const name = String(nm.opponent).trim();
+  let i = fixtures.findIndex((f) => f && f.date === date && String(f.opponent || '').trim() === name);
+  if (i < 0) i = fixtures.findIndex((f) => f && f.date === date);
+  const f = i >= 0 ? fixtures[i] : { date, opponent: name };
+  const v = nm.venue || {}, fv = f.venue || {};
+  const row = {
+    ...f,
+    time: time || f.time || '',
+    home: nm.home !== false, round: nm.round ?? f.round ?? null, friendly: nm.friendly === true || f.friendly === true,
+    venue: { name: v.name || fv.name || '', address: v.address || fv.address || '', waze: v.waze || fv.waze || '' },
+    arrival: nm.arrival || f.arrival || '', kit: nm.kit || f.kit || '',
+  };
+  if (i >= 0) fixtures[i] = row; else fixtures.push(row);
+  return { fixtures, merged: true };
 }

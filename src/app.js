@@ -73,6 +73,10 @@ function prepare(payload) {
   // rather than drawn empty.
   s.showMinutes = canMinutes();
   s.isAdmin = isAdmin();
+  // A training changed from the home screen: the manager's and the coach's,
+  // as the bridge allows (setTrainingChange).
+  s.canEditTrainings = canMinutes();
+  s.saveTraining = saveTraining;
   s.coach = coachData();
   return s;
 }
@@ -189,6 +193,12 @@ async function adminLogin(code) {
 // The coach's threshold and attendance for one match: shown at once, sent
 // behind it. The bridge answers with the whole coach record, which replaces
 // the optimistic one — it may have frozen older matches at the old default.
+// One date's training, then the season again, so the strip shows it.
+async function saveTraining(date, change) {
+  await call('setTrainingChange', { date, change }, { asAdmin: isAdmin() });
+  await refresh();
+}
+
 async function saveCoach(liveId, patch) {
   const c = coachData();
   const e = { ...(c.matches[liveId] || {}) };

@@ -118,6 +118,7 @@ function handle_(req) {
     case 'deleteGalleryItem': return deleteGalleryItem_(req);
     // מאמן או מנהל
     case 'setCoachMatch': return setCoachMatch_(req);
+    case 'setTrainingChange': return setTrainingChange_(req);
     // שולט במשחק (מנהל או מכשיר שמימש קוד)
     case 'putLive':       return putLive_(req);
     case 'finishLive':    return finishLive_(req);
@@ -440,7 +441,7 @@ function makePoster_(req) {
   return { ref: saved.getId() };
 }
 
-/* מנהל בלבד: קישור מקוצר של גוגל מפות (maps.app.goo.gl) → הקואורדינטות, כדי
+/* מנהל ומאמן: קישור מקוצר של גוגל מפות (maps.app.goo.gl) → הקואורדינטות, כדי
    שהניווט ייפתח בווייז ולא בגוגל מפות. הקישור המקוצר לא מכיל מיקום עד
    שפותחים אותו, והדפדפן לא יכול לעקוב אחרי ההפניה (CORS). הולכים אחרי
    הפניות רק בתוך הדומיינים של גוגל, ומחפשים קואורדינטות בכתובת הסופית ואז
@@ -462,7 +463,7 @@ function mapCoords_(text) {
   return null;
 }
 function expandMapLink_(req) {
-  requireAdmin_(req);
+  requireCoach_(req);
   let url = String(req.url || '').trim();
   if (!MAP_HOST.test(url)) throw fail_('זה לא קישור של גוגל מפות', 'bad_url');
   let page = '';
@@ -796,6 +797,44 @@ function coach_() {
     minDefault: c && isFinite(Number(c.minDefault)) ? Number(c.minDefault) : DEFAULT_MIN_MINUTES,
     matches: c && c.matches && typeof c.matches === 'object' && !Array.isArray(c.matches) ? c.matches : {},
   };
+}
+
+/* מנהל ומאמן: שינוי באימון של תאריך אחד, ממסך הבית (בקשת בעל הריפו). נוגע
+   רק בשינויים של אותו תאריך ב-trainingChanges — המאמן לא יכול לכתוב דרכו שום
+   שדה אחר בעונה. change: null מחזיר את התאריך ללוז הקבוע. בונה את השינוי
+   מחדש שדה-שדה: מה שנכתב כאן מוצג לכל ההורים. */
+const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
+function setTrainingChange_(req) {
+  requireCoach_(req);
+  const date = String(req.date || '');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw fail_('תאריך לא תקין', 'bad_date');
+  let entry = null;
+  if (req.change != null) {
+    const c = req.change;
+    if (typeof c !== 'object' || Array.isArray(c)) throw fail_('שינוי לא תקין', 'bad_change');
+    const hhmm = (v) => {
+      const t = String(v == null ? '' : v).trim();
+      if (t && !HHMM.test(t)) throw fail_('שעה לא תקינה', 'bad_time');
+      return t;
+    };
+    const str = (v, n) => String(v == null ? '' : v).trim().slice(0, n);
+    const v = c.venue && typeof c.venue === 'object' ? c.venue : {};
+    entry = {
+      date: date, cancelled: c.cancelled === true, start: hhmm(c.start), end: hhmm(c.end),
+      venue: { name: str(v.name, 80), address: str(v.address, 200), waze: str(v.waze, 300) },
+    };
+  }
+  return withLock_(() => {
+    const current = readJson_(SEASON_FILE, null) || { version: 0, season: {} };
+    const season = current.season || {};
+    const list = (Array.isArray(season.trainingChanges) ? season.trainingChanges : []).filter((x) => x && x.date !== date);
+    if (entry) list.push(entry);
+    season.trainingChanges = list;
+    if (JSON.stringify(season).length > MAX_SEASON_BYTES) throw fail_('נתוני העונה גדולים מדי', 'too_big');
+    const next = { version: Number(current.version) + 1, updatedAt: new Date().toISOString(), season: season };
+    writeJson_(SEASON_FILE, next);
+    return { version: next.version, updatedAt: next.updatedAt };
+  });
 }
 
 function setCoachMatch_(req) {

@@ -96,7 +96,7 @@ test('a short Google Maps link is opened for its coordinates, by the manager onl
   b.web('https://www.google.com/maps/place/X/data=!4m2', 'text/html', '<meta property="og:image" content="https://maps.google.com/maps/api/staticmap?center=32.070100%2C34.810500&amp;zoom=15">');
   b.redirect('https://maps.app.goo.gl/away', 'https://evil.example.com/?q=1.5,2.5');
   const go = (url, who = { adminCode: ADMIN }) => b.post({ action: 'expandMapLink', url, ...who });
-  assert.equal(err(go('https://maps.app.goo.gl/pin', { deviceKey: devA })), 'bad_code', 'a parent cannot make the bridge fetch');
+  assert.equal(err(go('https://maps.app.goo.gl/pin', { deviceKey: devA })), 'not_coach', 'a parent cannot make the bridge fetch');
   assert.equal(go('https://maps.app.goo.gl/pin').result.coords, '31.956020,34.834553');
   assert.equal(go('https://maps.app.goo.gl/place').result.coords, '32.070100,34.810500', 'from the page when the link has none');
   assert.equal(err(go('https://maps.app.goo.gl/away')), 'no_coords', 'a redirect out of Google is not followed');
@@ -514,6 +514,30 @@ console.log('live:');
     assert.equal(err(C.post({ action: 'setStatus', deviceKey: coach, id: coachId, status: 'approved' })), 'bad_code');
   });
 
+  test('a training change for one date: the coach and the manager write it, and nothing else in the season', () => {
+    const before = C.post({ action: 'getSeason', adminCode: ADMIN }).result;
+    const change = { cancelled: false, start: '16:30', end: '', venue: { name: 'מכביה', address: 'פרץ ברנשטיין 7', waze: '31.9,34.8' }, junk: 1 };
+    assert.equal(err(C.post({ action: 'setTrainingChange', deviceKey: parent, date: '2026-10-01', change })), 'not_coach');
+    assert.equal(err(C.post({ action: 'setTrainingChange', deviceKey: coach, date: 'tomorrow', change })), 'bad_date');
+    assert.equal(err(C.post({ action: 'setTrainingChange', deviceKey: coach, date: '2026-10-01', change: { start: '<b>' } })), 'bad_time');
+    const r = C.post({ action: 'setTrainingChange', deviceKey: coach, date: '2026-10-01', change }).result;
+    assert.equal(r.version, before.version + 1, 'a new version, so every phone picks it up');
+    // A second change on the same date replaces the first.
+    C.post({ action: 'setTrainingChange', adminCode: ADMIN, date: '2026-10-01', change: { ...change, cancelled: true } });
+    C.post({ action: 'setTrainingChange', deviceKey: coach, date: '2026-10-03', change: { start: '09:00' } });
+    const after = C.post({ action: 'getSeason', adminCode: ADMIN }).result.season;
+    assert.deepEqual(after.trainingChanges, [
+      { date: '2026-10-01', cancelled: true, start: '16:30', end: '', venue: { name: 'מכביה', address: 'פרץ ברנשטיין 7', waze: '31.9,34.8' } },
+      { date: '2026-10-03', cancelled: false, start: '09:00', end: '', venue: { name: '', address: '', waze: '' } },
+    ], 'rebuilt field by field, one per date');
+    const { trainingChanges: _t, ...rest } = after;
+    const { trainingChanges: _b, ...restBefore } = before.season;
+    assert.deepEqual(rest, restBefore, 'nothing else in the season changed');
+    // Back to the routine.
+    C.post({ action: 'setTrainingChange', deviceKey: coach, date: '2026-10-03', change: null });
+    assert.deepEqual(C.post({ action: 'getSeason', adminCode: ADMIN }).result.season.trainingChanges.map((c) => c.date), ['2026-10-01']);
+  });
+
   test('unmarking or revoking a coach takes the minutes away', () => {
     C.post({ action: 'setRole', adminCode: ADMIN, id: coachId, role: 'parent' });
     const r = C.post({ action: 'getSeason', deviceKey: coach }).result;
@@ -523,6 +547,7 @@ console.log('live:');
     C.post({ action: 'setRole', adminCode: ADMIN, id: coachId, role: 'coach' });
     C.post({ action: 'setStatus', adminCode: ADMIN, id: coachId, status: 'revoked' });
     assert.equal(err(C.post({ action: 'setCoachMatch', deviceKey: coach, liveId: 'M1', min: 20 })), 'not_approved');
+    assert.equal(err(C.post({ action: 'setTrainingChange', deviceKey: coach, date: '2026-10-01', change: null })), 'not_approved');
   });
 }
 

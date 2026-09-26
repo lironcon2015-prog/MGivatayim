@@ -647,15 +647,11 @@ await step('a weekly training shows above the next match, on the first screen, a
 
   await parent.goto(APP + '#/');
   await parent.reload();
-  // From Saturday 17:00 the strip shows the coming week: today's training
-  // is then next Saturday's, and not marked as today.
-  const hour = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Jerusalem', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date());
-  const ahead = day === 6 && hour >= '17:00';
-  const sq = parent.locator(ahead ? '.week-sec .wk-day' : '.week-sec .wk-day.today').first();
+  const sq = parent.locator('.week-sec .wk-day.today');
   await sq.waitFor({ timeout: 8000 });
   const t = (await sq.innerText()).replace(/\s+/g, ' ');
-  expect(t.includes(ahead ? 'שבת' : 'היום') && t.includes('17:00') && t.includes('אצטדיון גבעתיים'), 'the training\'s square: ' + t);
-  expect(!ahead || !(await parent.locator('.week-sec .wk-day.today').count()), 'the coming week has no "today"');
+  expect(t.includes('היום') && t.includes('17:00') && t.includes('אצטדיון גבעתיים'), 'today\'s square: ' + t);
+  expect(!(await sq.locator('.wk-flag').count()), 'a routine training is flagged as changed');
   // Above the next match, and the card after it is still the schedule.
   const order = await parent.evaluate(() => {
     const w = document.querySelector('.week-sec'), h = document.querySelector('.hero');
@@ -667,6 +663,47 @@ await step('a weekly training shows above the next match, on the first screen, a
   const sheet = parent.locator('.sheet', { hasText: '18:30' });
   await sheet.waitFor();
   expect(await sheet.locator('a.btn[href^="https://www.waze.com/ul?q="]').count() === 1, 'no Waze link for the home ground');
+  await parent.locator('.sheet-x').click();
+
+  // "Next week" is offered from Saturday only, and shows the week after.
+  const next = parent.locator('[data-next-week]');
+  if (day === 6) {
+    await next.click();
+    await parent.locator('.wk-label', { hasText: 'אימוני השבוע הבא' }).waitFor();
+    const n = (await parent.locator('.week-sec .wk-day').first().innerText()).replace(/\s+/g, ' ');
+    expect(n.includes('שבת') && n.includes('17:00'), 'next week\'s square: ' + n);
+    expect(!(await parent.locator('.week-sec .wk-day.today').count()), 'next week has a "today"');
+    await parent.locator('[data-next-week]').click();
+    await parent.locator('.week-sec .wk-day.today').waitFor();
+  } else expect(!(await next.count()), 'the next week button shows before Saturday');
+});
+
+await step('a training that differs from the routine is framed and flagged, and the sheet says what changed', async () => {
+  await admin.goto(APP + '#/admin');
+  await adminTab(admin, 'games');
+  const row = await newRow(admin, 'trainingChanges');
+  await admin.fill(`[data-path="${row}.date"]`, israelToday());
+  await admin.fill(`[data-path="${row}.start"]`, '16:30');
+  await admin.fill(`[data-path="${row}.venue.name"]`, 'מגרש זמני');
+  await admin.fill(`[data-path="${row}.venue.address"]`, 'הירדן 3, רמת גן');
+  await admin.click('#save');
+  await waitText(admin, 'נשמר');
+
+  await parent.goto(APP + '#/');
+  await parent.reload();
+  const sq = parent.locator('.week-sec .wk-day.today.chg');
+  await sq.waitFor({ timeout: 8000 });
+  expect((await sq.locator('.wk-flag').innerText()).trim() === 'שינוי', 'no "change" flag');
+  const t = (await sq.innerText()).replace(/\s+/g, ' ');
+  expect(t.includes('16:30') && t.includes('מגרש זמני'), 'the changed square: ' + t);
+  const frame = await sq.evaluate((el) => getComputedStyle(el).borderTopColor);
+  expect(frame === 'rgb(240, 106, 96)', 'the frame is not red: ' + frame);
+  await sq.click();
+  const was = parent.locator('.sheet .wk-was');
+  await was.waitFor();
+  const w = (await was.innerText()).replace(/\s+/g, ' ');
+  expect(w.includes('17:00–18:30') && w.includes('16:30–18:30') && w.includes('אצטדיון גבעתיים') && w.includes('מגרש זמני'), 'what changed: ' + w);
+  expect(await parent.locator('.sheet a.btn[href*="waze"]').count() === 1, 'no Waze to the new venue');
   await parent.locator('.sheet-x').click();
 });
 

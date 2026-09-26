@@ -319,21 +319,28 @@ await test('trainings: the week is the routine plus this week\'s changes, and th
     ['2026-10-01', 'training', '16:30'], ['2026-10-03', 'game', '10:30'],
   ]);
   const [sun, tue, wed, thu] = w.items;
-  assert.ok(sun.cancelled && sun.past && !sun.changed);
-  assert.ok(tue.today && !tue.past);
+  assert.equal(sun.change, 'cancelled');
+  assert.ok(sun.past);
+  assert.ok(tue.today && !tue.past && !tue.change);
   assert.equal(tue.venue.name, 'אחר', 'a venue given wins over the home ground');
   assert.equal(sun.venue.name, 'בורוכוב', 'no venue = the home ground');
-  assert.ok(thu.changed);
+  assert.equal(thu.change, 'changed');
   assert.equal(thu.end, '18:30', 'an empty field keeps the routine\'s');
   assert.equal(thu.venue.name, 'רמת חן');
+  assert.deepEqual([thu.was.start, thu.was.venue.name], ['17:00', 'בורוכוב'], 'the routine is kept for the sheet');
+  assert.equal(wed.change, 'extra');
   assert.equal(wed.venue.name, 'בורוכוב', 'an extra training without a venue is at home');
-  // Saturday shows its own week until 17:00 in Israel, then the next one.
-  assert.equal(buildSeason(base, new Date('2026-10-03T13:59:00Z')).week.start, '2026-09-27', 'Saturday 16:59');
-  const sat = buildSeason(base, new Date('2026-10-03T14:00:00Z')).week;
-  assert.equal(sat.start, '2026-10-04', 'Saturday 17:00 shows the coming week');
-  assert.ok(sat.items.every((i) => !i.past && !i.today), 'nothing in the coming week is past or today');
-  assert.equal(buildSeason(base, new Date('2026-10-04T08:00:00Z')).week.start, '2026-10-04');
-  assert.equal(buildSeason({ ...base, trainings: [], trainingChanges: [] }, tuesday).week, null, 'no trainings, no strip');
+
+  // Saturday offers the week after; its game is the next fixture in it.
+  const sat = buildSeason({ ...base, fixtures: [...base.fixtures, { date: '2026-10-10', time: '09:00', opponent: 'הבאה' }] }, new Date('2026-10-03T16:00:00Z'));
+  assert.ok(sat.offersNextWeek);
+  assert.equal(sat.week.start, '2026-09-27', 'Saturday still shows its own week');
+  assert.equal(sat.nextWeek.start, '2026-10-04');
+  assert.ok(sat.nextWeek.ahead && sat.nextWeek.items.every((i) => !i.past && !i.today));
+  assert.deepEqual(sat.nextWeek.items.map((i) => i.kind + ' ' + i.date), ['training 2026-10-04', 'training 2026-10-06', 'training 2026-10-08', 'game 2026-10-10']);
+  assert.ok(!buildSeason(base, tuesday).offersNextWeek, 'only from Saturday');
+  assert.equal(buildSeason(base, new Date('2026-10-04T08:00:00Z')).week.start, '2026-10-04', 'Sunday starts the next week');
+  assert.equal(buildSeason({ ...base, trainings: [], trainingChanges: [] }, tuesday).week.trainings, 0, 'no trainings, no strip');
 });
 
 await test('fixtures: an import never overwrites a result already there', async () => {

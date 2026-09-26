@@ -6,7 +6,7 @@
 import { cleanPlayedMatch } from './live/model.js';
 import { primaryPos, posLabel } from './positions.js';
 import { upcomingFixtures, fixtureAsNext } from './fixtures.js';
-import { trainingWeek } from './trainings.js';
+import { trainingWeek, offersNextWeek } from './trainings.js';
 
 export const OUTCOMES = { win: 'ניצחון', draw: 'תיקו', loss: 'הפסד' };
 
@@ -142,13 +142,19 @@ export function buildSeason(input, now = new Date()) {
   // every load, so entering a result moves the schedule on by itself.
   const upcoming = upcomingFixtures(raw.fixtures, raw.matches, now);
   const nextMatch = raw.nextMatch?.opponent ? withHomeVenue(raw.nextMatch, raw.team.homeVenue) : fixtureAsNext(upcoming[0]);
+  // Game days for the trainings strip: the next match (its kickoff is local
+  // Israel time) and every fixture after it.
+  const kick = String(nextMatch?.kickoff || '');
+  const games = [...(nextMatch ? [{ date: kick.slice(0, 10), time: nextMatch.timeTbd ? '' : kick.slice(11, 16), opponent: nextMatch.opponent }] : []), ...upcoming];
 
   return {
     ...raw,
     nextMatch,
-    // This week's trainings and the game that closes it (src/trainings.js),
-    // or null when the week has none.
-    week: trainingWeek(raw, nextMatch, now),
+    // This week's trainings and the week after, each closed by its game
+    // (src/trainings.js); the view offers the second from Saturday.
+    week: trainingWeek(raw, games, now),
+    nextWeek: trainingWeek(raw, games, now, 1),
+    offersNextWeek: offersNextWeek(now),
     // Every fixture still ahead, and those after the one the card shows. The
     // fixture on the day of a next match set by hand shows that match's
     // kickoff: the schedule said "time not set" beside a card saying 09:30.

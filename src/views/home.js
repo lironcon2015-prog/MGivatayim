@@ -66,43 +66,78 @@ function nextMatchCard(s) {
    and not a banner. Tapping a training opens its hours, venue and Waze. */
 
 const dayMonth = (iso) => { const [, m, d] = iso.split('-'); return `${+d}.${+m}`; };
+const hoursOf = (t) => (t.start && t.end ? `${t.start}–${t.end}` : t.start || '');
+// A training that differs from the routine is framed in red with a flag on
+// its top edge (the owner's pick, and the one red outside match results).
+const FLAGS = { changed: 'שינוי', cancelled: 'בוטל', extra: 'נוסף' };
 
-function weekHtml(week) {
-  if (!week) return '';
+// Next week is offered from Saturday; the choice lives for the visit.
+let showNext = false;
+const shownWeek = (s) => (s.offersNextWeek && showNext ? s.nextWeek : s.week);
+
+function weekInner(s) {
+  const week = shownWeek(s);
   const square = (it, i) => {
-    const cls = [it.kind, it.past && 'past', it.today && 'today', it.changed && 'changed', it.cancelled && 'cancelled'].filter(Boolean).join(' ');
+    const cls = [it.kind, it.past && 'past', it.today && 'today', it.change && 'chg', it.change].filter(Boolean).join(' ');
     const day = it.today ? 'היום' : DAYS[weekday(it.date)];
-    const inner = `<span class="l">${day}</span><span class="n num">${dayMonth(it.date)}</span>
+    const flag = it.change ? `<span class="wk-flag">${FLAGS[it.change]}</span>` : '';
+    const inner = `${flag}<span class="l">${day}</span><span class="n num">${dayMonth(it.date)}</span>
       <span class="t num">${esc(it.start || '—')}</span>`;
     if (it.kind === 'game') return `<div class="wk-day ${cls}">${inner}<span class="v">משחק</span></div>`;
-    const where = it.cancelled ? 'בוטל' : it.venue.name || it.venue.address;
+    const where = it.change === 'cancelled' ? 'בוטל' : it.venue.name || it.venue.address;
     return `<button type="button" class="wk-day ${cls}" data-wk="${i}">${inner}<span class="v">${esc(where)}</span></button>`;
   };
-  return `<section class="week-sec" aria-label="אימוני השבוע">
-    <div class="wk-label">אימוני השבוע<span class="aside num">${dayMonth(week.start)}–${dayMonth(week.end)}</span></div>
-    <div class="week" style="--n:${Math.max(4, week.items.length)}">${week.items.map(square).join('')}</div>
-  </section>`;
+  const toggle = s.offersNextWeek
+    ? `<button type="button" class="wk-next" data-next-week>${week.ahead ? 'השבוע' : 'שבוע הבא'}</button>` : '';
+  return `<div class="wk-label">${week.ahead ? 'אימוני השבוע הבא' : 'אימוני השבוע'}
+      <span class="aside num">${dayMonth(week.start)}–${dayMonth(week.end)}</span>${toggle}</div>
+    ${week.trainings
+      ? `<div class="week" style="--n:${Math.max(4, week.items.length)}">${week.items.map(square).join('')}</div>`
+      : `<div class="card wk-empty">${week.ahead ? 'אין אימונים בשבוע הבא.' : 'אין אימונים השבוע.'}</div>`}`;
+}
+
+function weekHtml(s) {
+  // No strip for a week without trainings, unless the next week's button
+  // is on offer and that week has some.
+  if (!s.week?.trainings && !(s.offersNextWeek && s.nextWeek?.trainings)) return '';
+  return `<section class="week-sec" aria-label="אימוני השבוע" data-week>${weekInner(s)}</section>`;
 }
 
 function trainingSheet(t) {
-  const hours = t.start && t.end ? `${t.start}–${t.end}` : t.start || 'שעה טרם נקבעה';
+  const hours = hoursOf(t) || 'שעה טרם נקבעה';
   const waze = wazeLink(t.venue.address);
   const place = t.venue.name || t.venue.address;
+  const cancelled = t.change === 'cancelled';
+  // What moved, the routine's value struck through beside the new one.
+  const was = t.was && !cancelled ? [
+    hoursOf(t.was) !== hoursOf(t) ? ['שעה', hoursOf(t.was), hoursOf(t), true] : null,
+    (t.was.venue.name || t.was.venue.address) !== place ? ['מגרש', t.was.venue.name || t.was.venue.address, place] : null,
+  ].filter(Boolean) : [];
   openSheet({
     title: `אימון · ${t.today ? 'היום' : `יום ${DAYS[weekday(t.date)]}`} ${dayMonth(t.date)}`,
-    subtitle: t.cancelled ? 'האימון בוטל' : t.changed ? 'שינוי לשבוע הזה' : '',
-    body: `<div class="wk-sheet${t.cancelled ? ' cancelled' : ''}">
+    subtitle: cancelled ? '<span class="wk-sub">האימון בוטל</span>' : t.change === 'changed' ? '<span class="wk-sub">שינוי מהלוז הקבוע</span>'
+      : t.change === 'extra' ? '<span class="wk-sub">אימון נוסף</span>' : '',
+    body: `<div class="wk-sheet${cancelled ? ' cancelled' : ''}">
+      ${was.length ? `<dl class="wk-was">${was.map(([k, from, to, num]) =>
+        `<dt>${k}</dt><dd${num ? ' class="num"' : ''}><s${num ? ' dir="ltr"' : ''}>${esc(from || '—')}</s> <b${num ? ' dir="ltr"' : ''}>${esc(to || '—')}</b></dd>`).join('')}</dl>` : ''}
       <div class="meta-row">${icon('clock')}<span class="num" dir="ltr"><b>${esc(hours)}</b></span></div>
       ${place ? `<div class="meta-row">${icon('pin')}<span><b>${esc(place)}</b>${t.venue.name && t.venue.address ? ` <span class="sub">· ${esc(t.venue.address)}</span>` : ''}</span></div>` : ''}
-      ${waze && !t.cancelled ? `<a class="btn" href="${esc(waze)}" target="_blank" rel="noopener noreferrer">${icon('nav')} ניווט אל המגרש ב-Waze</a>` : ''}
+      ${waze && !cancelled ? `<a class="btn" href="${esc(waze)}" target="_blank" rel="noopener noreferrer">${icon('nav')} ניווט אל המגרש ב-Waze</a>` : ''}
     </div>`,
   });
 }
 
-export function wireHome(root, s) {
-  root.querySelectorAll('[data-wk]').forEach((b) => {
-    b.onclick = () => { const t = s.week?.items[Number(b.dataset.wk)]; if (t) trainingSheet(t); };
+function wireWeek(host, s) {
+  host.querySelectorAll('[data-wk]').forEach((b) => {
+    b.onclick = () => { const t = shownWeek(s)?.items[Number(b.dataset.wk)]; if (t) trainingSheet(t); };
   });
+  const next = host.querySelector('[data-next-week]');
+  if (next) next.onclick = () => { showNext = !showNext; host.innerHTML = weekInner(s); wireWeek(host, s); };
+}
+
+export function wireHome(root, s) {
+  const host = root.querySelector('[data-week]');
+  if (host) wireWeek(host, s);
   return startCountdown(root);
 }
 
@@ -113,7 +148,7 @@ export function renderHome(s) {
   const scorers = topBy(s.players, 'goals', 5);
 
   return `
-  ${weekHtml(s.week)}
+  ${weekHtml(s)}
   <section>
     ${nextMatchCard(s)}
   </section>

@@ -7,7 +7,7 @@
 // every load and never stored — a change simply stops mattering once its
 // week is over.
 
-import { splitKickoff } from './format.js';
+import { todayInIsrael } from './fixtures.js';
 
 export const DAYS = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
 
@@ -30,15 +30,13 @@ function venueOf(v, home) {
   return { name: text(home?.name), address: text(home?.address) };
 }
 
-// Sunday to Saturday around today (Israel), the week a parent plans by.
-// The game, when the next match falls in it, closes the row. From Saturday
-// at 17:00 the coming week shows instead (the owner's request): the week's
-// game is over by then, and parents plan the next one that evening.
-export const NEXT_WEEK_FROM = '17:00';
-export function trainingWeek(season, nextMatch, now = new Date()) {
-  const { date: today, time: clock } = splitKickoff(now.toISOString());
-  const ahead = weekday(today) === 6 && clock >= NEXT_WEEK_FROM;
-  const start = ahead ? addDays(today, 1) : addDays(today, -weekday(today));
+// Sunday to Saturday around today (Israel), the week a parent plans by;
+// `ahead` = 1 is the week after (the owner's "next week" button, offered
+// from Saturday). The first game on the schedule that falls in the week
+// closes the row.
+export function trainingWeek(season, games, now = new Date(), ahead = 0) {
+  const today = todayInIsrael(now);
+  const start = addDays(today, 7 * ahead - weekday(today));
   const end = addDays(start, 6);
   const home = season?.team?.homeVenue;
 
@@ -49,10 +47,10 @@ export function trainingWeek(season, nextMatch, now = new Date()) {
   for (let i = 0; i < 7; i++) {
     const date = addDays(start, i);
     const regular = routine.filter((t) => Number(t.day) === i)
-      .map((t) => ({ date, start: time(t.start), end: time(t.end), venue: venueOf(t.venue, home), changed: false, cancelled: false }));
-    // A change on a day with a routine training replaces that training's
-    // fields it fills in (an empty field keeps the routine's); on any other
-    // day it is an extra training.
+      .map((t) => ({ date, start: time(t.start), end: time(t.end), venue: venueOf(t.venue, home), change: '' }));
+    // A change on a day with a routine training replaces the fields it fills
+    // in (an empty field keeps the routine's), and keeps what they were
+    // (`was`) for the sheet; on any other day it is an extra training.
     const taken = new Set();
     for (const c of changes.filter((x) => x.date === date)) {
       const base = regular.find((r) => !taken.has(r));
@@ -62,24 +60,25 @@ export function trainingWeek(season, nextMatch, now = new Date()) {
         start: time(c.start) || base?.start || '',
         end: time(c.end) || base?.end || '',
         venue: hasVenue ? venueOf(c.venue, home) : base?.venue || venueOf(null, home),
-        changed: !c.cancelled,
-        cancelled: c.cancelled === true,
+        change: c.cancelled === true ? 'cancelled' : base ? 'changed' : 'extra',
       };
-      if (base) { Object.assign(base, merged); taken.add(base); } else regular.push(merged);
+      if (base) {
+        Object.assign(base, merged, { was: { start: base.start, end: base.end, venue: base.venue } });
+        taken.add(base);
+      } else regular.push(merged);
     }
     days.push(...regular.sort((a, b) => a.start.localeCompare(b.start)));
   }
-  if (!days.length) return null;
 
   const items = days.map((d) => ({ ...d, kind: 'training', past: d.date < today, today: d.date === today }));
-  const kick = String(nextMatch?.kickoff || '');
-  const gameDate = kick.slice(0, 10);
-  if (nextMatch?.opponent && gameDate >= start && gameDate <= end) {
-    items.push({
-      kind: 'game', date: gameDate, start: nextMatch.timeTbd ? '' : time(kick.slice(11, 16)),
-      opponent: text(nextMatch.opponent), past: gameDate < today, today: gameDate === today,
-    });
+  const game = (games || []).find((g) => g?.date >= start && g.date <= end);
+  if (game) {
+    items.push({ kind: 'game', date: game.date, start: time(game.time), opponent: text(game.opponent), past: game.date < today, today: game.date === today });
   }
   items.sort((a, b) => a.date.localeCompare(b.date) || (a.kind === 'game') - (b.kind === 'game'));
-  return { start, end, items };
+  return { start, end, ahead, trainings: days.length, items };
 }
+
+// The "next week" button shows from Saturday: the week's game is that day,
+// and parents plan the coming week from it.
+export const offersNextWeek = (now = new Date()) => weekday(todayInIsrael(now)) === 6;

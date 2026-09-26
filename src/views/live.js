@@ -42,52 +42,77 @@ function statusChip(state) {
   }
 }
 
-// The timeline, newest first, with the running score after each goal so a
-// latecomer can read how the match went without adding anything up.
-// A goal from the spot, beside the scorer's name in the timeline.
+// The match's events on two sides, in the spirit of sports apps (the
+// owner's pick from a mockup): ours on the right beside our crest, theirs
+// on the left, newest first, with the score after each goal and the period
+// breaks in the middle. `us` names our side in the header.
+// A goal from the spot, beside the scorer's name.
 const PEN_TAG = ' <span class="tl-pen">פנדל</span>';
 
-export function timelineHtml(state, { interactive = false } = {}) {
+export function timelineHtml(state, { interactive = false, us: usName = '' } = {}) {
   const chrono = [...state.events].map((e, i) => ({ e, i })).sort((a, b) => a.e.period - b.e.period || a.e.atMs - b.e.atMs || a.i - b.i);
   const after = new Map();
+  const atEnd = new Map();
+  // Every sub shows a position: the one it names, else the slot's (from the
+  // lineup and earlier subs), else the incoming player's own.
+  const slot = new Map(state.lineup.map((l) => [l.pid, l.pos]));
+  const subPos = new Map();
   let us = 0, them = 0;
-  for (const { e } of chrono) if (e.type === 'goal') { e.side === 'them' ? them++ : us++; after.set(e.id, `${us}:${them}`); }
+  for (const { e } of chrono) {
+    if (e.type === 'goal') { e.side === 'them' ? them++ : us++; after.set(e.id, [us, them]); }
+    if (e.type === 'period_end') atEnd.set(e, [us, them]);
+    if (e.type === 'sub') {
+      const pos = e.pos || slot.get(e.out) || M.playerById(state, e.in)?.pos || '';
+      slot.delete(e.out);
+      slot.set(e.in, pos);
+      subPos.set(e.id, pos);
+    }
+  }
+  const scoreHtml = ([a, b]) => `<b>${a}</b>-${b}`;
+  const opp = esc(state.opponent || 'היריבה');
+  const lastPeriod = state.format.length - 1;
 
   const items = M.timeline(state).map((e) => {
+    if (e.type === 'period_start') {
+      return e.period === 0 ? `<li class="ev-kick">${icon('whistle')}<span>שריקת פתיחה</span></li>` : '';
+    }
+    if (e.type === 'period_end') {
+      const len = (state.format[e.period] ?? state.format.at(-1)) * 60000;
+      const extra = Math.floor((e.atMs - len) / 60000);
+      const label = e.period >= lastPeriod ? 'סיום' : state.format.length === 2 ? 'מחצית' : `סיום ${M.periodName(state.format, e.period)}`;
+      const [a, b] = atEnd.get(e);
+      return `<li class="ev-mark"><span class="mk-pill">${esc(label)}</span><span class="mk-sc num" dir="ltr"><b>${a}</b> - ${b}</span>${
+        extra >= 1 ? `<small>+${extra} ${extra === 1 ? 'דקת' : 'דקות'} תוספת</small>` : ''}</li>`;
+    }
     // The minute column always holds a minute. An interval change is shown
-    // at the period's first minute, with "at the start of…" in its text —
-    // the phrase itself is too long for the column and wrapped in two.
-    const minute = M.minuteLabel(state.format, e.period, e.atMs);
-    const atStart = e.atStart ? ` · בתחילת ${esc(M.periodName(state.format, e.period))}` : '';
+    // at the period's first minute, with "at the start of…" under it.
+    const minute = `<span class="ev-min num">${esc(M.minuteLabel(state.format, e.period, e.atMs))}</span>`;
+    const atStart = e.atStart ? `בתחילת ${esc(M.periodName(state.format, e.period))}` : '';
+    const note = (s) => (s || atStart ? `<small>${[s, atStart].filter(Boolean).join(' · ')}</small>` : '');
+    const side = e.side === 'them' ? 'them' : 'us';
     const tag = interactive && M.EDITABLE.includes(e.type) ? 'button' : 'div';
     const attrs = tag === 'button' ? ` type="button" data-event="${esc(e.id)}"` : '';
-    if (e.type === 'goal' && e.side !== 'them') {
-      return `<li data-ev="${esc(e.id)}"><${tag} class="tl-item tl-goal us"${attrs}>
-        <span class="tl-min num">${esc(minute)}</span><span class="tl-ico">${icon('ball')}</span>
-        <span class="tl-txt"><b>שער! ${esc(e.og ? 'גול עצמי של היריבה' : e.scorer ? whoText(state, e.scorer) : 'מבקיע לא ידוע')}${e.pen ? PEN_TAG : ''}</b>
-          <small>${e.assist ? `בישול: ${esc(whoText(state, e.assist))} · ` : ''}<span class="num tl-score">${after.get(e.id)}</span>${atStart}</small></span></${tag}></li>`;
-    }
+    const row = (cls, body) => `<li data-ev="${esc(e.id)}"><${tag} class="ev ${cls}"${attrs}>${minute}${body}</${tag}></li>`;
     if (e.type === 'goal') {
-      return `<li data-ev="${esc(e.id)}"><${tag} class="tl-item tl-goal them"${attrs}>
-        <span class="tl-min num">${esc(minute)}</span><span class="tl-ico">${icon('ball')}</span>
-        <span class="tl-txt"><b>שער ל${esc(state.opponent || 'יריבה')}${e.pen ? PEN_TAG : ''}</b><small><span class="num tl-score">${after.get(e.id)}</span>${atStart}</small></span></${tag}></li>`;
+      const name = side === 'them' ? `שער ל${opp}` : esc(e.og ? 'גול עצמי' : e.scorer ? whoText(state, e.scorer) : 'מבקיע לא ידוע');
+      const pen = e.pen ? (side === 'them' ? PEN_TAG.replace('tl-pen', 'tl-pen dim') : PEN_TAG) : '';
+      return row(side, `<span class="ev-ico goal">${icon('ball')}</span>
+        <span class="ev-txt"><b>${name}${pen} <span class="ev-sc num" dir="ltr">(${scoreHtml(after.get(e.id))})</span></b>${
+          note(side === 'us' && e.assist ? `בישול: ${esc(whoText(state, e.assist))}` : '')}</span>`);
     }
     if (e.type === 'miss') {
-      const text = e.side === 'them' ? `פנדל ל${esc(state.opponent || 'יריבה')} לא נכנס` : `פנדל מוחמץ${e.scorer ? ` · ${esc(whoText(state, e.scorer))}` : ''}`;
-      return `<li data-ev="${esc(e.id)}"><${tag} class="tl-item tl-miss"${attrs}>
-        <span class="tl-min num">${esc(minute)}</span><span class="tl-ico">${icon('miss')}</span>
-        <span class="tl-txt"><b>${text}</b><small>החמצה או הצלה${atStart}</small></span></${tag}></li>`;
+      const text = side === 'them' ? 'פנדל ליריבה לא נכנס' : `פנדל מוחמץ${e.scorer ? ` · ${esc(whoText(state, e.scorer))}` : ''}`;
+      return row(`${side} miss`, `<span class="ev-ico">${icon('miss')}</span><span class="ev-txt"><b>${text}</b>${note('החמצה או הצלה')}</span>`);
     }
     if (e.type === 'sub') {
-      return `<li data-ev=""${esc(e.id)}"><${tag} class="tl-item tl-sub"${attrs}>
-        <span class="tl-min num">${esc(minute)}</span><span class="tl-ico">${icon('swap')}</span>
-        <span class="tl-txt"><b><i class="in">${icon('arrowIn')}</i>${esc(whoText(state, e.in))}</b>
-          <small><i class="out">${icon('arrowOut')}</i>${esc(whoText(state, e.out))}${e.pos ? ` · ${esc(posLabel(e.pos))}` : ''}${atStart}</small></span></${tag}></li>`;
+      const pos = subPos.get(e.id);
+      return row('us sub', `<span class="ev-pair"><i class="ev-dot in">${icon('arrowIn')}</i><i class="ev-dot out">${icon('arrowOut')}</i></span>
+        <span class="ev-txt"><b class="in">${esc(whoText(state, e.in))}</b><span class="out">${esc(whoText(state, e.out))}${pos ? ` · ${esc(posLabel(pos))}` : ''}</span>${note('')}</span>`);
     }
-    const label = e.type === 'period_start' ? `שריקת פתיחה · ${M.periodName(state.format, e.period)}` : `סיום ${M.periodName(state.format, e.period)}`;
-    return `<li class="tl-mark"><span>${icon('whistle')}${esc(label)}${e.type === 'period_end' ? ` · <span class="num">${M.clockText(e.atMs)}</span>` : ''}</span></li>`;
-  });
-  return items.length ? `<ol class="tl">${items.join('')}</ol>` : '<div class="empty">עוד אין אירועים.</div>';
+    return '';
+  }).filter(Boolean);
+  if (!items.length) return '<div class="empty">עוד אין אירועים.</div>';
+  return `<div class="ev-sides"><span>${esc(usName || 'אנחנו')}</span><span>${opp}</span></div><ol class="ev-list">${items.join('')}</ol>`;
 }
 
 function pitchHtml(state, slots, { interactive }) {
@@ -112,7 +137,7 @@ function pitchHtml(state, slots, { interactive }) {
 
 // `coach` — the coach's view of a live match's minutes, or null: its
 // minimum and attendance (coachCfg) and how to change them (saveCoach).
-export function openMatchSheet(match, coach = null) {
+export function openMatchSheet(match, coach = null, us = '') {
   const state = { ...match, format: match.format || M.DEFAULT_FORMAT, events: match.events || [], players: match.players || [], lineup: match.lineup || [] };
   const hasEvents = state.events.some((e) => M.EDITABLE.includes(e.type));
   const minutes = coach && state.lineup.length;
@@ -122,7 +147,7 @@ export function openMatchSheet(match, coach = null) {
     subtitle: `<span class="num">${esc(shortDate(match.date))}</span>${roundText(match.round, match.friendly) ? ` · ${esc(roundText(match.round, match.friendly))}` : ''}`,
     tall: hasEvents || minutes,
     body: `<div class="ms-score num"><span class="ours">${match.gf}</span><span class="sep">:</span><span>${match.ga}</span></div>
-      ${hasEvents ? timelineHtml(state) : '<p class="sheet-text">למשחק הזה לא תועדו אירועים — רק התוצאה.</p>'}
+      ${hasEvents ? timelineHtml(state, { us }) : '<p class="sheet-text">למשחק הזה לא תועדו אירועים — רק התוצאה.</p>'}
       <div data-ms-minutes>${minutesHtml()}</div>`,
     onMount: ({ el }) => {
       if (!minutes) return;
@@ -213,7 +238,7 @@ export function mountLive(view, ctx) {
   // "ועוד N" → the goal in the timeline, scrolled to the middle of the screen
   // and lit for a moment so the eye lands on it.
   function goToEvent(id) {
-    const li = view.querySelector(`.tl li[data-ev="${CSS.escape(id)}"]`);
+    const li = view.querySelector(`.ev-list li[data-ev="${CSS.escape(id)}"]`);
     if (!li) return;
     li.scrollIntoView({ block: 'center', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
     li.classList.remove('flash');
@@ -438,7 +463,7 @@ export function mountLive(view, ctx) {
         </section>
         <section>
           <div class="sec-head">${icon('clock')}<h2>מהלך המשחק</h2>${ctl ? '<span class="aside">הקישו על אירוע לתיקון</span>' : ''}</div>
-          <div class="card">${timelineHtml(st, { interactive: ctl })}</div>
+          <div class="card">${timelineHtml(st, { interactive: ctl, us: ctx.team.name })}</div>
         </section>`}
       ${st.status === 'ended' ? endedPanel(st) : ''}
       ${!S.canControl && st.status !== 'ended' ? '<p class="gate-foot"><button type="button" class="linkish" data-act="claim">יש לי קוד שליטה במשחק</button></p>' : ''}`;

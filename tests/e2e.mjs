@@ -541,7 +541,11 @@ await step('minutes per player are the manager\'s only', async () => {
 await step('a history row opens the match with its goals and subs', async () => {
   await parent.goto(APP + '#/');
   await parent.locator('button.match', { hasText: 'מכבי נחלים' }).first().click();
-  await parent.locator('.sheet .tl', { hasText: 'גיא פרץ' }).waitFor();
+  await parent.locator('.sheet .ev-list', { hasText: 'גיא פרץ' }).waitFor();
+  // Every sub names a position: a parent has no past lineup, so the slot's
+  // is unknown here and the incoming player's own stands in.
+  const sub = await parent.locator('.sheet .ev.sub .ev-txt .out').first().innerText();
+  expect(/ · \S/.test(sub), 'a sub without a position: ' + sub);
   await parent.locator('.sheet-x').click();
 });
 
@@ -840,7 +844,7 @@ await step('a later fixture can go live now; finishing dates it today and takes 
   expect(us.includes('גיא פרץ') && us.includes('(פ)') && us.includes('גול עצמי'), 'our scorers: ' + us);
   expect(await admin.locator('.sc-scorers .them .scr-miss').count() === 1, 'their missed penalty is not shown');
   expect(await admin.locator('.sc-score [data-them]').innerText() === '0', 'a miss changed the score');
-  expect(await admin.locator('.tl .tl-pen').count() === 1 && await admin.locator('.tl .tl-miss').count() === 1, 'timeline: penalty tag or miss row missing');
+  expect(await admin.locator('.ev.us .tl-pen').count() === 1 && await admin.locator('.ev.them.miss').count() === 1, 'timeline: penalty tag, or their miss on their side, missing');
 
   await admin.click('[data-act="end"]');
   await admin.click('[data-ok]');

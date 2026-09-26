@@ -885,7 +885,7 @@ body.with-nav .toast { bottom: calc(var(--nav-space) + 10px); }
 }
 .scr-more button:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 /* The goal "ועוד N" pointed at, lit for a moment in the timeline. */
-.tl li.flash { animation: tl-flash 1.8s ease-out; border-radius: 12px; }
+.ev-list li.flash { animation: tl-flash 1.8s ease-out; border-radius: 12px; }
 @keyframes tl-flash {
   0%, 35% { background: rgba(232, 185, 49, .16); box-shadow: 0 0 0 1px var(--gold-line), 0 0 22px rgba(232, 185, 49, .25); }
   100% { background: transparent; box-shadow: none; }
@@ -964,32 +964,51 @@ button.bench-p { cursor: pointer; }
 .bench-p .num { color: var(--gold); }
 
 /* ═══ Live: timeline ═══════════════════════════════════════════════════ */
-.tl { list-style: none; margin: 0; padding: 0; }
-.tl li + li { border-top: 1px solid var(--line); }
-.tl-item { display: flex; align-items: center; gap: .7rem; width: 100%; padding: .72rem 0; background: none; border: 0; color: inherit; font: inherit; text-align: start; }
-button.tl-item { cursor: pointer; border-radius: 10px; }
-button.tl-item:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
-.tl-min { flex: none; width: 50px; font-size: .84rem; font-weight: 800; color: var(--muted); text-align: center; }
-.tl-ico { flex: none; width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; background: var(--surface-2); color: var(--muted); }
-.tl-ico svg { width: 17px; height: 17px; }
-.tl-goal.us .tl-ico { background: var(--gold-fill); color: var(--on-gold); box-shadow: 0 0 14px rgba(232, 185, 49, .45); }
+/* The match's events on two sides (the owner's pick from a mockup, in the
+   spirit of sports apps): ours on the right beside our crest, theirs on the
+   left. In gold only what is ours and in: goals and the player coming on. */
+.ev-sides { display: flex; justify-content: space-between; gap: 1rem; font-size: .7rem; font-weight: 800; color: var(--faint); padding: .1rem .2rem .45rem; border-bottom: 1px solid var(--line); }
+.ev-list { list-style: none; margin: 0; padding: 0; }
+.ev-list > li + li { border-top: 1px solid var(--line); }
+.ev {
+  display: flex; align-items: center; gap: .6rem; width: 88%; padding: .75rem 0;
+  background: none; border: 0; color: inherit; font: inherit; text-align: start;
+}
+.ev.them { flex-direction: row-reverse; margin-inline-start: auto; text-align: left; }
+button.ev { cursor: pointer; border-radius: 10px; }
+button.ev:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.ev-min { flex: none; width: 44px; font-size: .86rem; font-weight: 800; color: var(--muted); text-align: center; }
+.ev-ico { flex: none; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: var(--surface-2); color: var(--muted); }
+.ev-ico svg { width: 17px; height: 17px; }
+.ev.us .ev-ico.goal { background: var(--gold-fill); color: var(--on-gold); box-shadow: 0 0 14px rgba(232, 185, 49, .45); }
+.ev.miss .ev-ico { color: var(--faint); }
+.ev-txt { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.ev-txt > b { font-size: .92rem; font-weight: 700; }
+.ev-txt small { font-size: .75rem; color: var(--faint); }
+.ev.miss .ev-txt > b { color: var(--muted); }
+.ev-sc { font-weight: 700; color: var(--muted); unicode-bidi: isolate; }
+.ev-sc b { color: var(--gold); }
+.ev-pair { flex: none; width: 30px; display: grid; gap: 4px; justify-items: center; }
+.ev-dot { width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; }
+.ev-dot svg { width: 12px; height: 12px; }
+.ev-dot.in { background: var(--gold-soft); color: var(--gold); border: 1px solid var(--gold-line); }
+.ev-dot.out { background: var(--surface-2); color: var(--faint); border: 1px solid var(--line-strong); }
 .tl-pen {
   font-size: .64rem; font-weight: 800; padding: 1px 6px; border-radius: var(--r-pill);
   color: var(--gold); background: var(--gold-soft); border: 1px solid var(--gold-line);
 }
-.tl-goal.them .tl-pen { color: var(--muted); background: var(--surface-2); border-color: var(--line-strong); }
-.tl-miss .tl-txt b { color: var(--muted); }
-.tl-miss .tl-ico { color: var(--faint); }
-.tl-txt { flex: 1; min-width: 0; }
-.tl-txt b { display: flex; align-items: center; gap: .25rem; font-size: .9rem; font-weight: 700; }
-.tl-txt small { display: flex; align-items: center; gap: .25rem; font-size: .75rem; color: var(--faint); }
-.tl-txt i { display: inline-flex; }
-.tl-txt i svg { width: 13px; height: 13px; }
-.tl-txt i.in { color: var(--gold); }
-.tl-score { color: var(--muted); font-weight: 800; direction: ltr; unicode-bidi: isolate; }
-.tl-mark { padding: .55rem 0; text-align: center; }
-.tl-mark > span { display: inline-flex; align-items: center; gap: .35rem; font-size: .72rem; font-weight: 700; color: var(--faint); }
-.tl-mark svg { width: 14px; height: 14px; }
+.tl-pen.dim { color: var(--muted); background: var(--surface-2); border-color: var(--line-strong); }
+.ev-txt .out { font-size: .84rem; color: var(--faint); }
+/* Period breaks in the middle: a pill on a line, the score at that moment. */
+.ev-mark { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: .85rem 0; position: relative; }
+.ev-mark::before { content: ""; position: absolute; inset-inline: 0; top: calc(.85rem + 13px); height: 1px; background: var(--line-strong); }
+.mk-pill { position: relative; padding: .22rem .8rem; border-radius: var(--r-pill); background: var(--surface-solid); border: 1.5px solid var(--line-strong); font-size: .78rem; font-weight: 800; }
+.mk-sc { position: relative; font-size: .92rem; font-weight: 700; color: var(--muted); }
+.mk-sc b { color: var(--gold); }
+.ev-mark small { font-size: .72rem; color: var(--faint); }
+.ev-kick { display: flex; justify-content: center; align-items: center; gap: .35rem; padding: .75rem 0; font-size: .72rem; font-weight: 700; color: var(--faint); }
+.ev-kick svg { width: 14px; height: 14px; }
+.ev-list > li.ev-mark + li, .ev-list > li + li.ev-mark, .ev-list > li + li.ev-kick { border-top: 0; }
 
 /* ═══ Live: setup ══════════════════════════════════════════════════════ */
 .format-line {

@@ -113,10 +113,12 @@ const LISTS = [
     note: 'לתאריך מסוים: אימון שזז, בוטל או נוסף. שדה ריק נשאר כמו באימון הקבוע של אותו יום.',
     blank: () => ({ date: today(), cancelled: false, start: '', end: '', venue: { name: '', address: '' } }),
     label: (c) => (c.date ? shortDate(c.date) : 'שינוי חדש'),
-    sum: (c) => ({ title: c.date ? `${DAYS[weekday(c.date)]} ${shortDate(c.date)}` : 'שינוי חדש', sub: c.cancelled ? 'בוטל' : [hours(c), c.venue?.name].filter(Boolean).join(' · ') }),
+    sum: (c) => ({ title: c.date ? `${DAYS[weekday(c.date)]} ${shortDate(c.date)}` : 'שינוי חדש',
+      sub: c.cancelled ? 'בוטל' : [c.movedTo && c.movedTo !== c.date && `הוזז ל${DAYS[weekday(c.movedTo)]} ${shortDate(c.movedTo)}`, hours(c), c.venue?.name].filter(Boolean).join(' · ') }),
     fields: [
       { key: 'date', label: 'תאריך', type: 'date', required: true },
       { key: 'cancelled', label: 'האימון בוטל', type: 'check' },
+      { key: 'movedTo', label: 'הוזז לתאריך', type: 'date', hint: 'ריק = באותו יום' },
       { key: 'start', label: 'משעה', type: 'time' },
       { key: 'end', label: 'עד', type: 'time' },
       { key: 'venue.name', label: 'מגרש' },

@@ -70,7 +70,7 @@ const dayMonth = (iso) => { const [, m, d] = iso.split('-'); return `${+d}.${+m}
 const hoursOf = (t) => (t.start && t.end ? `${t.start}–${t.end}` : t.start || '');
 // A training that differs from the routine is framed in red with a flag on
 // its top edge (the owner's pick, and the one red outside match results).
-const FLAGS = { changed: 'שינוי', cancelled: 'בוטל', extra: 'נוסף' };
+const FLAGS = { changed: 'שינוי', cancelled: 'בוטל', extra: 'נוסף', moved: 'הוזז', away: 'הוזז' };
 
 // Next week is offered from Saturday; the choice lives for the visit.
 let showNext = false;
@@ -85,7 +85,7 @@ function weekInner(s) {
     const inner = `${flag}<span class="l">${day}</span><span class="n num">${dayMonth(it.date)}</span>
       <span class="t num">${esc(it.start || '—')}</span>`;
     if (it.kind === 'game') return `<div class="wk-day ${cls}">${inner}<span class="v">משחק</span></div>`;
-    const where = it.change === 'cancelled' ? 'בוטל' : it.venue.name || it.venue.address;
+    const where = it.change === 'cancelled' ? 'בוטל' : it.change === 'away' ? `ל${DAYS[weekday(it.movedTo)]}` : it.venue.name || it.venue.address;
     return `<button type="button" class="wk-day ${cls}" data-wk="${i}">${inner}<span class="v">${esc(where)}</span></button>`;
   };
   const toggle = s.offersNextWeek
@@ -108,7 +108,8 @@ function trainingSheet(t, s) {
   const hours = hoursOf(t) || 'שעה טרם נקבעה';
   const waze = navLink(t.venue.waze) || wazeLink(t.venue.address);
   const place = t.venue.name || t.venue.address;
-  const cancelled = t.change === 'cancelled';
+  const away = t.change === 'away';
+  const cancelled = t.change === 'cancelled' || away;
   // What moved, the routine's value struck through beside the new one. New
   // hours are already there, so the hours row goes (the owner: it repeated
   // them); the venue row stays, it carries the address.
@@ -118,9 +119,14 @@ function trainingSheet(t, s) {
   ].filter(Boolean) : [];
   openSheet({
     title: `אימון · ${t.today ? 'היום' : `יום ${DAYS[weekday(t.date)]}`} ${dayMonth(t.date)}`,
-    subtitle: cancelled ? '<span class="wk-sub">האימון בוטל</span>' : t.change === 'changed' ? '<span class="wk-sub">שינוי מהלוז הקבוע</span>'
+    subtitle: away ? '<span class="wk-sub">האימון הוזז ליום אחר</span>'
+      : cancelled ? '<span class="wk-sub">האימון בוטל</span>' : t.change === 'changed' ? '<span class="wk-sub">שינוי מהלוז הקבוע</span>'
+      : t.change === 'moved' ? `<span class="wk-sub">הוזז מיום ${DAYS[weekday(t.from)]} <span class="num">${dayMonth(t.from)}</span></span>`
       : t.change === 'extra' ? '<span class="wk-sub">אימון נוסף</span>' : '',
-    body: `<div class="wk-sheet${cancelled ? ' cancelled' : ''}">
+    body: away ? `<div class="wk-sheet">
+      <div class="meta-row wk-moved">${icon('calendar')}<span>עבר ליום <b>${DAYS[weekday(t.movedTo)]} <span class="num">${dayMonth(t.movedTo)}</span></b></span></div>
+      ${s.canEditTrainings ? `<button type="button" class="btn secondary" data-tr-edit>${icon('edit')} שינוי באימון הזה</button>` : ''}
+    </div>` : `<div class="wk-sheet${cancelled ? ' cancelled' : ''}">
       ${was.length ? `<dl class="wk-was">${was.map(([k, from, to, num]) =>
         `<dt>${k}</dt><dd${num ? ' class="num"' : ''}><s${num ? ' dir="ltr"' : ''}>${esc(from || '—')}</s> <b${num ? ' dir="ltr"' : ''}>${esc(to || '—')}</b></dd>`).join('')}</dl>` : ''}
       ${was.some(([k]) => k === 'שעה') ? '' : `<div class="meta-row">${icon('clock')}<span class="num" dir="ltr"><b>${esc(hours)}</b></span></div>`}
@@ -140,6 +146,14 @@ function trainingSheet(t, s) {
    has it is sent empty, so the change keeps only what differs: a routine
    that moves later still carries this date along where it was not changed. */
 function editTrainingSheet(t, s) {
+  // A moved training is kept on the date it left, with where it went: the
+  // change is always written there. Its moved-in square is where its hours
+  // and ground show, so a moved-away one is edited from those.
+  const orig = t.from || t.date;
+  if (t.change === 'away') {
+    const there = [...(s.week?.items || []), ...(s.nextWeek?.items || [])].find((i) => i.change === 'moved' && i.from === t.date);
+    t = there || { ...t, change: 'moved', from: t.date, date: t.movedTo };
+  }
   const base = t.was || (t.change ? null : t);
   const same = (v, b) => (base && String(v || '') === String(b || '') ? '' : String(v || '').trim());
   let cancelled = t.change === 'cancelled';
@@ -149,13 +163,15 @@ function editTrainingSheet(t, s) {
   // back to front.
   const routine = base ? [hoursOf(base) && `<span class="num" dir="ltr">${esc(hoursOf(base))}</span>`, esc(base.venue.name || base.venue.address)].filter(Boolean).join(' · ') : 'אימון נוסף';
   const sheet = openSheet({
-    title: `שינוי באימון · ${DAYS[weekday(t.date)]} ${dayMonth(t.date)}`,
+    title: `שינוי באימון · ${DAYS[weekday(orig)]} ${dayMonth(orig)}`,
     subtitle: base ? `הלוז הקבוע: ${routine}` : routine,
     tall: true,
     body: `<div class="seg tr-seg" role="tablist">
         <button type="button" data-tr-state="on" aria-selected="${!cancelled}">מתקיים</button>
         <button type="button" data-tr-state="off" aria-selected="${cancelled}">בוטל</button></div>
       <div class="grid-2">
+        ${base ? field('date', 'תאריך', t.date, 'date', 'אפשר להזיז לתאריך אחר', true)
+          : '<p class="note span-2 tr-fixed">את התאריך של אימון נוסף משנים במסך הניהול.</p>'}
         ${field('start', 'משעה', t.start, 'time')}${field('end', 'עד', t.end, 'time')}
         ${field('name', 'מגרש', t.venue.name, 'text', '', true)}
         ${field('address', 'כתובת', t.venue.address, 'text', 'ממנה נבנה הניווט ב-Waze', true)}
@@ -165,7 +181,7 @@ function editTrainingSheet(t, s) {
         <button type="button" class="btn" data-tr-save>שמירת השינוי</button>
         ${t.change ? `<button type="button" class="btn secondary" data-tr-reset>${base ? 'חזרה ללוז הקבוע' : 'מחיקת האימון הנוסף'}</button>` : ''}
       </div>
-      <p class="note tr-foot">רק לאימון של <span class="num">${dayMonth(t.date)}</span>. הלוז הקבוע לא משתנה.</p>`,
+      <p class="note tr-foot">רק לאימון של <span class="num">${dayMonth(orig)}</span>. הלוז הקבוע לא משתנה.</p>`,
     onMount: ({ el }) => wire(el),
   });
 
@@ -180,7 +196,7 @@ function editTrainingSheet(t, s) {
     const send = async (change, done) => {
       busy(true);
       try {
-        await s.saveTraining(t.date, change);
+        await s.saveTraining(orig, change);
         sheet.close('done');
         toast(done);
       } catch (e) {
@@ -203,15 +219,19 @@ function editTrainingSheet(t, s) {
       if (waze && !navLink(waze)) { toast('קישור Waze: קישור שמתחיל ב-https:// או קואורדינטות.', { kind: 'err' }); return; }
       const venue = { name: val('name'), address: val('address'), waze };
       const venueSame = base && venue.name === base.venue.name && venue.address === base.venue.address && venue.waze === (base.venue.waze || '');
+      const day = base ? val('date') : '';
+      if (base && !/^\d{4}-\d{2}-\d{2}$/.test(day)) { toast('בחרו תאריך לאימון.', { kind: 'err' }); return; }
+      const movedTo = base && day !== orig ? day : '';
       const change = {
         cancelled,
+        movedTo,
         start: same(val('start'), base?.start),
         end: same(val('end'), base?.end),
         venue: venueSame ? { name: '', address: '', waze: '' } : venue,
       };
       // Nothing left that differs from the routine: that is the routine.
-      if (base && !cancelled && !change.start && !change.end && venueSame) { send(null, 'האימון חזר ללוז הקבוע'); return; }
-      send(change, 'האימון עודכן');
+      if (base && !cancelled && !movedTo && !change.start && !change.end && venueSame) { send(null, 'האימון חזר ללוז הקבוע'); return; }
+      send(change, movedTo && !cancelled ? `האימון הוזז ליום ${DAYS[weekday(movedTo)]}` : 'האימון עודכן');
     });
     el.querySelector('[data-tr-reset]')?.addEventListener('click', () => send(null, base ? 'האימון חזר ללוז הקבוע' : 'האימון הנוסף נמחק'));
   }

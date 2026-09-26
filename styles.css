@@ -321,7 +321,7 @@ button.wk-day:active { transform: scale(.97); }
   padding: 3px 7px; border-radius: var(--r-pill); white-space: nowrap;
   font-size: .62rem; font-weight: 800; line-height: 1; background: var(--loss); color: var(--on-loss);
 }
-.wk-day.cancelled .t { text-decoration: line-through; color: var(--faint); }
+.wk-day.cancelled .t, .wk-day.away .t { text-decoration: line-through; color: var(--faint); }
 .wk-day.game { background: transparent; border-style: dashed; }
 .wk-sub { color: var(--loss); font-weight: 700; }
 .wk-was {
@@ -335,6 +335,7 @@ button.wk-day:active { transform: scale(.97); }
 .wk-sheet > .btn.secondary { margin-top: .6rem; }
 .tr-seg { margin-bottom: .9rem; }
 .tr-foot { margin: .8rem 0 0; text-align: center; }
+.tr-fixed { margin: 0; }
 .wk-sheet .meta-row + .meta-row { margin-top: .6rem; }
 .wk-sheet.cancelled .meta-row b { text-decoration: line-through; color: var(--muted); }
 

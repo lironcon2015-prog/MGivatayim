@@ -823,6 +823,12 @@ function setTrainingChange_(req) {
       date: date, cancelled: c.cancelled === true, start: hhmm(c.start), end: hhmm(c.end),
       venue: { name: str(v.name, 80), address: str(v.address, 200), waze: str(v.waze, 300) },
     };
+    // Moved to another day: the same change, with where it went.
+    if (c.movedTo != null && c.movedTo !== '') {
+      const to = String(c.movedTo);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(to)) throw fail_('תאריך לא תקין', 'bad_date');
+      if (to !== date) entry.movedTo = to;
+    }
   }
   return withLock_(() => {
     const current = readJson_(SEASON_FILE, null) || { version: 0, season: {} };

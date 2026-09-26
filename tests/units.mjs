@@ -343,6 +343,31 @@ await test('trainings: the week is the routine plus this week\'s changes, and th
   assert.equal(buildSeason({ ...base, trainings: [], trainingChanges: [] }, tuesday).week.trainings, 0, 'no trainings, no strip');
 });
 
+await test('trainings: a training moved to another day leaves its day and lands on the other', async () => {
+  const { buildSeason } = await import('../src/season.js');
+  const base = {
+    team: { homeVenue: { name: 'בורוכוב' } },
+    trainings: [{ day: '0', start: '17:00', end: '18:30' }, { day: '2', start: '17:00', end: '18:30' }],
+    trainingChanges: [{ date: '2026-09-27', movedTo: '2026-09-28', start: '16:00' }],
+  };
+  const w = buildSeason(base, new Date('2026-09-29T10:00:00Z')).week;
+  assert.deepEqual(w.items.map((i) => [i.date, i.change, i.start]), [
+    ['2026-09-27', 'away', '17:00'], ['2026-09-28', 'moved', '16:00'], ['2026-09-29', '', '17:00'],
+  ]);
+  const [away, moved] = w.items;
+  assert.equal(away.movedTo, '2026-09-28');
+  assert.equal(moved.from, '2026-09-27');
+  assert.deepEqual([moved.end, moved.venue.name, moved.was.start], ['18:30', 'בורוכוב', '17:00'], 'the rest comes from the routine it left');
+  // Into the next week: gone from this one, there in the next.
+  const later = { ...base, trainingChanges: [{ date: '2026-09-29', movedTo: '2026-10-05' }] };
+  const s2 = buildSeason(later, new Date('2026-10-03T10:00:00Z'));
+  assert.equal(s2.week.items.find((i) => i.date === '2026-09-29').change, 'away');
+  assert.deepEqual(s2.nextWeek.items.filter((i) => i.change === 'moved').map((i) => i.date), ['2026-10-05']);
+  // Cancelled wins over moved.
+  const off = buildSeason({ ...base, trainingChanges: [{ date: '2026-09-27', movedTo: '2026-09-28', cancelled: true }] }, new Date('2026-09-29T10:00:00Z')).week;
+  assert.deepEqual(off.items.map((i) => i.change), ['cancelled', '']);
+});
+
 await test('the next match folds into the schedule, with what only it had', async () => {
   const F = await import('../src/fixtures.js');
   const { buildSeason } = await import('../src/season.js');

@@ -43,31 +43,54 @@ export function trainingWeek(season, games, now = new Date(), ahead = 0) {
   const home = season?.team?.homeVenue;
 
   const routine = (season?.trainings || []).filter((t) => t && /^[0-6]$/.test(String(t.day)));
-  const changes = (season?.trainingChanges || []).filter((c) => c && DATE.test(String(c.date)) && c.date >= start && c.date <= end);
+  const valid = (season?.trainingChanges || []).filter((c) => c && DATE.test(String(c.date)));
+  // A training moved to another day is one change, on its own date, with
+  // `movedTo`: it leaves its day ("moved") and lands on the other ("moved
+  // in"), and either end may fall in this week.
+  const movedTo = (c) => (c.cancelled !== true && DATE.test(String(c.movedTo || '')) && c.movedTo !== c.date ? c.movedTo : '');
+  const changes = valid.filter((c) => c.date >= start && c.date <= end);
+  const arriving = valid.filter((c) => movedTo(c) >= start && movedTo(c) <= end);
+
+  const routineOn = (date, i = weekday(date)) => routine.filter((t) => Number(t.day) === i)
+    .map((t) => ({ date, start: time(t.start), end: time(t.end), venue: venueOf(t.venue, home), change: '' }));
+  // The routine as a change leaves it: an empty field keeps the routine's.
+  const apply = (c, base, date) => {
+    const hasVenue = text(c.venue?.name) || text(c.venue?.address) || text(c.venue?.waze);
+    return {
+      date,
+      start: time(c.start) || base?.start || '',
+      end: time(c.end) || base?.end || '',
+      venue: hasVenue ? venueOf(c.venue, home) : base?.venue || venueOf(null, home),
+    };
+  };
 
   const days = [];
   for (let i = 0; i < 7; i++) {
     const date = addDays(start, i);
-    const regular = routine.filter((t) => Number(t.day) === i)
-      .map((t) => ({ date, start: time(t.start), end: time(t.end), venue: venueOf(t.venue, home), change: '' }));
+    const regular = routineOn(date, i);
     // A change on a day with a routine training replaces the fields it fills
-    // in (an empty field keeps the routine's), and keeps what they were
-    // (`was`) for the sheet; on any other day it is an extra training.
+    // in, and keeps what they were (`was`) for the sheet; on any other day it
+    // is an extra training.
     const taken = new Set();
     for (const c of changes.filter((x) => x.date === date)) {
       const base = regular.find((r) => !taken.has(r));
-      const hasVenue = text(c.venue?.name) || text(c.venue?.address) || text(c.venue?.waze);
-      const merged = {
-        date,
-        start: time(c.start) || base?.start || '',
-        end: time(c.end) || base?.end || '',
-        venue: hasVenue ? venueOf(c.venue, home) : base?.venue || venueOf(null, home),
-        change: c.cancelled === true ? 'cancelled' : base ? 'changed' : 'extra',
-      };
+      const to = movedTo(c);
+      if (to && base) {
+        // Gone from here: shown struck through, with where it went.
+        Object.assign(base, { change: 'away', movedTo: to, was: { start: base.start, end: base.end, venue: base.venue } });
+        taken.add(base);
+        continue;
+      }
+      const merged = { ...apply(c, base, date), change: c.cancelled === true ? 'cancelled' : base ? 'changed' : 'extra' };
       if (base) {
         Object.assign(base, merged, { was: { start: base.start, end: base.end, venue: base.venue } });
         taken.add(base);
       } else regular.push(merged);
+    }
+    for (const c of arriving.filter((x) => movedTo(x) === date)) {
+      const base = routineOn(c.date)[0];
+      if (!base) continue;
+      regular.push({ ...apply(c, base, date), change: 'moved', from: c.date, was: { start: base.start, end: base.end, venue: base.venue } });
     }
     days.push(...regular.sort((a, b) => a.start.localeCompare(b.start)));
   }

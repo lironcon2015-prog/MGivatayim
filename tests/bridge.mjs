@@ -533,6 +533,11 @@ console.log('live:');
     const { trainingChanges: _t, ...rest } = after;
     const { trainingChanges: _b, ...restBefore } = before.season;
     assert.deepEqual(rest, restBefore, 'nothing else in the season changed');
+    // Moved to another day: kept on its own date, with where it went.
+    assert.equal(err(C.post({ action: 'setTrainingChange', deviceKey: coach, date: '2026-10-03', change: { movedTo: 'soon' } })), 'bad_date');
+    C.post({ action: 'setTrainingChange', deviceKey: coach, date: '2026-10-03', change: { movedTo: '2026-10-04', start: '10:00' } });
+    const moved = C.post({ action: 'getSeason', adminCode: ADMIN }).result.season.trainingChanges.find((c) => c.date === '2026-10-03');
+    assert.deepEqual([moved.movedTo, moved.start], ['2026-10-04', '10:00']);
     // Back to the routine.
     C.post({ action: 'setTrainingChange', deviceKey: coach, date: '2026-10-03', change: null });
     assert.deepEqual(C.post({ action: 'getSeason', adminCode: ADMIN }).result.season.trainingChanges.map((c) => c.date), ['2026-10-01']);

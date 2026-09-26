@@ -22,6 +22,11 @@ const STRIP = 10;
 let shownTab = null;    // 'photos' | 'videos', kept across visits
 let tabFixed = false;   // set by a tap, an upload, or the first fresh answer
 let album = null;       // the key of the game page open, or null for the overview
+// The gallery on screen now. The media screen is drawn again under an open
+// upload (a reload draws it from the kept copy, then from the fresh season):
+// when the upload ends, the screen to refresh is this one, not the one the
+// upload sheet was opened from, which is gone.
+let current = null;
 let allAlbums = false;  // "all games" pressed
 
 // A manager gets hidden items too — they belong in the manager's list, not
@@ -514,7 +519,7 @@ export function wireGallery(root, s, { isAdmin = () => false } = {}) {
         asAdmin,
         preset,
         // Land on the tab of what was just uploaded.
-        onDone: (kinds) => { shownTab = kinds.includes('image') ? 'photos' : 'videos'; tabFixed = true; refresh(); },
+        onDone: (kinds) => { shownTab = kinds.includes('image') ? 'photos' : 'videos'; tabFixed = true; (current || refresh)(); },
       });
     }
   });
@@ -522,5 +527,6 @@ export function wireGallery(root, s, { isAdmin = () => false } = {}) {
   paint();
   if (g) shown = JSON.stringify(g);
   refresh({ quiet: true });
-  return () => { alive = false; };
+  current = refresh;
+  return () => { alive = false; if (current === refresh) current = null; };
 }

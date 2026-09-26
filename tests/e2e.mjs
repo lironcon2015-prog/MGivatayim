@@ -780,6 +780,27 @@ await step('the manager changes a training from the home screen; a parent has no
   await admin.click('[data-tr-reset]');
   await admin.locator('.week-sec .wk-day.today:not(.chg)').waitFor({ timeout: 8000 });
   expect(ch().length === 0, 'the change is still there: ' + JSON.stringify(ch()));
+
+  // Moved to another day of the week: struck through here, there on the
+  // other day, one change on today's date. Back to the routine undoes both.
+  const today = israelToday();
+  const shift = new Date(today + 'T12:00:00Z').getUTCDay() > 0 ? -1 : 1;
+  const target = new Date(Date.parse(today + 'T12:00:00Z') + shift * 86400000).toISOString().slice(0, 10);
+  await admin.locator('.week-sec .wk-day.today').click();
+  await admin.click('[data-tr-edit]');
+  await admin.fill('#tr-date', target);
+  await admin.click('[data-tr-save]');
+  await admin.locator('.week-sec .wk-day.today.away').waitFor({ timeout: 8000 });
+  const [, m, d] = target.split('-');
+  const movedSq = admin.locator('.week-sec .wk-day.moved');
+  const mt = (await movedSq.innerText()).replace(/\s+/g, ' ');
+  expect(mt.includes(`${+d}.${+m}`) && mt.includes('17:00') && mt.includes('הוזז'), 'the moved-in square: ' + mt);
+  expect(ch().length === 1 && ch()[0].movedTo === target, 'moved as ' + JSON.stringify(ch()));
+  await movedSq.click();
+  await admin.click('[data-tr-edit]');
+  await admin.click('[data-tr-reset]');
+  await admin.locator('.week-sec .wk-day.today:not(.chg)').waitFor({ timeout: 8000 });
+  expect(await admin.locator('.week-sec .wk-day.moved').count() === 0 && ch().length === 0, 'the move is still there');
   // The manager's editor picks the new version up instead of saving over it.
   await admin.goto(APP + '#/admin');
   await adminTab(admin, 'team');
@@ -1140,10 +1161,25 @@ await step('the uploader deletes their own photo', async () => {
 });
 
 await step('several items are deleted at once by picking them; a parent picks only their own', async () => {
+  // A reload draws the media screen from the kept copy, then again when the
+  // season arrives. An upload started on the first and still going when the
+  // second is drawn must show on the second: a slow upload, a slower season.
+  const slowUpload = async (r) => { await new Promise((ok) => setTimeout(ok, 3000)); await r.fallback(); };
+  const slowSeason = async (r) => {
+    if (!(r.request().postData() || '').includes('"getSeason"')) return r.continue().catch(() => {});
+    const resp = await r.fetch();
+    await new Promise((ok) => setTimeout(ok, 1000));
+    await r.fulfill({ response: resp }).catch(() => {});
+  };
+  await other.route('https://api.cloudinary.com/**', slowUpload);
+  await other.route(BRIDGE, slowSeason);
   await other.reload();
   await other.setInputFiles('[data-files]', { name: 'b.png', mimeType: 'image/png', buffer: PNG });
   await other.click('.sheet [data-go]');
-  await other.locator('[data-gallery] .gl-tile').first().waitFor({ timeout: 8000 });
+  try { await other.locator('[data-gallery] .gl-tile').first().waitFor({ timeout: 8000 }); }
+  catch { throw new Error(`the upload is not on the screen drawn after it started — bridge: ${galleryFile().items.length} items, tiles: ${await other.locator('[data-gallery] .gl-tile').count()}`); }
+  await other.unroute('https://api.cloudinary.com/**', slowUpload);
+  await other.unroute(BRIDGE, slowSeason);
   // The gallery's first answer on opening, answered at once but delivered
   // late, as on a slow line: it lands after the answer that follows the
   // upload, and must not draw the gallery from before it.

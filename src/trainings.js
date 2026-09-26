@@ -7,7 +7,7 @@
 // every load and never stored — a change simply stops mattering once its
 // week is over.
 
-import { todayInIsrael } from './fixtures.js';
+import { splitKickoff } from './format.js';
 
 export const DAYS = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
 
@@ -31,10 +31,14 @@ function venueOf(v, home) {
 }
 
 // Sunday to Saturday around today (Israel), the week a parent plans by.
-// The game, when the next match falls in it, closes the row.
+// The game, when the next match falls in it, closes the row. From Saturday
+// at 17:00 the coming week shows instead (the owner's request): the week's
+// game is over by then, and parents plan the next one that evening.
+export const NEXT_WEEK_FROM = '17:00';
 export function trainingWeek(season, nextMatch, now = new Date()) {
-  const today = todayInIsrael(now);
-  const start = addDays(today, -weekday(today));
+  const { date: today, time: clock } = splitKickoff(now.toISOString());
+  const ahead = weekday(today) === 6 && clock >= NEXT_WEEK_FROM;
+  const start = ahead ? addDays(today, 1) : addDays(today, -weekday(today));
   const end = addDays(start, 6);
   const home = season?.team?.homeVenue;
 

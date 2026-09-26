@@ -647,10 +647,15 @@ await step('a weekly training shows above the next match, on the first screen, a
 
   await parent.goto(APP + '#/');
   await parent.reload();
-  const sq = parent.locator('.week-sec .wk-day.today');
+  // From Saturday 17:00 the strip shows the coming week: today's training
+  // is then next Saturday's, and not marked as today.
+  const hour = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Jerusalem', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date());
+  const ahead = day === 6 && hour >= '17:00';
+  const sq = parent.locator(ahead ? '.week-sec .wk-day' : '.week-sec .wk-day.today').first();
   await sq.waitFor({ timeout: 8000 });
   const t = (await sq.innerText()).replace(/\s+/g, ' ');
-  expect(t.includes('היום') && t.includes('17:00') && t.includes('אצטדיון גבעתיים'), 'today\'s square: ' + t);
+  expect(t.includes(ahead ? 'שבת' : 'היום') && t.includes('17:00') && t.includes('אצטדיון גבעתיים'), 'the training\'s square: ' + t);
+  expect(!ahead || !(await parent.locator('.week-sec .wk-day.today').count()), 'the coming week has no "today"');
   // Above the next match, and the card after it is still the schedule.
   const order = await parent.evaluate(() => {
     const w = document.querySelector('.week-sec'), h = document.querySelector('.hero');

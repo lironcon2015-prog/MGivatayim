@@ -327,7 +327,11 @@ await test('trainings: the week is the routine plus this week\'s changes, and th
   assert.equal(thu.end, '18:30', 'an empty field keeps the routine\'s');
   assert.equal(thu.venue.name, 'רמת חן');
   assert.equal(wed.venue.name, 'בורוכוב', 'an extra training without a venue is at home');
-  // Sunday starts the next week.
+  // Saturday shows its own week until 17:00 in Israel, then the next one.
+  assert.equal(buildSeason(base, new Date('2026-10-03T13:59:00Z')).week.start, '2026-09-27', 'Saturday 16:59');
+  const sat = buildSeason(base, new Date('2026-10-03T14:00:00Z')).week;
+  assert.equal(sat.start, '2026-10-04', 'Saturday 17:00 shows the coming week');
+  assert.ok(sat.items.every((i) => !i.past && !i.today), 'nothing in the coming week is past or today');
   assert.equal(buildSeason(base, new Date('2026-10-04T08:00:00Z')).week.start, '2026-10-04');
   assert.equal(buildSeason({ ...base, trainings: [], trainingChanges: [] }, tuesday).week, null, 'no trainings, no strip');
 });

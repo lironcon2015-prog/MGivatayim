@@ -140,6 +140,9 @@ export function newLive({ id, opponent, home = true, round = null, friendly = fa
    string of HTML would otherwise run in every viewer's browser, the
    manager's included. tests/e2e.mjs feeds such a state to every screen. */
 
+// Events a controller can fix or delete (the rest are the whistle's).
+export const EDITABLE = ['goal', 'miss', 'sub'];
+
 const num = (v, d = null) => (v != null && v !== '' && Number.isFinite(Number(v)) ? Number(v) : d);
 const str = (v) => (v == null ? '' : String(v));
 const STATUSES = ['setup', 'running', 'break', 'fulltime', 'ended'];
@@ -154,9 +157,11 @@ const cleanLineup = (list) => (Array.isArray(list) ? list : [])
 function cleanEvent(e) {
   const out = { id: str(e.id), type: str(e.type), period: num(e.period, 0), atMs: num(e.atMs, 0) };
   if (e.atStart) out.atStart = true;
-  if (e.type === 'goal') {
+  if (e.type === 'goal' || e.type === 'miss') {
     out.side = e.side === 'them' ? 'them' : 'us';
-    if (out.side === 'us') { out.scorer = e.scorer == null ? null : str(e.scorer); out.assist = e.assist == null ? null : str(e.assist); }
+    if (out.side === 'us') { out.scorer = e.scorer == null ? null : str(e.scorer); if (e.type === 'goal') out.assist = e.assist == null ? null : str(e.assist); }
+    if (e.type === 'goal' && e.pen === true) out.pen = true;
+    if (e.type === 'goal' && e.og === true && out.side === 'us') { out.og = true; out.scorer = null; out.assist = null; }
   } else if (e.type === 'sub') {
     out.out = str(e.out); out.in = str(e.in); out.pos = str(e.pos);
   }
@@ -252,6 +257,7 @@ export function reduce(state, op) {
       endPeriod(s, op.at);
       return s;
     case 'goal':
+    case 'miss':
     case 'sub': {
       if (s.events.some((e) => e.id === op.id)) return state;
       if (!['running', 'break', 'fulltime'].includes(s.status)) return state;
@@ -259,7 +265,15 @@ export function reduce(state, op) {
       if (op.atStart) e.atStart = true;
       if (op.t === 'goal') {
         e.side = op.side === 'them' ? 'them' : 'us';
-        if (e.side === 'us') { e.scorer = op.scorer || null; e.assist = op.assist || null; }
+        if (e.side === 'us') { e.scorer = op.og ? null : op.scorer || null; e.assist = op.og || op.pen ? null : op.assist || null; }
+        // A penalty goal, and (ours only) an own goal by the opponent: no
+        // scorer of ours, and credited to no one.
+        if (op.pen) e.pen = true;
+        if (op.og && e.side === 'us') e.og = true;
+      } else if (op.t === 'miss') {
+        // A penalty that did not go in (missed or saved): shown, never scored.
+        e.side = op.side === 'them' ? 'them' : 'us';
+        if (e.side === 'us') e.scorer = op.scorer || null;
       } else {
         if (!op.out || !op.in || op.out === op.in) return state;
         e.out = op.out; e.in = op.in; e.pos = op.pos || '';
@@ -269,13 +283,15 @@ export function reduce(state, op) {
     }
     case 'edit': {
       const e = s.events.find((x) => x.id === op.id);
-      if (!e || !['goal', 'sub'].includes(e.type)) return state;
-      for (const k of ['scorer', 'assist', 'atMs', 'period', 'atStart', 'pos']) if (k in op.patch) e[k] = op.patch[k];
+      if (!e || !EDITABLE.includes(e.type)) return state;
+      for (const k of ['scorer', 'assist', 'atMs', 'period', 'atStart', 'pos', 'og']) if (k in op.patch) e[k] = op.patch[k];
       if (e.atStart === false) delete e.atStart;
+      if (!e.og) delete e.og;
+      else { e.scorer = null; e.assist = null; }
       return s;
     }
     case 'del':
-      s.events = s.events.filter((e) => e.id !== op.id || !['goal', 'sub'].includes(e.type));
+      s.events = s.events.filter((e) => e.id !== op.id || !EDITABLE.includes(e.type));
       return s;
     case 'finish':
       if (s.status === 'running') endPeriod(s, op.at);

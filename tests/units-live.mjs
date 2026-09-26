@@ -81,6 +81,42 @@ export async function run(test) {
     assert.equal(s.events.find((e) => e.id === 'e2').scorer, undefined);
   });
 
+  await test('penalties: a goal from the spot is marked, a miss is shown and never scored', () => {
+    let s = M.reduce(base(), { t: 'start', at: T0 });
+    s = M.reduce(s, { t: 'goal', id: 'p1', side: 'us', scorer: 'c', assist: 'b', pen: true, period: 0, atMs: 5 * MIN });
+    s = M.reduce(s, { t: 'miss', id: 'm1', side: 'us', scorer: 'b', period: 0, atMs: 7 * MIN });
+    s = M.reduce(s, { t: 'goal', id: 'p2', side: 'them', pen: true, period: 0, atMs: 9 * MIN });
+    s = M.reduce(s, { t: 'miss', id: 'm2', side: 'them', scorer: 'c', period: 0, atMs: 11 * MIN });
+    assert.deepEqual(M.score(s), { us: 1, them: 1 }, 'a miss changes no score');
+    const ev = Object.fromEntries(s.events.map((e) => [e.id, e]));
+    assert.ok(ev.p1.pen && ev.p1.scorer === 'c' && ev.p1.assist === null, 'a penalty has no assist');
+    assert.ok(ev.p2.pen);
+    assert.equal(ev.m1.scorer, 'b');
+    assert.equal(ev.m2.scorer, undefined, 'their kicker has no name');
+    // Through the cleaner, as every viewer gets it.
+    const clean = M.cleanLive(JSON.parse(JSON.stringify(s)));
+    assert.deepEqual(clean.events.filter((e) => e.type !== 'period_start').map((e) => [e.id, e.type, !!e.pen]),
+      [['p1', 'goal', true], ['m1', 'miss', false], ['p2', 'goal', true], ['m2', 'miss', false]]);
+    // Deleted like any goal.
+    s = M.reduce(s, { t: 'del', id: 'm1' });
+    assert.ok(!s.events.some((e) => e.id === 'm1'));
+  });
+
+  await test('an own goal by the opponent is ours, credited to no one', () => {
+    let s = M.reduce(base(), { t: 'start', at: T0 });
+    s = M.reduce(s, { t: 'goal', id: 'o1', side: 'us', scorer: 'c', assist: 'b', og: true, period: 0, atMs: 5 * MIN });
+    const e = s.events.find((x) => x.id === 'o1');
+    assert.deepEqual([e.og, e.scorer, e.assist, M.score(s).us], [true, null, null, 1]);
+    // Fixed to a real scorer, and back.
+    s = M.reduce(s, { t: 'edit', id: 'o1', patch: { scorer: 'c', assist: null, og: false } });
+    assert.deepEqual([s.events.find((x) => x.id === 'o1').og, s.events.find((x) => x.id === 'o1').scorer], [undefined, 'c']);
+    s = M.reduce(s, { t: 'edit', id: 'o1', patch: { scorer: null, assist: null, og: true } });
+    assert.equal(M.cleanLive(JSON.parse(JSON.stringify(s))).events.find((x) => x.id === 'o1').og, true);
+    // A forged own goal with a scorer is cleaned to none.
+    const forged = M.cleanLive({ ...s, events: [{ id: 'z', type: 'goal', side: 'us', og: true, scorer: 'c', period: 0, atMs: 0 }] });
+    assert.equal(forged.events[0].scorer, null);
+  });
+
   await test('substitutions change who is on the field, in match order', () => {
     let s = M.reduce(base(), { t: 'start', at: T0 });
     s = M.reduce(s, { t: 'sub', id: 's2', out: 'd', in: 'e', period: 0, atMs: 20 * MIN });

@@ -43,6 +43,9 @@ export const icons = {
   bolt: svg('<path d="M13 3 5 13h6l-1 8 8-10h-6z"/>'),
   eye: svg('<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>'),
   x: svg('<path d="M6 6l12 12M18 6 6 18"/>'),
+  // A penalty that did not go in; the spot in front of a goal.
+  miss: svg('<circle cx="12" cy="12" r="9"/><path d="m8.5 8.5 7 7M15.5 8.5l-7 7"/>'),
+  penalty: svg('<path d="M3 17V6h18v11"/><path d="M7 17v-6h10v6"/><circle cx="12" cy="21" r="1.2" fill="currentColor"/>'),
   eyeoff: svg('<path d="M3 3l18 18"/><path d="M10.6 5.1A10 10 0 0 1 12 5c6.4 0 10 7 10 7a17 17 0 0 1-3.2 4.2M6.6 6.6C3.8 8.4 2 12 2 12s3.6 7 10 7a9.6 9.6 0 0 0 5.4-1.6"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/>'),
   undo: svg('<path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/>'),
   ban: svg('<circle cx="12" cy="12" r="9"/><path d="m5.6 5.6 12.8 12.8"/>'),

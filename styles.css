@@ -857,6 +857,11 @@ body.with-nav .toast { bottom: calc(var(--nav-space) + 10px); }
 .scr-min { unicode-bidi: isolate; }
 .scr-more { font-size: .74rem; }
 .sc-scorers li.scr-more::before { display: none; }
+/* A penalty that did not go in: grey, a cross instead of the dot. */
+.sc-scorers li.scr-miss { color: var(--faint); }
+.sc-scorers li.scr-miss::before { display: none; }
+.scr-miss svg { width: 12px; height: 12px; vertical-align: -.12em; margin-inline-end: .3rem; }
+.scr-miss .scr-min { color: var(--faint); }
 .scr-more button {
   font: inherit; font-weight: 700; color: var(--gold); cursor: pointer;
   background: var(--gold-soft); border: 1px solid rgba(232, 185, 49, .25); border-radius: var(--r-pill);
@@ -952,6 +957,13 @@ button.tl-item:focus-visible { outline: 2px solid var(--gold); outline-offset: 2
 .tl-ico { flex: none; width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; background: var(--surface-2); color: var(--muted); }
 .tl-ico svg { width: 17px; height: 17px; }
 .tl-goal.us .tl-ico { background: var(--gold-fill); color: var(--on-gold); box-shadow: 0 0 14px rgba(232, 185, 49, .45); }
+.tl-pen {
+  font-size: .64rem; font-weight: 800; padding: 1px 6px; border-radius: var(--r-pill);
+  color: var(--gold); background: var(--gold-soft); border: 1px solid var(--gold-line);
+}
+.tl-goal.them .tl-pen { color: var(--muted); background: var(--surface-2); border-color: var(--line-strong); }
+.tl-miss .tl-txt b { color: var(--muted); }
+.tl-miss .tl-ico { color: var(--faint); }
 .tl-txt { flex: 1; min-width: 0; }
 .tl-txt b { display: flex; align-items: center; gap: .25rem; font-size: .9rem; font-weight: 700; }
 .tl-txt small { display: flex; align-items: center; gap: .25rem; font-size: .75rem; color: var(--faint); }
@@ -1018,6 +1030,9 @@ button.tl-item:focus-visible { outline: 2px solid var(--gold); outline-offset: 2
 .fmt-sum { margin: .85rem 0 0; font-size: .8rem; color: var(--faint); }
 
 /* ═══ Sheets: live specifics ═══════════════════════════════════════════ */
+.pen-choice { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
+.pen-choice .ctl-goal { min-height: 110px; font-size: 1.15rem; }
+.pen-hint { margin: .8rem 0 0; font-size: .8rem; color: var(--faint); text-align: center; }
 .minute-adj { display: flex; align-items: center; gap: 8px; margin-top: 1rem; padding-top: .85rem; border-top: 1px solid var(--line); font-size: .86rem; font-weight: 700; color: var(--muted); }
 .minute-adj > span { flex: 1; }
 .minute-adj .num { color: var(--text); }

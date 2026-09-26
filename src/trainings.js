@@ -24,10 +24,12 @@ const addDays = (isoDate, n) => { const d = utc(isoDate); d.setUTCDate(d.getUTCD
 export const weekday = (isoDate) => utc(isoDate).getUTCDay();
 
 // A training's venue, falling back to the home ground when none is given.
+// `waze` is the manager's own navigation link (a link, or coordinates;
+// navLink in format.js), which wins over the address.
 function venueOf(v, home) {
-  const name = text(v?.name), address = text(v?.address);
-  if (name || address) return { name, address };
-  return { name: text(home?.name), address: text(home?.address) };
+  const name = text(v?.name), address = text(v?.address), waze = text(v?.waze);
+  if (name || address || waze) return { name, address, waze };
+  return { name: text(home?.name), address: text(home?.address), waze: '' };
 }
 
 // Sunday to Saturday around today (Israel), the week a parent plans by;
@@ -54,7 +56,7 @@ export function trainingWeek(season, games, now = new Date(), ahead = 0) {
     const taken = new Set();
     for (const c of changes.filter((x) => x.date === date)) {
       const base = regular.find((r) => !taken.has(r));
-      const hasVenue = text(c.venue?.name) || text(c.venue?.address);
+      const hasVenue = text(c.venue?.name) || text(c.venue?.address) || text(c.venue?.waze);
       const merged = {
         date,
         start: time(c.start) || base?.start || '',

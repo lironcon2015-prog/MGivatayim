@@ -126,7 +126,7 @@ footer{margin-top:40px;text-align:center;font-size:13px;color:var(--faint)}
 .ctl-goals{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
 .ctl-goal{padding:12px 8px;border-radius:18px;text-align:center;font-weight:800;background:linear-gradient(180deg,var(--gold-hi),var(--gold-lo));color:var(--on-gold)}
 .ctl-goal.them{background:var(--s2);color:var(--text);border:1px solid var(--line2)}
-.ctl-row{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+.ctl-row{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
 .ctl-btn{padding:9px 4px;border-radius:14px;text-align:center;font-size:13px;font-weight:700;background:var(--s2);border:1px solid var(--line);color:var(--body)}
 .linkish{color:var(--muted);text-decoration:underline;text-underline-offset:3px;font-size:14px}
 .sync{font-size:13.5px;color:var(--muted);text-align:center;margin:6px 0 0}
@@ -215,16 +215,17 @@ footer{margin-top:40px;text-align:center;font-size:13px;color:var(--faint)}
       <p class="demo-cap">הכפתורים במהלך המשחק</p>
       <div class="ctl" style="margin-bottom:12px">
         <div class="ctl-goals"><span class="ctl-goal">שער לנו</span><span class="ctl-goal them">שער ליריבה</span></div>
-        <div class="ctl-row"><span class="ctl-btn">חילוף</span><span class="ctl-btn">עצירת שעון</span><span class="ctl-btn">סיום שליש</span><span class="ctl-btn">עוד</span></div>
+        <div class="ctl-row"><span class="ctl-btn">פנדל</span><span class="ctl-btn">חילוף</span><span class="ctl-btn">עצירה</span><span class="ctl-btn">סיום</span><span class="ctl-btn">עוד</span></div>
         <p class="sync">✓ כולם רואים את העדכון</p>
       </div>
     </div>
     <ul class="list" style="margin-top:12px">
       <li><b>לפני הפתיחה:</b> מוודאים את ההרכב (ההרכב של המשחק הקודם מסומן מראש) ולוחצים <b>"שריקת פתיחה"</b>. השעון מתחיל לרוץ.</li>
-      <li><b>שער לנו:</b> לוחצים ובוחרים את המבקיע, ואחריו את המבשל (או "ללא בישול"). הדקה נרשמת לפי השעון ברגע הלחיצה, ואם נרשמה באיחור אפשר להזיז אותה בדקה אחורה או קדימה. אם לא יודעים מי הבקיע, בוחרים "לא ידוע".</li>
+      <li><b>שער לנו:</b> לוחצים ובוחרים את המבקיע, ואחריו את המבשל (או "ללא בישול"). הדקה נרשמת לפי השעון ברגע הלחיצה, ואם נרשמה באיחור אפשר להזיז אותה בדקה אחורה או קדימה. אם לא יודעים מי הבקיע, בוחרים "מבקיע לא ידוע". שחקן של היריבה הכניס לרשת שלו? בוחרים "גול עצמי של היריבה".</li>
+      <li><b>פנדל:</b> לוחצים "פנדל", בוחרים למי, ואם הוא שלנו — מי בועט. אחרי הבעיטה בוחרים "גול" או "החמצה" (גם הצלה או קורה). גול נרשם עם (פ) ליד הדקה, והחמצה מופיעה באפור בלי לשנות את התוצאה.</li>
       <li><b>שער ליריבה:</b> לחיצה אחת.</li>
       <li><b>חילוף:</b> לוחצים על השחקן שיוצא, על המגרש. הספסל מסודר לפי העמדה שלו: קודם שחקנים באותה עמדה, אחר כך בעמדות קרובות. אפשר גם להתחיל מהספסל: לוחצים על מי שנכנס ובוחרים במקום מי.</li>
-      <li><b>סוף חלק:</b> "סיום שליש" (או "סיום מחצית"). בהפסקה לוחצים "פתיחת שליש 2" כשהמשחק חוזר. חילוף שנעשה בהפסקה נרשם בתחילת החלק הבא.</li>
+      <li><b>סוף חלק:</b> "סיום" (סוגר את השליש או המחצית). בהפסקה לוחצים "פתיחת שליש 2" כשהמשחק חוזר. חילוף שנעשה בהפסקה נרשם בתחילת החלק הבא.</li>
       <li><b>סיום:</b> בסוף החלק האחרון לוחצים <b>"סיום ושמירת המשחק"</b>. התוצאה נכנסת לעונה לבד.</li>
     </ul>
 

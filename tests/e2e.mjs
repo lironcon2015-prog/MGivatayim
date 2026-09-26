@@ -686,6 +686,10 @@ await step('a training that differs from the routine is framed and flagged, and 
   await admin.fill(`[data-path="${row}.start"]`, '16:30');
   await admin.fill(`[data-path="${row}.venue.name"]`, 'מגרש זמני');
   await admin.fill(`[data-path="${row}.venue.address"]`, 'הירדן 3, רמת גן');
+  await admin.fill(`[data-path="${row}.venue.waze"]`, 'not a link');
+  await admin.click('#save');
+  await waitText(admin, 'קישור שמתחיל ב-https://');
+  await admin.fill(`[data-path="${row}.venue.waze"]`, '31.956020,34.834553');
   await admin.click('#save');
   await waitText(admin, 'נשמר');
 
@@ -703,7 +707,7 @@ await step('a training that differs from the routine is framed and flagged, and 
   await was.waitFor();
   const w = (await was.innerText()).replace(/\s+/g, ' ');
   expect(w.includes('17:00–18:30') && w.includes('16:30–18:30') && w.includes('אצטדיון גבעתיים') && w.includes('מגרש זמני'), 'what changed: ' + w);
-  expect(await parent.locator('.sheet a.btn[href*="waze"]').count() === 1, 'no Waze to the new venue');
+  expect(await parent.locator('.sheet a.btn[href="https://www.waze.com/ul?ll=31.956020,34.834553&navigate=yes"]').count() === 1, 'the training\'s own Waze link does not win over its address');
   await parent.locator('.sheet-x').click();
 });
 
@@ -721,6 +725,24 @@ await step('a later fixture can go live now; finishing dates it today and takes 
   await admin.locator('[data-meta="opponent"]').waitFor();
   expect(await admin.inputValue('[data-meta="opponent"]') === 'בני לוח', 'opponent not taken from the fixture');
   await admin.click('[data-act="start"]');
+
+  // A penalty scored by us, one of theirs missed, and an own goal.
+  await admin.click('[data-act="penalty"]');
+  await admin.click('[data-pen="us"]');
+  await admin.locator('.pick', { hasText: 'גיא פרץ' }).click();
+  await admin.click('[data-res="goal"]');
+  await admin.click('[data-act="penalty"]');
+  await admin.click('[data-pen="them"]');
+  await admin.click('[data-res="miss"]');
+  await admin.click('[data-act="goal-us"]');
+  await admin.locator('.pick-plain', { hasText: 'גול עצמי' }).click();
+  await admin.locator('.sc-score .ours', { hasText: '2' }).waitFor();
+  const us = (await admin.locator('.sc-scorers .us').innerText()).replace(/\s+/g, ' ');
+  expect(us.includes('גיא פרץ') && us.includes('(פ)') && us.includes('גול עצמי'), 'our scorers: ' + us);
+  expect(await admin.locator('.sc-scorers .them .scr-miss').count() === 1, 'their missed penalty is not shown');
+  expect(await admin.locator('.sc-score [data-them]').innerText() === '0', 'a miss changed the score');
+  expect(await admin.locator('.tl .tl-pen').count() === 1 && await admin.locator('.tl .tl-miss').count() === 1, 'timeline: penalty tag or miss row missing');
+
   await admin.click('[data-act="end"]');
   await admin.click('[data-ok]');
   await admin.locator('[data-act="finish"]').first().click();
@@ -728,6 +750,12 @@ await step('a later fixture can go live now; finishing dates it today and takes 
   await waitText(admin, 'נשמר בתוצאות');
   await new Promise((r) => setTimeout(r, 600));
   const m = JSON.parse(bridge.driveFile('season.json')).season.matches.find((x) => x.opponent === 'בני לוח');
+  expect(m && m.gf === 2 && m.ga === 0, 'result: ' + JSON.stringify(m && [m.gf, m.ga]));
+  const pen = m.events.find((e) => e.type === 'goal' && e.pen);
+  const byName = Object.fromEntries(m.players.map((p) => [p.name, p.id]));
+  expect(pen && pen.scorer === byName['גיא פרץ'] && !pen.assist, 'penalty goal: ' + JSON.stringify(pen));
+  expect(m.events.some((e) => e.type === 'goal' && e.og && !e.scorer), 'own goal not saved');
+  expect(m.events.some((e) => e.type === 'miss' && e.side === 'them'), 'missed penalty not saved');
   expect(m && m.date === israelToday(), 'dated ' + (m && m.date) + ', expected today');
   expect(m.fixture && m.fixture.date === '2030-11-08', 'fixture link: ' + JSON.stringify(m && m.fixture));
   await parent.goto(APP + '#/stats');

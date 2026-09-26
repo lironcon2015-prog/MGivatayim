@@ -19,6 +19,8 @@ export const showMinutesTab = () => { tab = 'minutes'; };
 /* ── Small pieces shared by the live screen and the match sheet ────────── */
 
 const uid = () => Math.random().toString(36).slice(2, 10);
+// The own-goal choice in the scorer picker: not a player id.
+const OWN_GOAL = 'og';
 
 function who(state, pid) {
   const p = M.playerById(state, pid);
@@ -42,6 +44,9 @@ function statusChip(state) {
 
 // The timeline, newest first, with the running score after each goal so a
 // latecomer can read how the match went without adding anything up.
+// A goal from the spot, beside the scorer's name in the timeline.
+const PEN_TAG = ' <span class="tl-pen">פנדל</span>';
+
 export function timelineHtml(state, { interactive = false } = {}) {
   const chrono = [...state.events].map((e, i) => ({ e, i })).sort((a, b) => a.e.period - b.e.period || a.e.atMs - b.e.atMs || a.i - b.i);
   const after = new Map();
@@ -54,21 +59,27 @@ export function timelineHtml(state, { interactive = false } = {}) {
     // the phrase itself is too long for the column and wrapped in two.
     const minute = M.minuteLabel(state.format, e.period, e.atMs);
     const atStart = e.atStart ? ` · בתחילת ${esc(M.periodName(state.format, e.period))}` : '';
-    const tag = interactive && (e.type === 'goal' || e.type === 'sub') ? 'button' : 'div';
+    const tag = interactive && M.EDITABLE.includes(e.type) ? 'button' : 'div';
     const attrs = tag === 'button' ? ` type="button" data-event="${esc(e.id)}"` : '';
     if (e.type === 'goal' && e.side !== 'them') {
       return `<li data-ev="${esc(e.id)}"><${tag} class="tl-item tl-goal us"${attrs}>
         <span class="tl-min num">${esc(minute)}</span><span class="tl-ico">${icon('ball')}</span>
-        <span class="tl-txt"><b>שער! ${esc(e.scorer ? whoText(state, e.scorer) : 'מבקיע לא ידוע')}</b>
+        <span class="tl-txt"><b>שער! ${esc(e.og ? 'גול עצמי של היריבה' : e.scorer ? whoText(state, e.scorer) : 'מבקיע לא ידוע')}${e.pen ? PEN_TAG : ''}</b>
           <small>${e.assist ? `בישול: ${esc(whoText(state, e.assist))} · ` : ''}<span class="num tl-score">${after.get(e.id)}</span>${atStart}</small></span></${tag}></li>`;
     }
     if (e.type === 'goal') {
       return `<li data-ev="${esc(e.id)}"><${tag} class="tl-item tl-goal them"${attrs}>
         <span class="tl-min num">${esc(minute)}</span><span class="tl-ico">${icon('ball')}</span>
-        <span class="tl-txt"><b>שער ל${esc(state.opponent || 'יריבה')}</b><small><span class="num tl-score">${after.get(e.id)}</span>${atStart}</small></span></${tag}></li>`;
+        <span class="tl-txt"><b>שער ל${esc(state.opponent || 'יריבה')}${e.pen ? PEN_TAG : ''}</b><small><span class="num tl-score">${after.get(e.id)}</span>${atStart}</small></span></${tag}></li>`;
+    }
+    if (e.type === 'miss') {
+      const text = e.side === 'them' ? `פנדל ל${esc(state.opponent || 'יריבה')} לא נכנס` : `פנדל מוחמץ${e.scorer ? ` · ${esc(whoText(state, e.scorer))}` : ''}`;
+      return `<li data-ev="${esc(e.id)}"><${tag} class="tl-item tl-miss"${attrs}>
+        <span class="tl-min num">${esc(minute)}</span><span class="tl-ico">${icon('miss')}</span>
+        <span class="tl-txt"><b>${text}</b><small>החמצה או הצלה${atStart}</small></span></${tag}></li>`;
     }
     if (e.type === 'sub') {
-      return `<li data-ev="${esc(e.id)}"><${tag} class="tl-item tl-sub"${attrs}>
+      return `<li data-ev=""${esc(e.id)}"><${tag} class="tl-item tl-sub"${attrs}>
         <span class="tl-min num">${esc(minute)}</span><span class="tl-ico">${icon('swap')}</span>
         <span class="tl-txt"><b><i class="in">${icon('arrowIn')}</i>${esc(whoText(state, e.in))}</b>
           <small><i class="out">${icon('arrowOut')}</i>${esc(whoText(state, e.out))}${e.pos ? ` · ${esc(posLabel(e.pos))}` : ''}${atStart}</small></span></${tag}></li>`;
@@ -103,7 +114,7 @@ function pitchHtml(state, slots, { interactive }) {
 // minimum and attendance (coachCfg) and how to change them (saveCoach).
 export function openMatchSheet(match, coach = null) {
   const state = { ...match, format: match.format || M.DEFAULT_FORMAT, events: match.events || [], players: match.players || [], lineup: match.lineup || [] };
-  const hasEvents = state.events.some((e) => e.type === 'goal' || e.type === 'sub');
+  const hasEvents = state.events.some((e) => M.EDITABLE.includes(e.type));
   const minutes = coach && state.lineup.length;
   const minutesHtml = () => (minutes ? matchMinutesHtml(state, coach.coachCfg()) : '');
   openSheet({
@@ -165,24 +176,33 @@ export function mountLive(view, ctx) {
     const MAX_THEM = 16;
     const goals = st.events.filter((e) => e.type === 'goal')
       .sort((a, b) => a.period - b.period || a.atMs - b.atMs);
-    if (!goals.length) return '';
-    const minutes = (evs) => `<span class="scr-min num" dir="ltr">${evs.map((e) => esc(M.minuteLabel(st.format, e.period, e.atMs))).join(', ')}</span>`;
+    const misses = st.events.filter((e) => e.type === 'miss')
+      .sort((a, b) => a.period - b.period || a.atMs - b.atMs);
+    if (!goals.length && !misses.length) return '';
+    // A goal from the spot reads "23' (פ)", as on sports sites.
+    const minuteOf = (e) => esc(M.minuteLabel(st.format, e.period, e.atMs)) + (e.pen || e.type === 'miss' ? ' (פ)' : '');
+    const minutes = (evs) => `<span class="scr-min num" dir="ltr">${evs.map(minuteOf).join(', ')}</span>`;
     const more = (n, goalId) => `<li class="scr-more"><button type="button" data-goto="${esc(goalId)}">ועוד ${n}</button></li>`;
+    // A missed penalty: a grey line with a cross, under the goals of its side.
+    const missLine = (e) => `<li class="scr-miss">${icon('miss')}${e.side !== 'them' && e.scorer ? `<span class="scr-name">${esc(who(st, e.scorer).name)}</span> ` : ''}${minutes([e])}</li>`;
 
     const ours = new Map();
     for (const e of goals.filter((g) => g.side !== 'them')) {
-      const key = e.scorer || '?';
+      const key = e.og ? 'og' : e.scorer || '?';
       if (!ours.has(key)) ours.set(key, []);
       ours.get(key).push(e);
     }
     const groups = [...ours];
+    const label = (pid) => (pid === 'og' ? 'גול עצמי' : pid === '?' ? 'לא ידוע' : who(st, pid).name);
     const usHtml = groups.slice(0, MAX_SCORER_LINES).map(([pid, evs]) =>
-      `<li><span class="scr-name">${esc(pid === '?' ? 'לא ידוע' : who(st, pid).name)}</span> ${minutes(evs)}</li>`).join('')
-      + (groups.length > MAX_SCORER_LINES ? more(groups.length - MAX_SCORER_LINES, groups[MAX_SCORER_LINES][1][0].id) : '');
+      `<li><span class="scr-name">${esc(label(pid))}</span> ${minutes(evs)}</li>`).join('')
+      + (groups.length > MAX_SCORER_LINES ? more(groups.length - MAX_SCORER_LINES, groups[MAX_SCORER_LINES][1][0].id) : '')
+      + misses.filter((e) => e.side !== 'them').map(missLine).join('');
 
     const them = goals.filter((g) => g.side === 'them');
     const themHtml = (them.length ? `<li>${minutes(them.slice(0, MAX_THEM))}</li>` : '')
-      + (them.length > MAX_THEM ? more(them.length - MAX_THEM, them[MAX_THEM].id) : '');
+      + (them.length > MAX_THEM ? more(them.length - MAX_THEM, them[MAX_THEM].id) : '')
+      + misses.filter((e) => e.side === 'them').map(missLine).join('');
 
     return `<div class="sc-scorers">
       <ul class="us" aria-label="שערים שלנו">${usHtml}</ul>
@@ -259,9 +279,10 @@ export function mountLive(view, ctx) {
           <button type="button" class="ctl-goal them" data-act="goal-them">${icon('ball')}<span>שער ליריבה</span></button>
         </div>
         <div class="ctl-row">
+          <button type="button" class="ctl-btn" data-act="penalty">${icon('penalty')}<span>פנדל</span></button>
           <button type="button" class="ctl-btn" data-act="sub">${icon('swap')}<span>חילוף</span></button>
-          <button type="button" class="ctl-btn" data-act="${st.clock.running ? 'pause' : 'resume'}">${icon(st.clock.running ? 'pause' : 'play')}<span>${st.clock.running ? 'עצירת שעון' : 'המשך'}</span></button>
-          <button type="button" class="ctl-btn" data-act="end">${icon('whistle')}<span>סיום ${esc(M.periodWord(st.format))}</span></button>
+          <button type="button" class="ctl-btn" data-act="${st.clock.running ? 'pause' : 'resume'}" aria-label="${st.clock.running ? 'עצירת שעון' : 'המשך'}">${icon(st.clock.running ? 'pause' : 'play')}<span>${st.clock.running ? 'עצירה' : 'המשך'}</span></button>
+          <button type="button" class="ctl-btn" data-act="end" aria-label="סיום ${esc(M.periodWord(st.format))}">${icon('whistle')}<span>סיום</span></button>
           ${moreBtn}
         </div></div>`;
     }
@@ -549,13 +570,13 @@ export function mountLive(view, ctx) {
     const groups = hasLineup
       ? [{ label: 'על המגרש', players: fieldPlayers }, { label: 'ספסל', players: rest }]
       : [{ label: 'הסגל', players: [...st.players].filter((p) => !isKeeper(p.pos)).sort(byNumber) }];
-    let scorer = edit?.scorer ?? undefined;
+    let scorer = undefined;
 
     const sheet = openSheet({
       title: edit ? 'תיקון שער' : 'שער לנו',
       subtitle: `מי הבקיע? · ${stampLine(st, stamp)}`,
       tall: true,
-      body: pickerHtml({ groups, top: [{ label: 'לא ידוע / שער עצמי של היריבה', value: '' }] }) + minuteControls(st, stamp),
+      body: pickerHtml({ groups, top: [{ label: 'גול עצמי של היריבה', value: OWN_GOAL }, { label: 'מבקיע לא ידוע', value: '' }] }) + minuteControls(st, stamp),
       onMount: ({ body }) => wire(body),
     });
 
@@ -570,6 +591,8 @@ export function mountLive(view, ctx) {
 
     function chooseScorer(pid) {
       scorer = pid;
+      // An own goal has no assist to ask for, and a penalty neither.
+      if (pid === OWN_GOAL || edit?.pen) { chooseAssist(null); return; }
       const g = groups.map((x) => ({ ...x, players: x.players.filter((p) => p.id !== pid) }));
       sheet.el.querySelector('.sheet-titles p').innerHTML = `מי בישל? · ${pid ? esc(whoText(st, pid)) : 'מבקיע לא ידוע'}`;
       sheet.setBody(pickerHtml({ groups: g, top: [{ label: 'ללא בישול', value: '' }] }));
@@ -578,15 +601,85 @@ export function mountLive(view, ctx) {
 
     function chooseAssist(pid) {
       sheet.close('done');
+      const og = scorer === OWN_GOAL;
+      const who_ = og ? null : scorer || null;
       if (edit) {
-        act({ t: 'edit', id: edit.id, patch: { scorer: scorer || null, assist: pid || null, atMs: stamp.atMs } });
+        act({ t: 'edit', id: edit.id, patch: { scorer: who_, assist: pid || null, og, atMs: stamp.atMs } });
         toast('השער עודכן');
         return;
       }
       const id = uid();
       const sc = M.score(state());
-      act({ t: 'goal', id, side: 'us', scorer: scorer || null, assist: pid || null, ...stamp },
-        `שער! ${esc(scorer ? whoText(st, scorer) : 'מכבי גבעתיים')} · <span class="num">${sc.us + 1}:${sc.them}</span>`);
+      act({ t: 'goal', id, side: 'us', scorer: who_, assist: pid || null, og, ...stamp },
+        `שער! ${esc(og ? 'גול עצמי' : who_ ? whoText(st, who_) : 'מכבי גבעתיים')} · <span class="num">${sc.us + 1}:${sc.them}</span>`);
+    }
+  }
+
+  // A penalty: whose, who kicks (ours only), then in or not. The moment is
+  // taken on "penalty", like a goal. In, it is a goal marked `pen` (no
+  // assist); not in (missed or saved), a `miss` event: shown on the board
+  // and in the timeline, counted nowhere.
+  function penaltySheet() {
+    const st = state();
+    const stamp = M.stampNow(st, now());
+    let side = null;
+    let kicker = null;
+    const sub = (text) => { sheet.el.querySelector('.sheet-titles p').innerHTML = `${text} · ${stampLine(st, stamp)}`; };
+    const choice = (a, b) => `<div class="pen-choice">${a}${b}</div>`;
+    const sheet = openSheet({
+      title: 'פנדל',
+      subtitle: `למי? · ${stampLine(st, stamp)}`,
+      body: choice(
+        `<button type="button" class="ctl-goal" data-pen="us">${icon('ball')}<span>לנו</span></button>`,
+        `<button type="button" class="ctl-goal them" data-pen="them">${icon('ball')}<span>ליריבה</span></button>`) + minuteControls(st, stamp),
+      onMount: ({ body }) => {
+        body.querySelectorAll('[data-min]').forEach((b) => b.addEventListener('click', () => {
+          stamp.atMs = Math.max(0, stamp.atMs + Number(b.dataset.min) * 60000);
+          body.querySelectorAll('.minute-adj .num').forEach((n) => { n.textContent = M.minuteLabel(st.format, stamp.period, stamp.atMs); });
+          sub('למי?');
+        }));
+        body.onclick = (e) => {
+          const b = e.target.closest('[data-pen]');
+          if (!b) return;
+          side = b.dataset.pen;
+          if (side === 'them') outcome(); else chooseKicker();
+        };
+      },
+    });
+
+    function chooseKicker() {
+      const on = M.onField(st);
+      const players = on.length
+        ? on.map((f) => ({ ...M.playerById(st, f.pid), pos: f.pos })).filter((p) => p.id).sort(byNumber)
+        : [...st.players].sort(byNumber);
+      sheet.el.querySelector('.sheet-titles h2').textContent = 'פנדל לנו';
+      sub('מי בועט?');
+      sheet.setBody(pickerHtml({ groups: [{ label: on.length ? 'על המגרש' : 'הסגל', players }], top: [{ label: 'לא ידוע', value: '' }] }));
+      wirePicker(sheet.body, (pid) => { kicker = pid; outcome(); });
+    }
+
+    function outcome() {
+      sheet.el.querySelector('.sheet-titles h2').textContent = side === 'us' ? 'פנדל לנו' : `פנדל ל${st.opponent || 'יריבה'}`;
+      sub(side === 'us' && kicker ? esc(whoText(st, kicker)) : 'מה קרה?');
+      sheet.setBody(choice(
+        `<button type="button" class="ctl-goal${side === 'them' ? ' them' : ''}" data-res="goal">${icon('ball')}<span>גול</span></button>`,
+        `<button type="button" class="ctl-goal them" data-res="miss">${icon('miss')}<span>החמצה</span></button>`)
+        + '<p class="pen-hint">החמצה כוללת גם הצלה של השוער ובעיטה לקורה.</p>');
+      sheet.body.onclick = (e) => {
+        const b = e.target.closest('[data-res]');
+        if (!b) return;
+        sheet.close('done');
+        const scorer = side === 'us' ? kicker || null : undefined;
+        const sc = M.score(state());
+        if (b.dataset.res === 'goal') {
+          const line = side === 'us'
+            ? `שער מפנדל! ${esc(scorer ? whoText(st, scorer) : 'מכבי גבעתיים')} · <span class="num">${sc.us + 1}:${sc.them}</span>`
+            : `שער מפנדל ל${esc(st.opponent || 'יריבה')} · <span class="num">${sc.us}:${sc.them + 1}</span>`;
+          act({ t: 'goal', id: uid(), side, scorer, pen: true, ...stamp }, line);
+        } else {
+          act({ t: 'miss', id: uid(), side, scorer, ...stamp }, side === 'us' ? 'פנדל מוחמץ' : `פנדל ל${esc(st.opponent || 'יריבה')} לא נכנס`);
+        }
+      };
     }
   }
 
@@ -705,13 +798,14 @@ export function mountLive(view, ctx) {
     const e = st.events.find((x) => x.id === id);
     if (!e) return;
     const minute = M.minuteLabel(st.format, e.period, e.atMs, { atStart: e.atStart });
-    const title = e.type === 'sub' ? 'חילוף' : e.side === 'them' ? 'שער ליריבה' : 'שער לנו';
+    const title = e.type === 'sub' ? 'חילוף' : e.type === 'miss' ? 'פנדל שלא נכנס'
+      : `${e.side === 'them' ? 'שער ליריבה' : 'שער לנו'}${e.pen ? ' · פנדל' : ''}`;
     const desc = e.type === 'sub' ? `${esc(who(st, e.in).name)} במקום ${esc(who(st, e.out).name)}`
-      : e.side === 'them' ? '' : esc(e.scorer ? whoText(st, e.scorer) : 'מבקיע לא ידוע');
+      : e.side === 'them' ? '' : esc(e.og ? 'גול עצמי של היריבה' : e.scorer ? whoText(st, e.scorer) : e.type === 'miss' ? 'בועט לא ידוע' : 'מבקיע לא ידוע');
     const sh = openSheet({
       title, subtitle: `<span class="num">${esc(minute)}</span>${desc ? ` · ${desc}` : ''}`,
       body: `<div class="sheet-actions stack">
-        ${e.type === 'goal' && e.side !== 'them' ? '<button type="button" class="btn secondary" data-e="scorer">שינוי מבקיע ומבשל</button>' : ''}
+        ${e.type === 'goal' && e.side !== 'them' ? `<button type="button" class="btn secondary" data-e="scorer">${e.pen ? 'שינוי מבקיע' : 'שינוי מבקיע ומבשל'}</button>` : ''}
         ${e.atStart ? '' : `<div class="minute-adj"><span>דקה <span class="num" data-minute>${esc(minute)}</span></span>
           <button type="button" class="btn small secondary" data-emin="-1" aria-label="דקה אחת אחורה">${M.ltr('−1′')}</button><button type="button" class="btn small secondary" data-emin="1" aria-label="דקה אחת קדימה">${M.ltr('+1′')}</button></div>`}
         <button type="button" class="btn danger" data-e="del">מחיקת האירוע</button></div>`,
@@ -721,9 +815,9 @@ export function mountLive(view, ctx) {
           sh.close('done');
           const copy = { ...e };
           if (act({ t: 'del', id })) {
-            toast('האירוע נמחק', { action: 'ביטול', onAction: () => S.dispatch(copy.type === 'goal'
-              ? { t: 'goal', id: uid(), side: copy.side, scorer: copy.scorer, assist: copy.assist, period: copy.period, atMs: copy.atMs, atStart: copy.atStart }
-              : { t: 'sub', id: uid(), out: copy.out, in: copy.in, pos: copy.pos, period: copy.period, atMs: copy.atMs, atStart: copy.atStart }) });
+            // Undo re-adds it under a new id, with every field it had.
+            const { id: _old, type, ...fields } = copy;
+            toast('האירוע נמחק', { action: 'ביטול', onAction: () => S.dispatch({ t: type, id: uid(), ...fields }) });
           }
         });
         el.querySelectorAll('[data-emin]').forEach((b) => b.addEventListener('click', () => {
@@ -927,6 +1021,7 @@ export function mountLive(view, ctx) {
       return;
     }
     if (a === 'goal-us') { goalSheet(); return; }
+    if (a === 'penalty') { penaltySheet(); return; }
     if (a === 'goal-them') {
       const stamp = M.stampNow(st, now());
       const sc = M.score(st);

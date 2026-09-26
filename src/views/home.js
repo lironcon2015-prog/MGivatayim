@@ -105,7 +105,7 @@ function weekHtml(s) {
 
 function trainingSheet(t) {
   const hours = hoursOf(t) || 'שעה טרם נקבעה';
-  const waze = wazeLink(t.venue.address);
+  const waze = navLink(t.venue.waze) || wazeLink(t.venue.address);
   const place = t.venue.name || t.venue.address;
   const cancelled = t.change === 'cancelled';
   // What moved, the routine's value struck through beside the new one.

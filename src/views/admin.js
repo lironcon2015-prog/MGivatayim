@@ -51,6 +51,9 @@ const NEXT_FIELDS = [
   { key: 'kit', label: 'תלבושת', placeholder: 'כחול / לבן / כחול' },
 ];
 
+// A training ground's own Waze link, as for the next match: a link, or
+// coordinates as Google Maps shows them. It wins over the address.
+const WAZE_FIELD = { key: 'venue.waze', label: 'קישור Waze (לא חובה)', type: 'nav', hint: 'קישור, או קואורדינטות כמו 31.956020,34.834553', wide: true };
 const DAY_OPTS = DAYS.map((d, i) => [String(i), d]);
 const hours = (t) => (t.start && t.end ? `${t.start}–${t.end}` : t.start || '');
 
@@ -105,6 +108,7 @@ const LISTS = [
       { key: 'end', label: 'עד', type: 'time' },
       { key: 'venue.name', label: 'מגרש', hint: 'ריק = המגרש הביתי' },
       { key: 'venue.address', label: 'כתובת', hint: 'קישור ה-Waze נבנה מהכתובת', wide: true },
+      WAZE_FIELD,
     ],
   },
   {
@@ -123,6 +127,7 @@ const LISTS = [
       { key: 'end', label: 'עד', type: 'time' },
       { key: 'venue.name', label: 'מגרש' },
       { key: 'venue.address', label: 'כתובת', wide: true },
+      WAZE_FIELD,
     ],
   },
   {
@@ -271,10 +276,11 @@ function validate(d) {
     (getPath(d, list.path) || []).forEach((item, i) => {
       const where = `${list.title}, ${list.label(item)}`;
       for (const f of list.fields) {
-        const v = item[f.key];
+        const v = getPath(item, f.key);
         if (f.required && (v == null || String(v).trim() === '')) errs.push(`${where}: חסר ${f.label}.`);
         if (f.type === 'url' && v && !safeUrl(v)) errs.push(`${where}: הקישור חייב להתחיל ב-https://`);
         if (f.type === 'date' && v && !/^\d{4}-\d{2}-\d{2}$/.test(v)) errs.push(`${where}: תאריך לא תקין.`);
+        if (f.type === 'nav' && v && !navLink(v)) errs.push(`${where}: ${f.label} — קישור שמתחיל ב-https:// או קואורדינטות`);
       }
       if (errs.length) at(list.tab);
       void i;

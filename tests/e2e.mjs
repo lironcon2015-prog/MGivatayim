@@ -720,6 +720,7 @@ await step('a training that differs from the routine is framed and flagged, and 
   await was.waitFor();
   const w = (await was.innerText()).replace(/\s+/g, ' ');
   expect(w.includes('17:00–18:30') && w.includes('16:30–18:30') && w.includes('אצטדיון גבעתיים') && w.includes('מגרש זמני'), 'what changed: ' + w);
+  expect(!(await parent.locator('.sheet .meta-row', { hasText: '16:30' }).count()), 'the new hours are shown twice');
   expect(await parent.locator('.sheet a.btn[href="https://www.waze.com/ul?ll=31.956020,34.834553&navigate=yes"]').count() === 1, 'the training\'s own Waze link does not win over its address');
   await parent.locator('.sheet-x').click();
 });

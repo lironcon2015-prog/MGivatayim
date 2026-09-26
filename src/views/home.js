@@ -108,7 +108,9 @@ function trainingSheet(t) {
   const waze = navLink(t.venue.waze) || wazeLink(t.venue.address);
   const place = t.venue.name || t.venue.address;
   const cancelled = t.change === 'cancelled';
-  // What moved, the routine's value struck through beside the new one.
+  // What moved, the routine's value struck through beside the new one. New
+  // hours are already there, so the hours row goes (the owner: it repeated
+  // them); the venue row stays, it carries the address.
   const was = t.was && !cancelled ? [
     hoursOf(t.was) !== hoursOf(t) ? ['שעה', hoursOf(t.was), hoursOf(t), true] : null,
     (t.was.venue.name || t.was.venue.address) !== place ? ['מגרש', t.was.venue.name || t.was.venue.address, place] : null,
@@ -120,7 +122,7 @@ function trainingSheet(t) {
     body: `<div class="wk-sheet${cancelled ? ' cancelled' : ''}">
       ${was.length ? `<dl class="wk-was">${was.map(([k, from, to, num]) =>
         `<dt>${k}</dt><dd${num ? ' class="num"' : ''}><s${num ? ' dir="ltr"' : ''}>${esc(from || '—')}</s> <b${num ? ' dir="ltr"' : ''}>${esc(to || '—')}</b></dd>`).join('')}</dl>` : ''}
-      <div class="meta-row">${icon('clock')}<span class="num" dir="ltr"><b>${esc(hours)}</b></span></div>
+      ${was.some(([k]) => k === 'שעה') ? '' : `<div class="meta-row">${icon('clock')}<span class="num" dir="ltr"><b>${esc(hours)}</b></span></div>`}
       ${place ? `<div class="meta-row">${icon('pin')}<span><b>${esc(place)}</b>${t.venue.name && t.venue.address ? ` <span class="sub">· ${esc(t.venue.address)}</span>` : ''}</span></div>` : ''}
       ${waze && !cancelled ? `<a class="btn" href="${esc(waze)}" target="_blank" rel="noopener noreferrer">${icon('nav')} ניווט אל המגרש ב-Waze</a>` : ''}
     </div>`,

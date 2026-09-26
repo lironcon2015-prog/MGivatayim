@@ -214,6 +214,13 @@ await step('manager fills a season and saves it', async () => {
   expect(keyed === '12x30', 'green background not removed: ' + keyed);
   await admin.click('#save');
   await waitText(admin, 'נשמר');
+  // Saved, the next match folds to one row, like the lists; a tap opens it.
+  const nextRow = admin.locator('details[data-item="nextMatch"]');
+  expect(await nextRow.getAttribute('open') === null, 'the next match stays open after saving');
+  const nextSum = (await nextRow.locator('summary').innerText()).replace(/\s+/g, ' ');
+  expect(nextSum.includes('הפועל כוכבים') && nextSum.includes('05.10.30') && nextSum.includes('10:30'), 'next match row: ' + nextSum);
+  await nextRow.locator('summary').click();
+  await admin.locator('[data-path="nextMatch.opponent"]').waitFor();
   const saved = JSON.parse(bridge.driveFile('season.json'));
   expect(saved.version === 1, 'version is ' + saved.version);
   expect(saved.season.nextMatch.kickoff === '2030-10-05T10:30:00+03:00', 'kickoff stored as ' + saved.season.nextMatch.kickoff);

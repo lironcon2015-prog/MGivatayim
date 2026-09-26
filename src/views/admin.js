@@ -908,13 +908,25 @@ export function mountAdmin(view, ctx) {
       </div>`;
   }
 
+  // The next match folds to one row like every list row (the owner: it stayed
+  // open after the details were in, and got in the way). It opens when set
+  // up, and a successful save closes it.
+  function nextSummary(nm) {
+    const { date, time } = splitKickoff(nm.kickoff);
+    const sub = [date && shortDate(date), time, nm.home === false ? 'חוץ' : 'בית', nm.arrival && `התכנסות ${nm.arrival}`, nm.kit].filter(Boolean).join(' · ');
+    return `<span class="ei-main"><b>${esc(nm.opponent || 'משחק חדש')}</b>${sub ? `<small>${esc(sub)}</small>` : ''}</span>`;
+  }
+
   function nextMatchHtml() {
     const nm = draft.nextMatch;
     const nextFixture = nm ? null : upcomingFixtures(draft.fixtures, draft.matches)[0];
     return `<section>
         <div class="sec-head">${icon('calendar')}<h2>המשחק הבא</h2></div>
         <div class="card">
-          ${nm ? `${grid(NEXT_FIELDS, 'nextMatch.', nm)}
+          ${nm ? `<div class="edit-list"><details class="edit-item"${nm.__open ? ' open' : ''} data-item="nextMatch">
+              <summary>${nextSummary(nm)}</summary>
+              <div class="ei-body">${grid(NEXT_FIELDS, 'nextMatch.', nm)}</div>
+            </details></div>
             <div class="row-btns">
               <button type="button" class="btn small" id="played">המשחק התקיים — הזנת תוצאה</button>
               <button type="button" class="btn small secondary" id="no-next">אין משחק קרוב</button>
@@ -1000,6 +1012,7 @@ export function mountAdmin(view, ctx) {
       message = errs.slice(0, 4).join(' ') + (errs.length > 4 ? ` (ועוד ${errs.length - 4})` : '');
       messageKind = 'err';
       if (errs.tab) tab = errs.tab;
+      if (draft.nextMatch && errs.some((m) => m.includes('משחק הבא'))) setOpen(draft.nextMatch, true);
       paint();
       return;
     }
@@ -1019,6 +1032,7 @@ export function mountAdmin(view, ctx) {
       // Saved means done with it: the rows close, and the list reads as a list
       // again. A failed save leaves them open, with what still needs fixing.
       for (const list of LISTS) for (const item of getPath(draft, list.path) || []) { setOpen(item, false); setNew(item, false); }
+      if (draft.nextMatch) setOpen(draft.nextMatch, false);
       ctx.onSaved({ version: r.version, updatedAt: r.updatedAt, season: clean });
       message = `נשמר. ההורים יראו את העדכון בפתיחה הבאה (גרסה ${r.version}).`;
       messageKind = 'ok';
@@ -1215,6 +1229,7 @@ export function mountAdmin(view, ctx) {
       draft.nextMatch = f
         ? { opponent: f.opponent, home: f.home !== false, round: f.round ?? null, friendly: f.friendly === true, kickoff: f.time ? israelIso(f.date, f.time) : '', arrival: '', venue: { name: f.venue?.name || '', address: f.venue?.address || '', waze: '' }, kit: '' }
         : { opponent: '', home: true, round: null, kickoff: '', arrival: '', venue: { name: '', address: '', waze: '' }, kit: '' };
+      setOpen(draft.nextMatch, true);
       touch(); paint();
       return;
     }

@@ -5,7 +5,7 @@ import { icon } from './icons.js';
 import { DEFAULT_CREST } from './config.js';
 import { call, bridgeConfigured } from './bridge.js';
 import * as store from './store.js';
-import { renderHome, startCountdown } from './views/home.js';
+import { renderHome, wireHome } from './views/home.js';
 import { renderStats, wireStats } from './views/stats.js';
 import { renderMedia } from './views/media.js';
 import { wireGallery } from './views/gallery.js';
@@ -22,7 +22,7 @@ import { homeAlertHtml } from './views/minutes.js';
 import { toast, buzz } from './ui/sheet.js';
 
 const ROUTES = [
-  { hash: '#/',      label: 'בית',    glyph: 'home',      render: renderHome,  wire: (root) => startCountdown(root) },
+  { hash: '#/',      label: 'בית',    glyph: 'home',      render: renderHome,  wire: (root, s) => wireHome(root, s) },
   { hash: '#/live',  label: 'לייב',   glyph: 'broadcast', live: true },
   { hash: '#/stats', label: 'נתונים', glyph: 'chart',     render: renderStats, wire: (root, s) => wireStats(root, s) },
   { hash: '#/media', label: 'מדיה',   glyph: 'film',      render: renderMedia, wire: (root, s) => wireGallery(root, s, { isAdmin }) },

@@ -2,6 +2,8 @@ import { topBy, opponentLogo } from '../season.js';
 import { longDate, clock, pct, dec, esc, safeUrl, splitDuration, pad2, wazeLink, navLink } from '../format.js';
 import { icon } from '../icons.js';
 import { crestImg, oppLogo, roundText, sectionHead, formPill, matchRow, fixtureRow, leaderRow, tile, splitBar, linkRow, videoCard } from '../components.js';
+import { DAYS, weekday } from '../trainings.js';
+import { openSheet } from '../ui/sheet.js';
 
 // Videos and links are left off the home screen while there are none: a
 // summary page of empty cards reads as an app nobody uses. Their own screen
@@ -56,6 +58,54 @@ function nextMatchCard(s) {
   </div>`;
 }
 
+/* ── This week's trainings ─────────────────────────────────────────────────
+   Above the next match, not between it and the fixtures after it: the owner
+   wanted the strip on the first screen without breaking that run. One
+   square per training (the owner's pick: a calendar row), the week's game
+   closing it; never fewer than four columns, so one training is a square
+   and not a banner. Tapping a training opens its hours, venue and Waze. */
+
+const dayMonth = (iso) => { const [, m, d] = iso.split('-'); return `${+d}.${+m}`; };
+
+function weekHtml(week) {
+  if (!week) return '';
+  const square = (it, i) => {
+    const cls = [it.kind, it.past && 'past', it.today && 'today', it.changed && 'changed', it.cancelled && 'cancelled'].filter(Boolean).join(' ');
+    const day = it.today ? 'היום' : DAYS[weekday(it.date)];
+    const inner = `<span class="l">${day}</span><span class="n num">${dayMonth(it.date)}</span>
+      <span class="t num">${esc(it.start || '—')}</span>`;
+    if (it.kind === 'game') return `<div class="wk-day ${cls}">${inner}<span class="v">משחק</span></div>`;
+    const where = it.cancelled ? 'בוטל' : it.venue.name || it.venue.address;
+    return `<button type="button" class="wk-day ${cls}" data-wk="${i}">${inner}<span class="v">${esc(where)}</span></button>`;
+  };
+  return `<section class="week-sec" aria-label="אימוני השבוע">
+    <div class="wk-label">אימוני השבוע<span class="aside num">${dayMonth(week.start)}–${dayMonth(week.end)}</span></div>
+    <div class="week" style="--n:${Math.max(4, week.items.length)}">${week.items.map(square).join('')}</div>
+  </section>`;
+}
+
+function trainingSheet(t) {
+  const hours = t.start && t.end ? `${t.start}–${t.end}` : t.start || 'שעה טרם נקבעה';
+  const waze = wazeLink(t.venue.address);
+  const place = t.venue.name || t.venue.address;
+  openSheet({
+    title: `אימון · ${t.today ? 'היום' : `יום ${DAYS[weekday(t.date)]}`} ${dayMonth(t.date)}`,
+    subtitle: t.cancelled ? 'האימון בוטל' : t.changed ? 'שינוי לשבוע הזה' : '',
+    body: `<div class="wk-sheet${t.cancelled ? ' cancelled' : ''}">
+      <div class="meta-row">${icon('clock')}<span class="num" dir="ltr"><b>${esc(hours)}</b></span></div>
+      ${place ? `<div class="meta-row">${icon('pin')}<span><b>${esc(place)}</b>${t.venue.name && t.venue.address ? ` <span class="sub">· ${esc(t.venue.address)}</span>` : ''}</span></div>` : ''}
+      ${waze && !t.cancelled ? `<a class="btn" href="${esc(waze)}" target="_blank" rel="noopener noreferrer">${icon('nav')} ניווט אל המגרש ב-Waze</a>` : ''}
+    </div>`,
+  });
+}
+
+export function wireHome(root, s) {
+  root.querySelectorAll('[data-wk]').forEach((b) => {
+    b.onclick = () => { const t = s.week?.items[Number(b.dataset.wk)]; if (t) trainingSheet(t); };
+  });
+  return startCountdown(root);
+}
+
 export function renderHome(s) {
   const o = s.overall;
   const last5 = s.form.slice(0, 5);
@@ -63,6 +113,7 @@ export function renderHome(s) {
   const scorers = topBy(s.players, 'goals', 5);
 
   return `
+  ${weekHtml(s.week)}
   <section>
     ${nextMatchCard(s)}
   </section>

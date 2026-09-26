@@ -12,6 +12,7 @@ import { preparePosters, uploadLogo, hydratePosters } from '../posters.js';
 import { logoKey } from '../season.js';
 import { thumbUrl } from '../gallery.js';
 import { detectFixtureColumns, rowsToFixtures, applyFixtureImport, upcomingFixtures, FIXTURE_FIELDS } from '../fixtures.js';
+import { DAYS, weekday } from '../trainings.js';
 
 /* ── What the manager edits ───────────────────────────────────────────────
    One table drives every list editor: the form, the "add" template and the
@@ -50,6 +51,9 @@ const NEXT_FIELDS = [
   { key: 'kit', label: 'תלבושת', placeholder: 'כחול / לבן / כחול' },
 ];
 
+const DAY_OPTS = DAYS.map((d, i) => [String(i), d]);
+const hours = (t) => (t.start && t.end ? `${t.start}–${t.end}` : t.start || '');
+
 const gameKey = (g) => `${g?.date || ''} ${g?.time || ''}`;
 
 const LISTS = [
@@ -85,6 +89,40 @@ const LISTS = [
       { key: 'round', label: 'מחזור', type: 'round' },
       { key: 'gf', label: 'שערים שלנו', type: 'number', required: true },
       { key: 'ga', label: 'שערי היריבה', type: 'number', required: true },
+    ],
+  },
+  {
+    // The weekly routine behind the home screen's week strip (src/trainings.js).
+    path: 'trainings', title: 'אימונים קבועים', glyph: 'clock', add: 'אימון', tab: 'games',
+    order: (a, b) => Number(a.day) - Number(b.day) || String(a.start || '').localeCompare(String(b.start || '')),
+    note: 'מוצגים בדף הבית, שבוע אחרי שבוע. מגרש ריק = המגרש הביתי.',
+    blank: () => ({ day: '0', start: '', end: '', venue: { name: '', address: '' } }),
+    label: (t) => `יום ${DAYS[Number(t.day)] || '?'}`,
+    sum: (t) => ({ title: `יום ${DAYS[Number(t.day)] || '?'}`, sub: [hours(t), t.venue?.name].filter(Boolean).join(' · ') }),
+    fields: [
+      { key: 'day', label: 'יום', type: 'select', options: DAY_OPTS },
+      { key: 'start', label: 'משעה', type: 'time', required: true },
+      { key: 'end', label: 'עד', type: 'time' },
+      { key: 'venue.name', label: 'מגרש', hint: 'ריק = המגרש הביתי' },
+      { key: 'venue.address', label: 'כתובת', hint: 'קישור ה-Waze נבנה מהכתובת', wide: true },
+    ],
+  },
+  {
+    // One-off: a date whose training moved, was cancelled, or was added.
+    // Past ones stop showing by themselves.
+    path: 'trainingChanges', title: 'שינויים באימונים', glyph: 'calendar', add: 'שינוי', tab: 'games', limit: 5,
+    order: (a, b) => String(b.date || '').localeCompare(String(a.date || '')),   // latest first
+    note: 'לתאריך מסוים: אימון שזז, בוטל או נוסף. שדה ריק נשאר כמו באימון הקבוע של אותו יום.',
+    blank: () => ({ date: today(), cancelled: false, start: '', end: '', venue: { name: '', address: '' } }),
+    label: (c) => (c.date ? shortDate(c.date) : 'שינוי חדש'),
+    sum: (c) => ({ title: c.date ? `${DAYS[weekday(c.date)]} ${shortDate(c.date)}` : 'שינוי חדש', sub: c.cancelled ? 'בוטל' : [hours(c), c.venue?.name].filter(Boolean).join(' · ') }),
+    fields: [
+      { key: 'date', label: 'תאריך', type: 'date', required: true },
+      { key: 'cancelled', label: 'האימון בוטל', type: 'check' },
+      { key: 'start', label: 'משעה', type: 'time' },
+      { key: 'end', label: 'עד', type: 'time' },
+      { key: 'venue.name', label: 'מגרש' },
+      { key: 'venue.address', label: 'כתובת', wide: true },
     ],
   },
   {
@@ -858,8 +896,9 @@ export function mountAdmin(view, ctx) {
     const lists = (t) => LISTS.filter((l) => l.tab === t).map(listHtml).join('');
     const list = (path) => listHtml(LISTS.find((l) => l.path === path));
     const body = {
-      // Results before the schedule: the score is the weekly edit.
-      games: () => nextMatchHtml() + list('matches') + list('fixtures'),
+      // Results before the schedule: the score is the weekly edit. Trainings
+      // last: the routine is set once, and a change is the odd week.
+      games: () => nextMatchHtml() + list('matches') + list('fixtures') + list('trainings') + list('trainingChanges'),
       players: () => lists('players'),
       media: () => `${galleryAdminHtml()}${lists('media')}
         <section>

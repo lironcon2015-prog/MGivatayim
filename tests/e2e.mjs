@@ -632,6 +632,39 @@ await step('a pasted schedule becomes the next match and the list after it', asy
 
 const israelToday = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem' }).format(new Date());
 
+await step('a weekly training shows above the next match, on the first screen, and opens its venue', async () => {
+  const day = new Date(israelToday() + 'T12:00:00Z').getUTCDay();
+  await admin.goto(APP + '#/admin');
+  await adminTab(admin, 'games');
+  const row = await newRow(admin, 'trainings');
+  await admin.selectOption(`[data-path="${row}.day"]`, String(day));
+  await admin.fill(`[data-path="${row}.start"]`, '17:00');
+  await admin.fill(`[data-path="${row}.end"]`, '18:30');
+  await admin.click('#save');
+  await waitText(admin, 'נשמר');
+  const season = JSON.parse(bridge.driveFile('season.json')).season;
+  expect(season.trainings?.length === 1 && season.trainings[0].start === '17:00', 'training not saved: ' + JSON.stringify(season.trainings));
+
+  await parent.goto(APP + '#/');
+  await parent.reload();
+  const sq = parent.locator('.week-sec .wk-day.today');
+  await sq.waitFor({ timeout: 8000 });
+  const t = (await sq.innerText()).replace(/\s+/g, ' ');
+  expect(t.includes('היום') && t.includes('17:00') && t.includes('אצטדיון גבעתיים'), 'today\'s square: ' + t);
+  // Above the next match, and the card after it is still the schedule.
+  const order = await parent.evaluate(() => {
+    const w = document.querySelector('.week-sec'), h = document.querySelector('.hero');
+    return { before: !!(w.compareDocumentPosition(h) & Node.DOCUMENT_POSITION_FOLLOWING), bottom: w.getBoundingClientRect().bottom, vh: innerHeight };
+  });
+  expect(order.before, 'the week strip is not above the next match');
+  expect(order.bottom < order.vh / 3, 'the week strip is not near the top: ' + order.bottom);
+  await sq.click();
+  const sheet = parent.locator('.sheet', { hasText: '18:30' });
+  await sheet.waitFor();
+  expect(await sheet.locator('a.btn[href^="https://www.waze.com/ul?q="]').count() === 1, 'no Waze link for the home ground');
+  await parent.locator('.sheet-x').click();
+});
+
 await step('a later fixture can go live now; finishing dates it today and takes it off the schedule', async () => {
   await admin.goto(APP + '#/live');
   await admin.reload();

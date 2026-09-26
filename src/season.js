@@ -6,6 +6,7 @@
 import { cleanPlayedMatch } from './live/model.js';
 import { primaryPos, posLabel } from './positions.js';
 import { upcomingFixtures, fixtureAsNext } from './fixtures.js';
+import { trainingWeek } from './trainings.js';
 
 export const OUTCOMES = { win: 'ניצחון', draw: 'תיקו', loss: 'הפסד' };
 
@@ -89,6 +90,8 @@ export function buildSeason(input, now = new Date()) {
     players: input.players ?? [],
     videos: input.videos ?? [],
     links: input.links ?? [],
+    trainings: input.trainings ?? [],
+    trainingChanges: input.trainingChanges ?? [],
     analysis: { items: [], ...(input.analysis ?? {}) },
     opponentLogos: cleanLogos(input.opponentLogos),
   };
@@ -143,6 +146,9 @@ export function buildSeason(input, now = new Date()) {
   return {
     ...raw,
     nextMatch,
+    // This week's trainings and the game that closes it (src/trainings.js),
+    // or null when the week has none.
+    week: trainingWeek(raw, nextMatch, now),
     // Every fixture still ahead, and those after the one the card shows. The
     // fixture on the day of a next match set by hand shows that match's
     // kickoff: the schedule said "time not set" beside a card saying 09:30.

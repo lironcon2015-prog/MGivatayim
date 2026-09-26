@@ -297,6 +297,41 @@ await test('fixtures: what is still ahead, and the next match derived from it', 
   assert.equal(buildSeason({}, now).nextMatch, null);
 });
 
+await test('trainings: the week is the routine plus this week\'s changes, and the game closes it', async () => {
+  const { buildSeason } = await import('../src/season.js');
+  const tuesday = new Date('2026-09-29T10:00:00Z');
+  const base = {
+    team: { homeVenue: { name: 'בורוכוב', address: 'בורוכוב 5' } },
+    trainings: [{ day: '4', start: '17:00', end: '18:30' }, { day: '0', start: '17:00', end: '18:30' }, { day: '2', start: '17:00', end: '18:30', venue: { name: 'אחר' } }],
+    trainingChanges: [
+      { date: '2026-10-01', start: '16:30', venue: { name: 'רמת חן' } },   // moved: time and venue
+      { date: '2026-09-27', cancelled: true },
+      { date: '2026-09-30', start: '19:00', end: '20:00' },                  // extra, on a free day
+      { date: '2026-09-22', cancelled: true },                               // last week: ignored
+    ],
+    fixtures: [{ date: '2026-10-03', time: '10:30', opponent: 'יריבה', home: true }],
+  };
+  const w = buildSeason(base, tuesday).week;
+  assert.equal(w.start, '2026-09-27');
+  assert.equal(w.end, '2026-10-03');
+  assert.deepEqual(w.items.map((i) => [i.date, i.kind, i.start]), [
+    ['2026-09-27', 'training', '17:00'], ['2026-09-29', 'training', '17:00'], ['2026-09-30', 'training', '19:00'],
+    ['2026-10-01', 'training', '16:30'], ['2026-10-03', 'game', '10:30'],
+  ]);
+  const [sun, tue, wed, thu] = w.items;
+  assert.ok(sun.cancelled && sun.past && !sun.changed);
+  assert.ok(tue.today && !tue.past);
+  assert.equal(tue.venue.name, 'אחר', 'a venue given wins over the home ground');
+  assert.equal(sun.venue.name, 'בורוכוב', 'no venue = the home ground');
+  assert.ok(thu.changed);
+  assert.equal(thu.end, '18:30', 'an empty field keeps the routine\'s');
+  assert.equal(thu.venue.name, 'רמת חן');
+  assert.equal(wed.venue.name, 'בורוכוב', 'an extra training without a venue is at home');
+  // Sunday starts the next week.
+  assert.equal(buildSeason(base, new Date('2026-10-04T08:00:00Z')).week.start, '2026-10-04');
+  assert.equal(buildSeason({ ...base, trainings: [], trainingChanges: [] }, tuesday).week, null, 'no trainings, no strip');
+});
+
 await test('fixtures: an import never overwrites a result already there', async () => {
   const F = await import('../src/fixtures.js');
   const season = { matches: [{ date: '2026-08-15', opponent: 'בני יהודה', gf: 4, ga: 4, liveId: 'L1' }] };

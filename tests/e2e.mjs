@@ -1144,10 +1144,37 @@ await step('several items are deleted at once by picking them; a parent picks on
   await other.setInputFiles('[data-files]', { name: 'b.png', mimeType: 'image/png', buffer: PNG });
   await other.click('.sheet [data-go]');
   await other.locator('[data-gallery] .gl-tile').first().waitFor({ timeout: 8000 });
+  // The gallery's first answer on opening, answered at once but delivered
+  // late, as on a slow line: it lands after the answer that follows the
+  // upload, and must not draw the gallery from before it.
+  // Every answer asked for before the upload is held back (the screen is
+  // drawn twice on a reload, and each asks).
+  let holding = true;
+  const slowFirst = async (r) => {
+    if (!holding || !(r.request().postData() || '').includes('"getGallery"')) return r.continue().catch(() => {});
+    const resp = await r.fetch();
+    await new Promise((ok) => setTimeout(ok, 3000));
+    await r.fulfill({ response: resp }).catch(() => {});
+  };
+  await parent.route(BRIDGE, slowFirst);
   await parent.reload();
   await parent.setInputFiles('[data-files]', [{ name: 'a1.png', mimeType: 'image/png', buffer: PNG }, { name: 'a2.png', mimeType: 'image/png', buffer: PNG }]);
+  await parent.locator('.sheet [data-go]').waitFor();
+  holding = false;
   await parent.click('.sheet [data-go]');
-  await parent.locator('[data-gallery] .gl-tile').nth(2).waitFor({ timeout: 8000 });
+  // Kept for the day this fails again (it did, rarely, before the fix above):
+  // what the bridge holds, what the screen shows, and any sheet or toast.
+  const diagnose = async () => [
+    'bridge: ' + galleryFile().items.map((x) => x.byName).join(','),
+    'tiles: ' + await parent.locator('[data-gallery] .gl-tile').count(),
+    'sheets: ' + JSON.stringify(await parent.locator('.sheet').allInnerTexts()),
+    'toast: ' + JSON.stringify(await parent.locator('.toast').allInnerTexts()),
+  ].join(' | ');
+  try { await parent.locator('[data-gallery] .gl-tile').nth(2).waitFor({ timeout: 8000 }); }
+  catch (e) { throw new Error('the uploads are not in the gallery — ' + await diagnose()); }
+  await parent.waitForTimeout(3500);
+  await parent.unroute(BRIDGE, slowFirst);
+  expect(await parent.locator('[data-gallery] .gl-tile').count() >= 3, 'a late answer drew the gallery from before the upload — ' + await diagnose());
   // The overview is short: latest uploads and a card per game. Picking
   // happens on a game's page.
   expect(await parent.locator('[data-gallery] [data-sel="start"]').count() === 0, 'picking offered on the overview');

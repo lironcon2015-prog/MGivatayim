@@ -19,8 +19,16 @@ const KEY = 'mg:gallery';
 let last = (() => { try { return JSON.parse(localStorage.getItem(KEY) || 'null'); } catch { return null; } })();
 export const cachedGallery = () => last;
 
+// Only the newest request's answer counts. The screen asks on opening and
+// again after an upload; on a slow line the first answer can land last, and
+// it would draw (and keep) the gallery from before the upload. An answer
+// overtaken by a newer request comes back as null: wait for that one.
+let asked = 0;
 export async function loadGallery({ asAdmin = false } = {}) {
-  last = await call('getGallery', {}, { asAdmin });
+  const mine = ++asked;
+  const g = await call('getGallery', {}, { asAdmin });
+  if (mine !== asked) return null;
+  last = g;
   try { localStorage.setItem(KEY, JSON.stringify(last)); } catch { /* full or private: memory only */ }
   return last;
 }

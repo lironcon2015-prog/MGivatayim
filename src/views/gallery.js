@@ -445,7 +445,10 @@ export function wireGallery(root, s, { isAdmin = () => false } = {}) {
   let shown = null;
   let loaded = false;
   const refresh = async ({ quiet = false } = {}) => {
-    try { g = await loadGallery({ asAdmin }); } catch { /* keep what is shown */ }
+    let fresh;
+    try { fresh = await loadGallery({ asAdmin }); } catch { /* keep what is shown */ }
+    if (fresh === null) return;   // a newer request is on its way; its answer draws
+    if (fresh) g = fresh;
     loaded = true;
     const now = JSON.stringify(g);
     if (quiet && now === shown) { if (shownTab) tabFixed = true; return; }

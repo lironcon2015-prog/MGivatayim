@@ -572,9 +572,17 @@ await step('the next live match opens with the last starting lineup, capped at t
 
 await step('a lineup pasted from WhatsApp is matched by first names and placed', async () => {
   const before = liveFile().lineup;
+  const clip = (t) => admin.evaluate((x) => navigator.clipboard.writeText(x), t);
+  // Text that names no one: the box to paste into by hand, empty.
+  await clip('https://example.com/something');
   await admin.locator('[data-act="paste-lineup"]').click();
-  await admin.fill('[data-lu-text]', '[27/09/2026, 20:14] המאמן: הרכב למחר 💪\nשוער: נועם\n1. תומר\n2. גיא\nחלוץ: משה\nספסל: דניאל');
-  await admin.click('[data-lu-go]');
+  await admin.locator('[data-lu-text]').waitFor();
+  expect(await admin.locator('[data-lu-text]').inputValue() === '', 'unrelated clipboard text landed in the box');
+  await admin.locator('.sheet-x').click();
+  await admin.waitForFunction(() => !document.querySelector('.sheet'));
+  // The coach's message on the clipboard: the button pastes it by itself.
+  await clip('[27/09/2026, 20:14] המאמן: הרכב למחר 💪\nשוער: נועם\n1. תומר\n2. גיא\nחלוץ: משה\nספסל: דניאל');
+  await admin.locator('[data-act="paste-lineup"]').click();
   // "משה" is no one: left to pick, and nothing is placed until the button.
   await admin.locator('.lu-imp .imp-kind', { hasText: 'לא זוהה' }).waitFor();
   expect(JSON.stringify(liveFile().lineup) === JSON.stringify(before), 'the preview changed the lineup');

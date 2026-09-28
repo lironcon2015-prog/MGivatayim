@@ -374,12 +374,25 @@ export function mountLive(view, ctx) {
   // squad by name (first names too), shown row by row with anything unsure
   // left to pick, and only then placed. Replaces the lineup being set.
   let pastedLineup = '';
+  // The button pastes by itself: what the clipboard holds goes straight to
+  // the matched rows. readText must start inside the tap (iOS shows its
+  // "Paste" bubble for it); refused, empty, or text that names no one in the
+  // squad → the box to paste into by hand, as before.
   function pasteLineupSheet() {
+    let read;
+    try { read = navigator.clipboard?.readText ? navigator.clipboard.readText() : null; } catch { read = null; }
+    Promise.resolve(read).catch(() => '').then((text) => openPasteLineup(String(text || '')));
+  }
+  function openPasteLineup(clip) {
     const st0 = state();
+    if (!st0 || st0.status !== 'setup') return;
     const size = M.sizeOf(st0);
     const players = [...st0.players].sort(byNumber);
     const byId = new Map(players.map((p) => [p.id, p]));
     let rows = null;
+    const fromClip = clip.trim() ? matchLineup(clip, players, size).rows : [];
+    const useClip = fromClip.some((r) => r.pid || r.options.length);
+    if (useClip) { pastedLineup = clip; rows = fromClip; }
     const inputHtml = () => `<p class="sheet-text">מעתיקים את ההודעה של המאמן ומדביקים כאן — שם בכל שורה או מופרדים בפסיקים, גם שמות פרטיים בלבד. עמדה ליד השם ("שוער: אורי") נכנסת כמו שהיא, ובלי עמדה — העמדה של השחקן. מה שאחרי "ספסל:" לא נכנס להרכב.</p>
       <textarea class="paste-box" rows="9" dir="auto" data-lu-text placeholder="שוער: אורי&#10;דני, יונתן, רון&#10;חלוצים: נועם, איתי&#10;ספסל: עידו">${esc(pastedLineup)}</textarea>
       <div class="sheet-actions"><button type="button" class="btn" data-lu-go>זיהוי השחקנים</button></div>`;
@@ -413,7 +426,7 @@ export function mountLive(view, ctx) {
     const sh = openSheet({
       title: 'הדבקת הרכב',
       tall: true,
-      body: inputHtml(),
+      body: useClip ? previewHtml() : inputHtml(),
       onMount: ({ el }) => {
         const body = el.querySelector('.sheet-body') || el;
         const paint = (html) => { body.innerHTML = html; };

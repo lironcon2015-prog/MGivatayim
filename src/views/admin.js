@@ -325,6 +325,7 @@ let tab = 'games';
 const expanded = new Set();
 const toolsOpen = new Set();
 let inviteKind = 'app';   // what the access tab's copy / WhatsApp send
+let holdersSort = 'seen'; // access holders: last seen first, or by joining (oldest first)
 
 /* The screen is split by how often a part is touched: the weekly work
    (next match, results) first, the roster, the rarely edited content, and
@@ -747,15 +748,25 @@ export function mountAdmin(view, ctx) {
         <span class="acts">${u.status === 'approved' ? roleSwitch(u) : ''}${actions.map(([st, label, cls]) =>
           `<button type="button" class="btn small ${cls || ''}" data-user="${esc(u.id)}" data-set="${st}">${label}</button>`).join('')}</span>
       </div>`;
-    const block = (title, glyph, list, actions, empty, note = '') => `<section>
+    const block = (title, glyph, list, actions, empty, note = '', top = '') => `<section>
         <div class="sec-head">${icon(glyph)}<h2>${title}</h2>${list.length ? `<span class="h-count num">${list.length}</span>` : ''}</div>
+        ${list.length > 1 ? top : ''}
         <div class="card rows">${list.length ? list.map((u) => row(u, actions)).join('') : `<div class="empty">${empty}</div>`}</div>
         ${note && list.length ? `<p class="note">${note}</p>` : ''}
       </section>`;
     const gone = by(['rejected', 'revoked']);
+    // Holders: who was around lately (never seen at the bottom), or the order
+    // they joined in, oldest first.
+    const holders = by(['approved']).sort(holdersSort === 'seen'
+      ? (a, b) => String(b.lastSeen || '').localeCompare(String(a.lastSeen || ''))
+      : (a, b) => String(a.requestedAt).localeCompare(String(b.requestedAt)));
+    const sortSeg = `<div class="seg holders-sort" role="group" aria-label="סדר בעלי הגישה">
+        ${[['seen', 'נראה לאחרונה'], ['joined', 'לפי הצטרפות']].map(([k, l]) =>
+          `<button type="button" data-holders-sort="${k}" aria-selected="${holdersSort === k}" aria-pressed="${holdersSort === k}">${l}</button>`).join('')}
+      </div>`;
     return block('ממתינים לאישור', 'user', by(['pending']), [['approved', 'אישור'], ['rejected', 'דחייה', 'secondary']], 'אין בקשות חדשות.')
-      + block('בעלי גישה', 'check', by(['approved']), [['revoked', 'ביטול', 'danger']], 'עוד לא אושר אף אחד.',
-        'מאמן רואה גם דקות משחק. התפקיד שייך למכשיר ולא לאדם: מאמן עם טלפון ומחשב מסומן בכל אחד מהם.')
+      + block('בעלי גישה', 'check', holders, [['revoked', 'ביטול', 'danger']], 'עוד לא אושר אף אחד.',
+        'מאמן רואה גם דקות משחק. התפקיד שייך למכשיר ולא לאדם: מאמן עם טלפון ומחשב מסומן בכל אחד מהם.', sortSeg)
       + inviteHtml()
       + (gone.length ? block('נדחו / בוטלו', 'shield', gone, [['approved', 'אישור'], ['remove', 'מחיקה', 'secondary']], '') : '');
   }
@@ -1194,6 +1205,7 @@ export function mountAdmin(view, ctx) {
       copyText(CREST_PROMPT).then((ok) => toast(ok ? 'ההנחיה הועתקה — הדביקו אותה בגמיני עם הסמל.' : 'ההעתקה לא הצליחה.', ok ? {} : { kind: 'err' }));
       return;
     }
+    if (t.dataset.holdersSort) { holdersSort = t.dataset.holdersSort; paint(); return; }
     if (t.dataset.inviteKind) { inviteKind = t.dataset.inviteKind; paint(); return; }
     if (t.dataset.import === 'fixtures-file') { view.querySelector('[data-import-fixtures]')?.click(); return; }
     if (t.dataset.import === 'fixtures-paste') { pasteSheet('fixtures'); return; }

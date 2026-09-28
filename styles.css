@@ -663,6 +663,8 @@ button.wk-day:active { transform: scale(.97); }
 .crest-tile:focus-within { outline: 2px solid var(--gold); outline-offset: 4px; border-radius: 12px; }
 .invite-kind { margin-bottom: .8rem; }
 .invite-kind button { font-size: .8rem; }
+.holders-sort { margin-bottom: .6rem; }
+.holders-sort button { font-size: .8rem; }
 .invite-more summary { cursor: pointer; font-size: .82rem; font-weight: 700; color: var(--gold); margin-top: .6rem; }
 .invite-more .invite-preview { margin-top: .6rem; }
 .btn.wide { width: 100%; margin-top: .9rem; }

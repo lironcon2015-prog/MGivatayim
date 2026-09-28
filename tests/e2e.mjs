@@ -957,6 +957,27 @@ await step('a device the manager marks as coach sees playing time; a parent does
   expect(cached.role === 'parent' && !('coach' in cached), 'coach data reached a parent\'s device');
 });
 
+await step('the access holders sort by last seen, or by joining', async () => {
+  // The coach joined last but was seen last too: the two orders differ.
+  const file = bridge.fileById(bridge.driveFileId('access.json'));
+  const acc = JSON.parse(file.text);
+  const holders = Object.values(acc.users).filter((u) => u.status === 'approved')
+    .sort((a, b) => a.requestedAt.localeCompare(b.requestedAt));
+  holders.forEach((u, i) => { u.lastSeen = new Date(Date.UTC(2026, 0, 1 + (i === holders.length - 1 ? 20 : 10 - i))).toISOString(); });
+  file.setContent(JSON.stringify(acc));
+  await admin.goto(APP + '#/admin');
+  await admin.reload();
+  await admin.click('[data-tab="access"]');
+  const names = () => admin.locator('.holders-sort + .card .who b').allInnerTexts();
+  const seen = [...holders].sort((a, b) => b.lastSeen.localeCompare(a.lastSeen)).map((u) => u.name);
+  await admin.locator('.holders-sort [data-holders-sort="seen"][aria-selected="true"]').waitFor({ timeout: 8000 });
+  expect(JSON.stringify(await names()) === JSON.stringify(seen), 'holders are not in last-seen order: ' + (await names()).join(', '));
+  await admin.click('[data-holders-sort="joined"]');
+  const joined = holders.map((u) => u.name);
+  expect(JSON.stringify(await names()) === JSON.stringify(joined), 'holders are not in joining order: ' + (await names()).join(', '));
+  expect(JSON.stringify(seen) !== JSON.stringify(joined), 'the test data does not tell the two orders apart');
+});
+
 await step('before kick-off the coach sets the minimum and who came; a parent sees no minutes tab', async () => {
   await asAdmin('clearLive');
   await admin.goto(APP + '#/live');

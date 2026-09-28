@@ -955,6 +955,14 @@ button.pl:focus-visible .pl-num { outline: 2px solid #fff; outline-offset: 2px; 
   direction: rtl; max-width: 86px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   font-size: .7rem; font-weight: 700; padding: .06rem .42rem; border-radius: 6px; background: rgba(8, 12, 18, .75);
 }
+/* A free slot of the formation: an outline waiting for a player, with its
+   position under it. Quiet, so the filled ones lead. */
+.pl.open .pl-num {
+  background: rgba(8, 12, 18, .45); color: var(--gold); border: 1.5px dashed var(--gold-line);
+  box-shadow: none; font-size: 1.25rem; font-weight: 600;
+}
+.pl.open .pl-name { background: none; color: var(--muted); font-weight: 600; }
+.pl.open.gk .pl-num { color: #e3e8f1; border-color: rgba(227, 232, 241, .45); }
 .pitch-empty { position: absolute; inset: 0; display: grid; place-items: center; color: var(--faint); font-size: .86rem; }
 .bench { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: .75rem; }
 .bench-label { font-size: .74rem; font-weight: 800; color: var(--faint); margin-inline-end: .2rem; }
@@ -1036,11 +1044,17 @@ button.ev:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 }
 .lu-check svg { width: 16px; height: 16px; }
 .lu-row.on .lu-check { background: var(--gold); border-color: var(--gold); color: var(--on-gold); }
-.lu-pos {
-  flex: none; width: 8.4rem; min-height: 42px; font: inherit; font-size: .84rem; color: var(--text); color-scheme: dark;
-  background: var(--well); border: 1px solid rgba(255, 255, 255, .11); border-radius: 14px; padding: .4rem .55rem;
+.lu-name small { display: block; font-size: .72rem; font-weight: 600; color: var(--faint); }
+/* The slot a starter holds in the formation, beside his name. */
+.lu-slot {
+  flex: none; font-size: .74rem; font-weight: 700; color: var(--gold); white-space: nowrap;
+  padding: .15rem .55rem; border-radius: var(--r-pill); background: var(--gold-soft); border: 1px solid var(--gold-line);
 }
-.lu-pos:disabled { opacity: .3; }
+/* Formation: the base the players go into. */
+.formation-seg button { font-size: 1rem; letter-spacing: .04em; }
+.formation-note { margin: .45rem 0 .8rem; text-align: center; font-size: .76rem; color: var(--faint); }
+.lu-hint { margin: .6rem 0 0; }
+.slot-out { margin: 0 0 .7rem; }
 
 /* ═══ Format editor ════════════════════════════════════════════════════ */
 .fmt-presets { display: flex; flex-wrap: wrap; gap: 4px; padding: 3px; background: var(--well); border: 1px solid var(--line); border-radius: 22px; }

@@ -3,6 +3,7 @@
 // replaying the same operations always yields the same state — which is what
 // lets a controller's queued actions be re-applied on top of a newer server
 // copy after a conflict or a dropped connection (see sync.js).
+import { formationOf } from '../positions.js';
 
 /* ── Match format ──────────────────────────────────────────────────────── */
 
@@ -34,6 +35,10 @@ export const SIZES = [
 export const DEFAULT_SIZE = 9;
 export const cleanSize = (n) => (SIZES.some((x) => x.n === Number(n)) ? Number(n) : DEFAULT_SIZE);
 export const sizeOf = (state) => cleanSize(state?.size);
+// One of the size's formations (positions.js), by id; anything else — none
+// yet, or one of the other size — is the size's default.
+export const cleanFormation = (size, id) => formationOf(cleanSize(size), String(id || '')).id;
+export const formationOfState = (state) => formationOf(sizeOf(state), state?.formation);
 export const describeSize = (n) => SIZES.find((x) => x.n === cleanSize(n)).label;
 
 // The starting lineup of the most recent match that recorded one, as the
@@ -108,7 +113,7 @@ export function israelDate(ms) {
 // `fixture` names the schedule row this match was opened from ({date,
 // opponent}); the finished match carries it, and that is what takes the row
 // off the schedule even when the match was played on another day.
-export function newLive({ id, opponent, home = true, round = null, friendly = false, date, format, size, lineup, players, fixture = null }) {
+export function newLive({ id, opponent, home = true, round = null, friendly = false, date, format, size, formation = '', lineup, players, fixture = null }) {
   const squad = (players || []).map((p) => ({ id: p.id, name: p.name, number: p.number ?? null, pos: p.pos || '', pos2: p.pos2 || '' }));
   return {
     id,
@@ -120,6 +125,7 @@ export function newLive({ id, opponent, home = true, round = null, friendly = fa
     date: date || '',
     format: cleanFormat(format),
     size: cleanSize(size),
+    formation: cleanFormation(size, formation),
     fixture: fixture && fixture.date ? { date: fixture.date, opponent: fixture.opponent || '' } : null,
     period: 0,
     clock: { running: false, startedAt: null, accMs: 0 },
@@ -176,7 +182,7 @@ export function cleanLive(s) {
     id: str(s.id),
     status: STATUSES.includes(s.status) ? s.status : 'setup',
     opponent: str(s.opponent), home: s.home !== false, round: num(s.round), friendly: s.friendly === true, date: str(s.date),
-    format: cleanFormat(s.format), size: cleanSize(s.size),
+    format: cleanFormat(s.format), size: cleanSize(s.size), formation: cleanFormation(s.size, s.formation),
     fixture: s.fixture && s.fixture.date ? { date: str(s.fixture.date), opponent: str(s.fixture.opponent) } : null,
     period: num(s.period, 0),
     clock: { running: !!clock.running, startedAt: num(clock.startedAt), accMs: num(clock.accMs, 0) },
@@ -221,6 +227,7 @@ export function reduce(state, op) {
       for (const k of ['opponent', 'home', 'round', 'date']) if (k in op.patch) s[k] = op.patch[k];
       if ('format' in op.patch) s.format = cleanFormat(op.patch.format);
       if ('size' in op.patch) s.size = cleanSize(op.patch.size);
+      if ('formation' in op.patch || 'size' in op.patch) s.formation = cleanFormation(s.size, op.patch.formation ?? s.formation);
       return s;
     case 'lineup':
       if (s.status !== 'setup') return state;

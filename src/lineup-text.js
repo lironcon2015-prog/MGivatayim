@@ -4,7 +4,9 @@
 // בלם", "חלוצים: …" as a header over the lines under it). Pure: text and
 // squad in, matched rows out; the live screen shows them before anything
 // changes.
-import { matchPosition, primaryPos, secondaryPos, isKeeper } from './positions.js';
+import { matchPosition, fitFormation, formationOf } from './positions.js';
+
+const slotList = (slots) => (Array.isArray(slots) ? slots : formationOf(Number(slots) || 9).slots);
 
 // WhatsApp's copy prefix: "[27/09/2026, 20:14:03] מאמן: " (iPhone) or
 // "27/09/2026, 20:14 - מאמן: " (Android).
@@ -146,7 +148,7 @@ export function splitLineup(text) {
 // the one player it names, or null with `options` (several fit) or none.
 // Players already taken by a surer row drop out of an unsure row's options,
 // so "אורי" resolves once "אורי כ." took the other Uri.
-export function matchLineup(text, players, size) {
+export function matchLineup(text, players, slots) {
   const pieces = splitLineup(text);
   const rows = pieces.map((x) => ({ ...x, options: candidates(x.text, x.num, players).map((p) => p.id), pid: null }));
   const taken = new Set();
@@ -160,27 +162,15 @@ export function matchLineup(text, players, size) {
       r.options = left.length ? left : r.options;
     }
   }
-  return { rows, lineup: lineupFrom(rows, players, size) };
+  return { rows, lineup: lineupFrom(rows, players, slots) };
 }
 
-// The starting lineup from the resolved rows: the first `size` players named
-// above the bench, each in the position the text gave, else their own.
-// One keeper: a second player whose position is keeper plays their second
-// position (or none) unless the text put them in goal.
-export function lineupFrom(rows, players, size) {
-  const byId = new Map(players.map((p) => [p.id, p]));
+// The starting lineup from the resolved rows, into the formation's slots:
+// the first players named above the bench, as many as there are slots, each
+// asking for the position the text gave (fitFormation gives the rest their
+// own, or the nearest free). `slots` is a formation's positions, or a size.
+export function lineupFrom(rows, players, slots) {
   const seen = new Set();
-  const starters = rows.filter((r) => r.pid && !r.bench && !seen.has(r.pid) && seen.add(r.pid)).slice(0, size);
-  const hasKeeper = starters.some((r) => isKeeper(r.pos));
-  let keeper = hasKeeper;
-  return starters.map((r) => {
-    if (r.pos) return { pid: r.pid, pos: r.pos };
-    const p = byId.get(r.pid);
-    let pos = primaryPos(p);
-    if (isKeeper(pos)) {
-      if (keeper) pos = isKeeper(secondaryPos(p)) ? '' : secondaryPos(p);
-      else keeper = true;
-    }
-    return { pid: r.pid, pos };
-  });
+  const starters = rows.filter((r) => r.pid && !r.bench && !seen.has(r.pid) && seen.add(r.pid));
+  return fitFormation(slotList(slots), starters.map((r) => ({ pid: r.pid, want: r.pos })), players);
 }

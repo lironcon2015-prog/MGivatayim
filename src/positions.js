@@ -7,6 +7,10 @@ export const POSITIONS = [
   { id: 'RB', label: 'מגן ימין',  short: 'מ״י', x: 0.86, y: 0.74, line: 1 },
   { id: 'CB', label: 'בלם',       short: 'בלם', x: 0.5,  y: 0.77, line: 1 },
   { id: 'LB', label: 'מגן שמאל',  short: 'מ״ש', x: 0.14, y: 0.74, line: 1 },
+  // A wing-back runs the whole flank ("כנף על כל הקו"): drawn with the
+  // defence, a step higher.
+  { id: 'RWB', label: 'מגן-כנף ימין', short: 'מכ״י', x: 0.88, y: 0.64, line: 1 },
+  { id: 'LWB', label: 'מגן-כנף שמאל', short: 'מכ״ש', x: 0.12, y: 0.64, line: 1 },
   { id: 'DM', label: 'קשר אחורי', short: 'ק״א', x: 0.5,  y: 0.6,  line: 2 },
   { id: 'CM', label: 'קשר מרכזי', short: 'ק״מ', x: 0.5,  y: 0.45, line: 3 },
   { id: 'RW', label: 'כנף ימין',  short: 'כ״י', x: 0.86, y: 0.28, line: 4 },
@@ -25,8 +29,10 @@ export const isKeeper = (id) => id === 'GK';
 // specific phrases are tried before the words they contain.
 const RULES = [
   ['GK', /שוער|goal ?keeper|^gk$|keeper/i],
-  ['RB', /מגן ימ|right ?back|^rb$|^rwb$/i],
-  ['LB', /מגן שמ|left ?back|^lb$|^lwb$/i],
+  ['RWB', /מגן.?כנף ימ|כנף.?מגן ימ|wing.?back.*right|right wing.?back|^rwb$/i],
+  ['LWB', /מגן.?כנף שמ|כנף.?מגן שמ|wing.?back.*left|left wing.?back|^lwb$/i],
+  ['RB', /מגן ימ|right ?back|^rb$/i],
+  ['LB', /מגן שמ|left ?back|^lb$/i],
   ['CB', /בלם|מגן מרכז|centre ?back|center ?back|^cb$/i],
   ['DM', /קשר אחור|קשר הגנתי|defensive mid|^cdm$|^dm$/i],
   ['AM', /קשר קדמ|קשר התקפ|attacking mid|^cam$|^am$/i],
@@ -50,10 +56,10 @@ export function matchPosition(text) {
 // defender is replaced from defence, then midfield, then attack; an attacker
 // the other way round; a midfielder from midfield, then attack, then
 // defence. A keeper is not a defender — keepers come only for a keeper.
-const LINE = { RB: 'def', CB: 'def', LB: 'def', DM: 'mid', CM: 'mid', AM: 'mid', RW: 'att', LW: 'att', ST: 'att' };
+const LINE = { RB: 'def', CB: 'def', LB: 'def', RWB: 'def', LWB: 'def', DM: 'mid', CM: 'mid', AM: 'mid', RW: 'att', LW: 'att', ST: 'att' };
 const LINE_ORDER = { def: ['def', 'mid', 'att'], mid: ['mid', 'att', 'def'], att: ['att', 'mid', 'def'] };
 const LINE_LABEL = { def: 'הגנה', mid: 'קישור', att: 'התקפה' };
-const NEAR = { DM: ['CM'], AM: ['CM'] };
+const NEAR = { DM: ['CM'], AM: ['CM'], RWB: ['RB'], LWB: ['LB'] };
 
 // `list` in the order to show it, as groups for the picker. `second` reads a
 // candidate's second position; field players have one slot, so none. `also`
@@ -92,25 +98,103 @@ export function subGroups(pos, list, { second = secondaryPos, also = '', rest = 
 export const primaryPos = (p) => p?.pos || matchPosition(p?.position) || '';
 export const secondaryPos = (p) => p?.pos2 || '';
 
-// Where each player on the field is drawn. Players sharing a line are spread
-// across it in their left-to-right order, so two centre-backs stand side by
-// side instead of on top of each other.
+// Where each player on the field is drawn: at their position's spot. Players
+// who share a spot (two centre-backs, three central midfielders) are spread
+// around it, side by side instead of on top of each other; a spot of its own
+// (a winger on the touchline) stays where it is.
 export function layout(onField) {
-  const lines = new Map();
+  const spots = new Map();
   for (const slot of onField) {
-    const p = position(slot.pos) || { x: 0.5, y: 0.5, line: 3 };
-    const key = p.line;
-    if (!lines.has(key)) lines.set(key, []);
-    lines.get(key).push({ ...slot, bx: p.x, y: p.y });
+    const p = position(slot.pos) || { x: 0.5, y: 0.5 };
+    const key = `${p.x}|${p.y}`;
+    if (!spots.has(key)) spots.set(key, []);
+    spots.get(key).push({ ...slot, bx: p.x, y: p.y });
   }
   const out = [];
-  for (const group of lines.values()) {
-    group.sort((a, b) => a.bx - b.bx || String(a.pid).localeCompare(String(b.pid)));
+  for (const group of spots.values()) {
+    // Filled before empty, then a stable order: a slot filled in the lineup
+    // editor does not jump to the other side of its partner.
+    group.sort((a, b) => (!a.pid - !b.pid) || String(a.pid || '').localeCompare(String(b.pid || '')));
     const n = group.length;
+    const gap = Math.min(0.3, 0.72 / Math.max(1, n - 1));
     group.forEach((g, i) => {
-      const x = n === 1 ? g.bx : 0.14 + (0.72 * i) / (n - 1);
+      const x = n === 1 ? g.bx : Math.min(0.88, Math.max(0.12, g.bx + (i - (n - 1) / 2) * gap));
       out.push({ ...g, x, y: g.y });
     });
   }
   return out;
 }
+
+/* ── Formations ────────────────────────────────────────────────────────
+   The formation is the base and the players go into it — not the other way
+   round (the owner's rule). Each formation is its slots, by position; the
+   lineup still stores { pid, pos }, so history, minutes and the bridge read
+   it as before. The first formation of a size is its default. */
+export const FORMATIONS = {
+  9: [
+    { id: '3-2-3', slots: ['GK', 'RB', 'CB', 'LB', 'DM', 'CM', 'RW', 'ST', 'LW'], note: 'בלם ושני מגינים · קשר אחורי ומרכזי · כנפיים וחלוץ' },
+    { id: '4-2-2', slots: ['GK', 'RWB', 'CB', 'CB', 'LWB', 'CM', 'CM', 'ST', 'ST'], note: 'שני בלמים ומגני-כנף · שני קשרים · שני חלוצים' },
+    { id: '4-3-1', slots: ['GK', 'RWB', 'CB', 'CB', 'LWB', 'CM', 'CM', 'CM', 'ST'], note: 'שני בלמים ומגני-כנף · שלושה קשרים · חלוץ' },
+  ],
+  11: [
+    { id: '4-3-3', slots: ['GK', 'RB', 'CB', 'CB', 'LB', 'DM', 'CM', 'CM', 'RW', 'ST', 'LW'], note: 'ארבעה בהגנה · שלושה קשרים · כנפיים וחלוץ' },
+    { id: '4-4-2', slots: ['GK', 'RB', 'CB', 'CB', 'LB', 'RW', 'CM', 'CM', 'LW', 'ST', 'ST'], note: 'ארבעה בהגנה · ארבעה בקישור · שני חלוצים' },
+  ],
+};
+export const formationsFor = (size) => FORMATIONS[size] || FORMATIONS[9];
+export const formationOf = (size, id) => formationsFor(size).find((f) => f.id === id) || formationsFor(size)[0];
+
+// The slots of `slots` still free once `lineup` is in them, as positions.
+export function freeSlots(slots, lineup) {
+  const free = [...slots];
+  for (const l of lineup) { const i = free.indexOf(l.pos); if (i >= 0) free.splice(i, 1); }
+  return free;
+}
+
+// Positions a player can reasonably fill when his own is not in the
+// formation: a back for a wing-back and back again, the midfield among
+// itself, a winger up front.
+const FIT_NEAR = {
+  RB: ['RWB', 'CB'], LB: ['LWB', 'CB'], RWB: ['RB', 'RW'], LWB: ['LB', 'LW'], CB: ['RB', 'LB', 'DM'],
+  DM: ['CM', 'CB'], CM: ['DM', 'AM'], AM: ['CM', 'ST'], RW: ['RWB', 'ST'], LW: ['LWB', 'ST'], ST: ['AM', 'RW', 'LW'],
+};
+
+// Players into a formation's free slots. `entries` in the order they were
+// picked, each { pid, want, was } — `want` is a position asked for (in the
+// coach's message), `was` the slot he held in another formation, which may
+// itself have been a compromise. Round by round, every player gets the best
+// slot left: the one asked for, his first position, his second, the one he
+// held, a neighbouring position, his line, any field slot, and the goal only
+// last — a field player is never put in goal while a field slot is free.
+// More players than slots: the first ones picked stay.
+export function fitFormation(slots, entries, players) {
+  const byId = new Map((players || []).map((p) => [p.id, p]));
+  const free = [...slots];
+  const placed = new Map();
+  const list = entries.filter((e) => byId.has(e.pid)).slice(0, free.length);
+  const own = (e) => [e.want, primaryPos(byId.get(e.pid)), secondaryPos(byId.get(e.pid)), e.was].filter(Boolean);
+  const rounds = [
+    (e) => [e.want],
+    (e) => [primaryPos(byId.get(e.pid))],
+    (e) => [secondaryPos(byId.get(e.pid))],
+    (e) => [e.was],
+    (e) => own(e).flatMap((x) => FIT_NEAR[x] || []),
+    (e) => own(e).flatMap((x) => free.filter((f) => LINE[x] && LINE[f] === LINE[x])),
+    () => free.filter((f) => !isKeeper(f)),
+    () => [...free],
+  ];
+  for (const round of rounds) {
+    for (const e of list) {
+      if (placed.has(e.pid)) continue;
+      for (const pos of round(e)) {
+        const i = pos ? free.indexOf(pos) : -1;
+        if (i >= 0) { free.splice(i, 1); placed.set(e.pid, pos); break; }
+      }
+    }
+  }
+  return list.filter((e) => placed.has(e.pid)).map((e) => ({ pid: e.pid, pos: placed.get(e.pid) }));
+}
+
+// A lineup moved to another formation (or size): the same players, in the
+// order they were picked, each with the position he held.
+export const refit = (slots, lineup, players) => fitFormation(slots, lineup.map((l) => ({ pid: l.pid, was: l.pos })), players);

@@ -4,7 +4,7 @@ import { esc, splitKickoff, shortName, shortDate, byNumber } from '../format.js'
 import { icon } from '../icons.js';
 import { crestImg, keepImages, oppLogo, roundText, COACH_ONLY } from '../components.js';
 import { hydratePosters } from '../posters.js';
-import { POSITIONS, posLabel, isKeeper, layout, subGroups } from '../positions.js';
+import { posLabel, isKeeper, layout, subGroups, formationsFor, freeSlots, fitFormation, refit } from '../positions.js';
 import { openSheet, confirmSheet, toast, buzz } from '../ui/sheet.js';
 import { liveMinutesHtml, hasShortfall, coachFormEvent, coachSheet, matchMinutesHtml } from './minutes.js';
 import { alertKey } from '../minutes.js';
@@ -121,9 +121,12 @@ export function timelineHtml(state, { interactive = false, us: usName = '' } = {
   return `<div class="ev-sides"><span>${esc(usName || 'אנחנו')}</span><span>${opp}</span></div><ol class="ev-list">${items.join('')}</ol>`;
 }
 
-function pitchHtml(state, slots, { interactive }) {
+// `edit` — the lineup editor: every slot of the formation is drawn, the free
+// ones as an outline with their position, and a tap on any slot picks who
+// plays there.
+function pitchHtml(state, slots, { interactive, edit = false }) {
   const placed = layout(slots);
-  const tag = interactive ? 'button' : 'div';
+  const tag = interactive || edit ? 'button' : 'div';
   return `<div class="pitch" dir="ltr">
     <svg class="pitch-lines" viewBox="0 0 100 133" preserveAspectRatio="none" aria-hidden="true">
       <rect x="3" y="3" width="94" height="127" rx="2"/><line x1="3" y1="66.5" x2="97" y2="66.5"/><circle cx="50" cy="66.5" r="11"/>
@@ -131,8 +134,15 @@ function pitchHtml(state, slots, { interactive }) {
       <rect x="37" y="3" width="26" height="7"/><rect x="37" y="123" width="26" height="7"/>
     </svg>
     ${placed.map((s) => {
+      const at = `style="left:${(s.x * 100).toFixed(1)}%;top:${(s.y * 100).toFixed(1)}%"`;
+      if (!s.pid) {
+        return `<button type="button" class="pl open${isKeeper(s.pos) ? ' gk' : ''}" ${at} data-slot="${esc(s.pos)}" aria-label="${esc(`${posLabel(s.pos)} — פנוי, בחירת שחקן`)}">
+          <span class="pl-num">+</span><span class="pl-name">${esc(posLabel(s.pos) || 'עמדה')}</span></button>`;
+      }
       const p = who(state, s.pid);
-      return `<${tag} class="pl${isKeeper(s.pos) ? ' gk' : ''}" style="left:${(s.x * 100).toFixed(1)}%;top:${(s.y * 100).toFixed(1)}%"${interactive ? ` type="button" data-field="${esc(s.pid)}" aria-label="${esc(`${p.name}, ${posLabel(s.pos)} — חילוף`)}"` : ''}>
+      const act = edit ? ` type="button" data-slotp="${esc(s.pid)}" data-slot="${esc(s.pos)}" aria-label="${esc(`${p.name}, ${posLabel(s.pos)} — החלפה`)}"`
+        : interactive ? ` type="button" data-field="${esc(s.pid)}" aria-label="${esc(`${p.name}, ${posLabel(s.pos)} — חילוף`)}"` : '';
+      return `<${tag} class="pl${isKeeper(s.pos) ? ' gk' : ''}" ${at}${act}>
         <span class="pl-num num">${p.number ?? '·'}</span><span class="pl-name">${esc(shortName(p.name))}</span></${tag}>`;
     }).join('')}
     ${placed.length ? '' : '<div class="pitch-empty">עוד לא נבחר הרכב</div>'}
@@ -358,20 +368,18 @@ export function mountLive(view, ctx) {
   }
 
   function lineupEditor(st) {
+    const formation = M.formationOfState(st);
     const chosen = new Map(st.lineup.map((l) => [l.pid, l.pos]));
+    const open = freeSlots(formation.slots, st.lineup);
     const rows = [...st.players].sort(byNumber).map((p) => {
       const on = chosen.has(p.id);
-      const pos = chosen.get(p.id) || p.pos || '';
       return `<div class="lu-row${on ? ' on' : ''}">
         <button type="button" class="lu-toggle" data-lineup="${esc(p.id)}" aria-pressed="${on}">
           <span class="pick-num num">${p.number ?? '·'}</span>
-          <span class="lu-name">${esc(p.name)}</span>
+          <span class="lu-name">${esc(p.name)}<small>${esc([posLabel(p.pos), posLabel(p.pos2)].filter(Boolean).join(' / '))}</small></span>
+          ${on ? `<span class="lu-slot">${esc(posLabel(chosen.get(p.id)) || 'בהרכב')}</span>` : ''}
           <span class="lu-check">${icon('check')}</span>
         </button>
-        <select class="lu-pos" data-lupos="${esc(p.id)}" aria-label="עמדה של ${esc(p.name)}"${on ? '' : ' disabled'}>
-          <option value="">עמדה…</option>
-          ${POSITIONS.map((x) => `<option value="${x.id}"${x.id === pos ? ' selected' : ''}>${x.label}</option>`).join('')}
-        </select>
       </div>`;
     }).join('');
     return `<section>
@@ -387,10 +395,74 @@ export function mountLive(view, ctx) {
     </section>
     <section>
       <div class="sec-head">${icon('user')}<h2>הרכב פותח</h2><span class="aside num">${st.lineup.length} מתוך ${M.sizeOf(st)}</span></div>
+      <div class="seg formation-seg" role="radiogroup" aria-label="מערך">
+        ${formationsFor(M.sizeOf(st)).map((f) => `<button type="button" role="radio" data-formation="${f.id}" aria-checked="${f.id === formation.id}" aria-selected="${f.id === formation.id}"><span class="num" dir="ltr">${f.id}</span></button>`).join('')}
+      </div>
+      <p class="formation-note">${esc(formation.note)}</p>
       ${st.players.length ? `<button type="button" class="btn secondary small lu-paste" data-act="paste-lineup">${icon('copy')} הדבקת הרכב מהוואטסאפ</button>` : ''}
-      ${pitchHtml(st, st.lineup, { interactive: false })}
+      ${pitchHtml(st, [...st.lineup, ...open.map((pos) => ({ pid: null, pos }))], { interactive: false, edit: true })}
+      <p class="pane-hint lu-hint">${open.length ? 'הקישו על עמדה כדי לבחור שחקן' : 'הקישו על שחקן כדי להחליף או להוציא'}</p>
       <div class="card lu">${rows || '<div class="empty">אין שחקנים בסגל. הוסיפו שחקנים במסך הניהול.</div>'}</div>
     </section>`;
+  }
+
+  // One slot of the formation: who plays there. The squad in the slot's
+  // order (its position first, then second positions, the positions beside
+  // it, the lines — the same order as a substitution), and the starters
+  // after them: picking one swaps the two.
+  function slotSheet(pos, pid) {
+    const st = state();
+    if (!st || st.status !== 'setup') return;
+    const inLineup = new Map(st.lineup.map((l) => [l.pid, l.pos]));
+    const note = (p) => [posLabel(p.pos), posLabel(p.pos2)].filter(Boolean).join(' / ');
+    const bench = st.players.filter((p) => !inLineup.has(p.id)).sort(byNumber);
+    const groups = subGroups(pos, bench, { rest: 'שאר הסגל', all: 'הסגל' })
+      .map((g) => ({ ...g, players: g.players.map((p) => ({ ...p, note: note(p) })) }));
+    const starters = st.players.filter((p) => inLineup.has(p.id) && p.id !== pid).sort(byNumber)
+      .map((p) => ({ ...p, note: `עכשיו ${posLabel(inLineup.get(p.id)) || 'בהרכב'} · החלפת מקומות` }));
+    if (starters.length) groups.push({ label: 'מההרכב', players: starters });
+    const cur = pid ? who(st, pid) : null;
+    const sh = openSheet({
+      title: posLabel(pos) || 'עמדה',
+      subtitle: cur ? `עכשיו: ${esc(cur.number != null ? `${cur.number} · ` : '')}${esc(cur.name)}` : 'עמדה פנויה — מי משחק כאן?',
+      tall: true,
+      body: (cur ? `<div class="sheet-actions slot-out"><button type="button" class="btn secondary" data-slot-out>הוצאה מההרכב</button></div>` : '')
+        + pickerHtml({ groups, placeholder: 'חיפוש שחקן' }),
+      onMount: ({ body }) => {
+        body.querySelector('[data-slot-out]')?.addEventListener('click', () => {
+          sh.close('done');
+          act({ t: 'lineup', lineup: state().lineup.filter((l) => l.pid !== pid) });
+        });
+        wirePicker(body, (next) => {
+          if (!next) return;
+          sh.close('done');
+          const now = state().lineup;
+          const from = now.find((l) => l.pid === next);
+          let lineup;
+          if (from) {
+            // A starter moves here; whoever held this slot takes his.
+            lineup = now.map((l) => (l.pid === next ? { pid: next, pos } : l.pid === pid ? { pid, pos: from.pos } : l));
+          } else if (pid) {
+            lineup = now.map((l) => (l.pid === pid ? { pid: next, pos } : l));
+          } else {
+            lineup = [...now, { pid: next, pos }];
+          }
+          act({ t: 'lineup', lineup });
+        });
+      },
+    });
+  }
+
+  // Another formation: the same players, each into the slot nearest the one
+  // he held. Remembered on this device as the next match's default.
+  function setFormation(id) {
+    const st = state();
+    if (!st || st.status !== 'setup' || id === M.formationOfState(st).id) return;
+    const next = formationsFor(M.sizeOf(st)).find((f) => f.id === id);
+    if (!next) return;
+    store.setFormation(id, M.sizeOf(st));
+    act({ t: 'meta', patch: { formation: id } });
+    act({ t: 'lineup', lineup: refit(next.slots, st.lineup, st.players) });
   }
 
   // The coach's lineup as sent on WhatsApp: pasted, matched against the
@@ -409,18 +481,19 @@ export function mountLive(view, ctx) {
   function openPasteLineup(clip) {
     const st0 = state();
     if (!st0 || st0.status !== 'setup') return;
-    const size = M.sizeOf(st0);
+    const slots = M.formationOfState(st0).slots;
+    const size = slots.length;
     const players = [...st0.players].sort(byNumber);
     const byId = new Map(players.map((p) => [p.id, p]));
     let rows = null;
-    const fromClip = clip.trim() ? matchLineup(clip, players, size).rows : [];
+    const fromClip = clip.trim() ? matchLineup(clip, players, slots).rows : [];
     const useClip = fromClip.some((r) => r.pid || r.options.length);
     if (useClip) { pastedLineup = clip; rows = fromClip; }
     const inputHtml = () => `<p class="sheet-text">מעתיקים את ההודעה של המאמן ומדביקים כאן — שם בכל שורה או מופרדים בפסיקים, גם שמות פרטיים בלבד. עמדה ליד השם ("שוער: אורי") נכנסת כמו שהיא, ובלי עמדה — העמדה של השחקן. מה שאחרי "ספסל:" לא נכנס להרכב.</p>
       <textarea class="paste-box" rows="9" dir="auto" data-lu-text placeholder="שוער: אורי&#10;דני, יונתן, רון&#10;חלוצים: נועם, איתי&#10;ספסל: עידו">${esc(pastedLineup)}</textarea>
       <div class="sheet-actions"><button type="button" class="btn" data-lu-go>זיהוי השחקנים</button></div>`;
     const previewHtml = () => {
-      const lineup = lineupFrom(rows, players, size);
+      const lineup = lineupFrom(rows, players, slots);
       const posOf = new Map(lineup.map((l) => [l.pid, l.pos]));
       const used = new Set(rows.map((r) => r.pid).filter(Boolean));
       const starters = rows.filter((r) => r.pid && !r.bench);
@@ -459,14 +532,14 @@ export function mountLive(view, ctx) {
           if (b.hasAttribute('data-lu-go')) {
             pastedLineup = body.querySelector('[data-lu-text]').value;
             if (!pastedLineup.trim()) { toast('לא הודבק כלום', { kind: 'err' }); return; }
-            rows = matchLineup(pastedLineup, players, size).rows;
+            rows = matchLineup(pastedLineup, players, slots).rows;
             paint(previewHtml());
           } else if (b.hasAttribute('data-lu-back')) {
             paint(inputHtml());
           } else if (b.hasAttribute('data-lu-apply')) {
             const st = state();
             if (!st || st.status !== 'setup') { sh.close(); return; }
-            const lineup = lineupFrom(rows, players, size);
+            const lineup = lineupFrom(rows, players, slots);
             act({ t: 'lineup', lineup });
             pastedLineup = '';
             sh.close('done');
@@ -566,6 +639,12 @@ export function mountLive(view, ctx) {
         ${paneTab('events', 'מהלך המשחק', `${evCount ? `<b class="tab-count num">${evCount}</b>` : ''}${fresh ? '<i class="live-dot" aria-label="אירוע חדש"></i>' : ''}`)}
       </div>`;
 
+    // A match set up before formations (or edited elsewhere) whose lineup
+    // does not sit in its formation's slots: moved in once, by the device
+    // that controls it.
+    if (setup && ctl && freeSlots(M.formationOfState(st).slots, st.lineup).length !== M.sizeOf(st) - st.lineup.length) {
+      queueMicrotask(() => { const s2 = state(); if (s2?.status === 'setup') act({ t: 'lineup', lineup: refit(M.formationOfState(s2).slots, s2.lineup, s2.players) }); });
+    }
     const restoreImages = keepImages(view);
     if (tab === 'minutes') {
       view.innerHTML = `${scoreboard(st)}${hiddenNote()}${tabs}<div data-mn-host>${liveMinutesHtml(st, now(), cfg, { folded: store.getFolded() === alertKey(st) })}</div>`;
@@ -1003,10 +1082,15 @@ export function mountLive(view, ctx) {
         wireFormatEditor(el, () => f, (next) => { f = next; }, { get: () => size, set: (n) => { size = n; } });
         el.querySelector('[data-save]').addEventListener('click', () => {
           sh.close('done');
-          // A smaller game keeps the first starters picked, not a random cut.
-          const lineup = st.lineup.length > size ? st.lineup.slice(0, size) : null;
+          // Another size is another set of formations: the lineup moves into
+          // its formation, and a smaller game keeps the first starters picked.
+          const changed = size !== M.sizeOf(st);
           act({ t: 'meta', patch: { format: f, size } });
-          if (lineup) act({ t: 'lineup', lineup });
+          if (changed) {
+            const next = M.formationOfState({ size, formation: store.getFormation(size) });
+            act({ t: 'meta', patch: { formation: next.id } });
+            act({ t: 'lineup', lineup: refit(next.slots, st.lineup, st.players) });
+          }
         });
       },
     });
@@ -1116,10 +1200,13 @@ export function mountLive(view, ctx) {
         fixture: nextFixture(),
       };
     }
+    // The formation this device used last (3-2-3 the first time), and last
+    // match's starters moved into it.
+    const formation = M.formationOfState({ size: ctx.size(), formation: store.getFormation(ctx.size()) });
     const state0 = M.newLive({
       id: 'm' + Date.now().toString(36), ...base,
-      format: ctx.format(), size: ctx.size(), players,
-      lineup: M.previousLineup(ctx.matches(), players, ctx.size()),
+      format: ctx.format(), size: ctx.size(), formation: formation.id, players,
+      lineup: refit(formation.slots, M.previousLineup(ctx.matches(), players, ctx.size()), players),
     });
     try { await S.startMatch(state0); }
     catch (e) {
@@ -1194,6 +1281,8 @@ export function mountLive(view, ctx) {
     if (a === 'more') { moreSheet(); return; }
     if (a === 'finish') { finish(); return; }
     if (a === 'format') { formatSheet(); return; }
+    if (t.dataset.formation && control()) { setFormation(t.dataset.formation); return; }
+    if (t.dataset.slot && control() && st?.status === 'setup') { slotSheet(t.dataset.slot, t.dataset.slotp || null); return; }
     if (a === 'paste-lineup' && control() && st?.status === 'setup') { pasteLineupSheet(); return; }
     if (a === 'reopen') { act({ t: 'reopen' }); return; }
     if (a === 'clear') {
@@ -1207,11 +1296,13 @@ export function mountLive(view, ctx) {
     if (t.dataset.lineup && control()) {
       const pid = t.dataset.lineup;
       const cur = st.lineup;
-      const p = M.playerById(st, pid);
       const isOn = cur.some((l) => l.pid === pid);
       // A full lineup takes no one more: swap by removing a starter first.
       if (!isOn && cur.length >= M.sizeOf(st)) { toast(`ההרכב מלא — ${M.sizeOf(st)} שחקנים. הורידו שחקן כדי להכניס אחר.`, { kind: 'err' }); return; }
-      const next = isOn ? cur.filter((l) => l.pid !== pid) : [...cur, { pid, pos: p?.pos || '' }];
+      // In: the free slot that suits him best — his position, his second,
+      // the one beside it, his line, and the goal only if nothing else is left.
+      const next = isOn ? cur.filter((l) => l.pid !== pid)
+        : [...cur, ...fitFormation(freeSlots(M.formationOfState(st).slots, cur), [{ pid, want: '' }], st.players)];
       act({ t: 'lineup', lineup: next });
     }
   };

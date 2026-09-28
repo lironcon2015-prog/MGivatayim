@@ -28,6 +28,14 @@ export function deviceKey() {
 export const getName = () => get('name') || '';
 export const setName = (n) => set('name', n);
 
+// The formation last chosen on this device, per size: the next match's default.
+export const getFormation = (size) => { try { return JSON.parse(get('formation') || '{}')[size] || ''; } catch { return ''; } };
+export const setFormation = (id, size) => {
+  let all = {};
+  try { all = JSON.parse(get('formation') || '{}'); } catch {}
+  all[size] = id;
+  set('formation', JSON.stringify(all));
+};
 export const getAdminCode = () => get('admin') || '';
 export const setAdminCode = (c) => set('admin', c || null);
 

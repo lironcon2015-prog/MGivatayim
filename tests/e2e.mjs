@@ -618,6 +618,32 @@ await step('a lineup pasted from WhatsApp is matched by first names and placed',
   expect(got === 'נועם:GK,תומר עזרא:CB,גיא פרץ:ST', 'pasted lineup: ' + got);
 });
 
+await step('the formation is the base: a tap on a free slot fills it, and another formation moves the players', async () => {
+  const byId = () => Object.fromEntries(liveFile().players.map((p) => [p.id, p.name]));
+  const wait = async (fn) => { for (let i = 0; i < 80 && !fn(); i++) await new Promise((r) => setTimeout(r, 100)); };
+  expect(liveFile().formation === '3-2-3', 'not opened in 3-2-3: ' + liveFile().formation);
+  // Every slot of 3-2-3 is on the pitch: 3 filled, 6 free.
+  expect(await admin.locator('.pitch .pl').count() === 9 && await admin.locator('.pitch .pl.open').count() === 6, 'the free slots are not drawn');
+  await admin.locator('.pitch .pl.open[data-slot="CM"]').click();
+  await admin.locator('.sheet .pick').first().waitFor();
+  const picked = (await admin.locator('.sheet .pick').first().innerText()).split('\n').find((t) => /[א-ת]/.test(t));
+  await admin.locator('.sheet .pick').first().click();
+  await wait(() => liveFile().lineup.length === 4);
+  const cm = liveFile().lineup.find((l) => l.pos === 'CM');
+  expect(cm && picked.includes(byId()[cm.pid]), `the pick did not fill the slot: ${JSON.stringify(liveFile().lineup)} / ${picked}`);
+  // 4-2-2: the same players, each in a slot of it; the CB and the striker stay.
+  await admin.click('[data-formation="4-2-2"]');
+  await wait(() => liveFile().formation === '4-2-2');
+  const slots = ['GK', 'RWB', 'CB', 'CB', 'LWB', 'CM', 'CM', 'ST', 'ST'];
+  const lu = liveFile().lineup;
+  const free = [...slots];
+  expect(lu.length === 4 && lu.every((l) => { const k = free.indexOf(l.pos); if (k < 0) return false; free.splice(k, 1); return true; }), 'a player outside 4-2-2: ' + JSON.stringify(lu));
+  const where = Object.fromEntries(lu.map((l) => [byId()[l.pid], l.pos]));
+  expect(where['תומר עזרא'] === 'CB' && where['גיא פרץ'] === 'ST' && where['נועם'] === 'GK', 'players moved off their position: ' + JSON.stringify(where));
+  await admin.click('[data-formation="3-2-3"]');
+  await wait(() => liveFile().formation === '3-2-3');
+});
+
 await step('a video link gets a poster in Drive, and the parent sees it', async () => {
   bridge.web('https://clips.example.com/goal', 'text/html', '<meta property="og:image" content="https://clips.example.com/goal.jpg">');
   // A real 1×1 PNG: the card drops an image the browser cannot decode.

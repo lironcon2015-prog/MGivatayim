@@ -482,10 +482,12 @@ await test('a lineup pasted from WhatsApp: first names, numbering, positions, be
   const text = '[27/09/2026, 20:14:03] מאמן: הרכב למחר 💪\n1. אורי כ.\n2) דני\n3. יונתם\nשוער: איתי\nחלוצים:\nנועם\n7 אורי\nספסל: רון, עידו';
   const { rows, lineup } = matchLineup(text, squad, 9);
   assert.deepEqual(rows.map((r) => r.pid), ['a', 'c', 'd', 'f', 'e', 'b', 'g', 'h'], 'header and timestamp skipped, every name found');
+  // Into 3-2-3 (the default): the text's positions first, one per slot —
+  // the second "חלוץ" is a winger by position and takes the wing; the keeper
+  // the text did not put in goal gets a free field slot, not the goal.
   assert.deepEqual(lineup, [
-    { pid: 'a', pos: '' },   // a keeper by position, but the text put איתי in goal
-    { pid: 'c', pos: 'CB' }, { pid: 'd', pos: 'AM' }, { pid: 'f', pos: 'GK' },
-    { pid: 'e', pos: 'ST' }, { pid: 'b', pos: 'ST' },  // under the "חלוצים:" header
+    { pid: 'a', pos: 'RB' }, { pid: 'c', pos: 'CB' }, { pid: 'd', pos: 'CM' }, { pid: 'f', pos: 'GK' },
+    { pid: 'e', pos: 'ST' }, { pid: 'b', pos: 'RW' },
   ], 'bench left out; the text\'s positions win');
   // Two Uris and no number: whoever is left once the other is named.
   assert.deepEqual(matchLineup('אורי\nאורי לוי', squad, 9).rows.map((r) => r.pid), ['a', 'b']);
@@ -493,14 +495,78 @@ await test('a lineup pasted from WhatsApp: first names, numbering, positions, be
   assert.equal(both.pid, null, 'an unsure name is not guessed');
   assert.deepEqual(both.options, ['a', 'b']);
   assert.equal(matchLineup('משה', squad, 9).rows[0].pid, null, 'an unknown name stays unknown');
-  assert.equal(matchLineup('אורי, דני, יונתן, נועם', squad, 2).lineup.length, 2, 'cut to the match size');
+  assert.equal(matchLineup('אורי, דני, יונתן, נועם', squad, ['CM', 'ST']).lineup.length, 2, 'cut to the formation');
   // Plural headers lose the final letter (בלמים, not בלמם); a whole line's
   // header keeps each player's own position; a player named like a position.
   const heads = matchLineup('בלמים:\nדני\nקשרים: יונתן, עידו\nשוער - אורי כהן', squad, 9);
-  assert.deepEqual(heads.lineup, [{ pid: 'c', pos: 'CB' }, { pid: 'd', pos: 'AM' }, { pid: 'h', pos: 'CM' }, { pid: 'a', pos: 'GK' }]);
+  // (3-2-3 has no attacking midfield: יונתן, an AM, goes to the nearest free.)
+  assert.deepEqual(heads.lineup, [{ pid: 'c', pos: 'CB' }, { pid: 'd', pos: 'ST' }, { pid: 'h', pos: 'CM' }, { pid: 'a', pos: 'GK' }]);
   assert.ok(heads.rows.every((r) => r.pid), 'a header was read as a name');
   const keeper = [{ id: 'k', name: 'שוער', number: 1, pos: 'GK' }];
   assert.equal(matchLineup('שוער - שוער', keeper, 9).rows[0]?.pid, 'k', 'a player named "שוער" dropped');
+});
+
+await test('the formation is the base: players go into its slots', async () => {
+  const P = await import('../src/positions.js');
+  const pl = (id, pos, pos2 = '') => ({ id, name: id, pos, pos2 });
+  const squad = [pl('gk', 'GK'), pl('rb', 'RB', 'LB'), pl('cb1', 'CB', 'RB'), pl('cb2', 'CB'), pl('lb', 'LB', 'RB'),
+    pl('dm', 'DM', 'CM'), pl('cm', 'CM', 'DM'), pl('rw', 'RW', 'AM'), pl('st', 'ST', 'LW'), pl('lw', 'LW', 'RW'), pl('gk2', 'GK')];
+  const ids = (xs) => xs.map((x) => x.id);
+  const f = (id) => P.formationOf(9, id).slots;
+  assert.deepEqual(ids(P.formationsFor(9)), ['3-2-3', '4-2-2', '4-3-1'], '3-2-3 first: the default');
+  assert.equal(P.formationOf(9, '4-4-2').id, '3-2-3', 'a formation of another size falls back to the default');
+  for (const x of [...P.formationsFor(9), ...P.formationsFor(11)]) {
+    assert.equal(x.slots.length, x.id.split('-').reduce((n, k) => n + Number(k), 1), `${x.id}: slots do not add up`);
+    assert.equal(x.slots.filter(P.isKeeper).length, 1, `${x.id}: one keeper`);
+  }
+  // Everyone in his own position when the formation has it.
+  const all = P.fitFormation(f('3-2-3'), ids(squad).slice(0, 10).filter((id) => id !== 'cb2').map((pid) => ({ pid })), squad);
+  assert.deepEqual(Object.fromEntries(all.map((l) => [l.pid, l.pos])),
+    { gk: 'GK', rb: 'RB', cb1: 'CB', lb: 'LB', dm: 'DM', cm: 'CM', rw: 'RW', st: 'ST', lw: 'LW' });
+  // 3-2-3 → 4-2-2: backs become wing-backs, the second CB comes in beside the
+  // first, the wingers move up front.
+  const in422 = P.refit(f('4-2-2'), all, squad);
+  const at = (l) => Object.fromEntries(l.map((x) => [x.pid, x.pos]));
+  assert.equal(at(in422).rb, 'RWB'); assert.equal(at(in422).lb, 'LWB');
+  assert.deepEqual([at(in422).dm, at(in422).cm], ['CM', 'CM']);
+  assert.equal(at(in422).st, 'ST');
+  // → 4-3-1: one striker's slot goes to the striker, not to the winger who
+  // only held a striker's slot in 4-2-2.
+  const in431 = P.refit(f('4-3-1'), in422, squad);
+  assert.equal(at(in431).st, 'ST', 'the striker lost the one striker slot to a winger');
+  // And back: every player in his own position again.
+  assert.deepEqual(at(P.refit(f('3-2-3'), in431, squad)), at(all), 'a round trip through formations moved players');
+  // A keeper is never put out of goal for a field player, and a field player
+  // in goal only when nothing else is left.
+  const two = P.fitFormation(f('3-2-3'), [{ pid: 'st' }, { pid: 'gk2' }, { pid: 'gk' }], squad);
+  assert.deepEqual(at(two), { st: 'ST', gk2: 'GK', gk: 'RB' });
+  const noKeeper = P.fitFormation(['GK', 'CB'], [{ pid: 'st' }, { pid: 'rw' }], squad);
+  assert.deepEqual(at(noKeeper), { st: 'CB', rw: 'GK' });
+  // Free slots, and the pitch: a shared spot is spread, a spot of its own stays.
+  assert.deepEqual(P.freeSlots(f('4-2-2'), [{ pid: 'x', pos: 'CB' }, { pid: 'y', pos: 'ST' }]), ['GK', 'RWB', 'CB', 'LWB', 'CM', 'CM', 'ST']);
+  const drawn = P.layout([{ pid: 'a', pos: 'CB' }, { pid: 'b', pos: 'CB' }, { pid: 'c', pos: 'RW' }, { pid: null, pos: 'LW' }]);
+  const x = (pid) => drawn.find((d) => d.pid === pid).x;
+  assert.ok(x('a') !== x('b') && Math.abs(x('a') + x('b') - 1) < 1e-9, 'two centre-backs not side by side around the middle');
+  assert.equal(x('c'), P.position('RW').x, 'a winger was moved off his touchline');
+  assert.equal(drawn.find((d) => !d.pid).x, P.position('LW').x, 'an empty slot is not drawn at its spot');
+  // Wing-backs are read from a spreadsheet or a message.
+  assert.equal(P.matchPosition('מגן-כנף ימין'), 'RWB');
+  assert.equal(P.matchPosition('LWB'), 'LWB');
+  assert.equal(P.matchPosition('מגן ימין'), 'RB');
+});
+
+await test('a live match carries its formation: set before kick-off, reset by a size change, cleaned from the wire', async () => {
+  const M = await import('../src/live/model.js');
+  let st = M.newLive({ id: 'm', size: 9, players: [] });
+  assert.equal(st.formation, '3-2-3', 'no formation → the default');
+  st = M.reduce(st, { t: 'meta', patch: { formation: '4-3-1' } });
+  assert.equal(st.formation, '4-3-1');
+  st = M.reduce(st, { t: 'meta', patch: { formation: '<img src=x>' } });
+  assert.equal(st.formation, '3-2-3', 'an unknown formation is not kept');
+  st = M.reduce(st, { t: 'meta', patch: { size: 11 } });
+  assert.equal(st.formation, '4-3-3', 'a 9-a-side formation kept after moving to 11');
+  assert.equal(M.cleanLive({ ...st, formation: '"><script>' }).formation, '4-3-3', 'the wire carries any string');
+  assert.equal(M.cleanLive({ ...st, formation: '4-4-2' }).formation, '4-4-2');
 });
 
 export { test, failures };

@@ -15,6 +15,11 @@ import * as store from '../store.js';
 // minutes. Kept across visits to the screen, so the alert's "to the minutes"
 // can open it there.
 let tab = 'match';
+// Inside the match tab: the pitch or the match events, one at a time, so the
+// events need no scrolling past the pitch. Both are drawn; the switch only
+// shows one, so it is instant and the scoreboard's "ועוד N" can reach an
+// event on either.
+let pane = 'pitch';
 export const showMinutesTab = () => { tab = 'minutes'; };
 
 /* ── Small pieces shared by the live screen and the match sheet ────────── */
@@ -238,7 +243,25 @@ export function mountLive(view, ctx) {
 
   // "ועוד N" → the goal in the timeline, scrolled to the middle of the screen
   // and lit for a moment so the eye lands on it.
+  // Pitch ↔ events without a redraw: only which pane shows changes. `dir`
+  // slides the new pane in from the side it sits on (RTL: events to the left).
+  function showPane(next) {
+    if (next === pane || !view.querySelector(`#pane-${next}`)) return;
+    const from = pane;
+    pane = next;
+    if (next === 'events') seenEvents = null;
+    for (const b of view.querySelectorAll('.pane-tabs [data-pane]')) b.setAttribute('aria-selected', String(b.dataset.pane === next));
+    view.querySelector('.pane-tabs [data-pane="events"] .live-dot')?.remove();
+    view.querySelector(`#pane-${from}`).hidden = true;
+    const el = view.querySelector(`#pane-${next}`);
+    el.hidden = false;
+    el.classList.remove('in-start', 'in-end');
+    void el.offsetWidth;
+    el.classList.add(next === 'events' ? 'in-end' : 'in-start');
+  }
+
   function goToEvent(id) {
+    showPane('events');
     const li = view.querySelector(`.ev-list li[data-ev="${CSS.escape(id)}"]`);
     if (!li) return;
     li.scrollIntoView({ block: 'center', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
@@ -523,10 +546,25 @@ export function mountLive(view, ctx) {
     const coach = ctx.canMinutes();
     const cfg = coach ? ctx.coachCfg(st.id) : null;
     if (!coach) tab = 'match';
+    // Before kick-off there are no events: the pitch (or the lineup editor)
+    // alone, with no pitch/events switch.
+    const setup = st.status === 'setup';
+    if (setup) pane = 'pitch';
+    const evCount = st.events.filter((e) => M.EDITABLE.includes(e.type)).length;
+    if (seenEvents == null || pane === 'events') seenEvents = evCount;
+    const fresh = pane !== 'events' && evCount > seenEvents;
+    // The match screen and the coach's minutes: two screens, as before.
     const tabs = coach ? `<div class="seg live-tabs" role="tablist">
         <button role="tab" type="button" data-tab="match" aria-selected="${tab === 'match'}">משחק</button>
         <button role="tab" type="button" data-tab="minutes" aria-selected="${tab === 'minutes'}">דקות${COACH_ONLY}${hasShortfall(st, cfg) ? '<i class="live-dot" aria-label="יש התראה"></i>' : ''}</button>
       </div>` : '';
+    // Inside the match screen: the pitch or the events — a lighter tab strip,
+    // so it reads as part of this screen and not as another screen switch.
+    const paneTab = (key, label, extra = '') => `<button role="tab" type="button" data-pane="${key}" aria-controls="pane-${key}" aria-selected="${pane === key}">${label}${extra}</button>`;
+    const paneTabs = setup ? '' : `<div class="pane-tabs" role="tablist" aria-label="תצוגת המשחק">
+        ${paneTab('pitch', 'על המגרש')}
+        ${paneTab('events', 'מהלך המשחק', `${evCount ? `<b class="tab-count num">${evCount}</b>` : ''}${fresh ? '<i class="live-dot" aria-label="אירוע חדש"></i>' : ''}`)}
+      </div>`;
 
     const restoreImages = keepImages(view);
     if (tab === 'minutes') {
@@ -545,18 +583,21 @@ export function mountLive(view, ctx) {
       ${tabs}
       ${ctl ? `<section class="ctl-wrap">${controls(st)}${syncChip()}</section>` : ''}
       ${!ctl && S.netDown ? '<p class="sync off" role="status">אין חיבור — ייתכן שהמצב כאן לא עדכני</p>' : ''}
-      ${st.status === 'setup' && ctl ? lineupEditor(st) : `
-        <section>
-          <div class="sec-head">${icon('shirt')}<h2>על המגרש</h2>${ctl && st.status !== 'fulltime' ? '<span class="aside">הקישו על שחקן לחילוף</span>' : ''}</div>
-          ${pitchHtml(st, st.status === 'setup' ? st.lineup : field, { interactive: ctl && ['running', 'break'].includes(st.status) })}
-          ${benchPlayers.length && st.status !== 'setup' ? `<div class="bench"><span class="bench-label">ספסל</span>
-            ${benchPlayers.map((p) => `<${ctl ? 'button type="button"' : 'span'} class="bench-p" data-bench="${esc(p.id)}"><span class="num">${p.number ?? '·'}</span>${esc(shortName(p.name))}</${ctl ? 'button' : 'span'}>`).join('')}
-          </div>` : ''}
-        </section>
-        <section>
-          <div class="sec-head">${icon('clock')}<h2>מהלך המשחק</h2>${ctl ? '<span class="aside">הקישו על אירוע לתיקון</span>' : ''}</div>
-          <div class="card">${timelineHtml(st, { interactive: ctl, us: ctx.team.name })}</div>
-        </section>`}
+      ${setup && ctl ? lineupEditor(st) : `
+        ${paneTabs}
+        <div class="panes" data-panes>
+          <section class="pane" id="pane-pitch" role="tabpanel" aria-label="מגרש"${pane === 'pitch' ? '' : ' hidden'}>
+            ${ctl && ['running', 'break'].includes(st.status) ? '<p class="pane-hint">הקישו על שחקן לחילוף</p>' : ''}
+            ${pitchHtml(st, setup ? st.lineup : field, { interactive: ctl && ['running', 'break'].includes(st.status) })}
+            ${benchPlayers.length && !setup ? `<div class="bench"><span class="bench-label">ספסל</span>
+              ${benchPlayers.map((p) => `<${ctl ? 'button type="button"' : 'span'} class="bench-p" data-bench="${esc(p.id)}"><span class="num">${p.number ?? '·'}</span>${esc(shortName(p.name))}</${ctl ? 'button' : 'span'}>`).join('')}
+            </div>` : ''}
+          </section>
+          ${setup ? '' : `<section class="pane" id="pane-events" role="tabpanel" aria-label="מהלך המשחק"${pane === 'events' ? '' : ' hidden'}>
+            ${ctl && evCount ? '<p class="pane-hint">הקישו על אירוע לתיקון</p>' : ''}
+            <div class="card">${timelineHtml(st, { interactive: ctl, us: ctx.team.name })}</div>
+          </section>`}
+        </div>`}
       ${st.status === 'ended' ? endedPanel(st) : ''}
       ${!S.canControl && st.status !== 'ended' ? '<p class="gate-foot"><button type="button" class="linkish" data-act="claim">יש לי קוד שליטה במשחק</button></p>' : ''}`;
     restoreImages();
@@ -589,6 +630,9 @@ export function mountLive(view, ctx) {
   // The minutes tab moves with the clock: redrawn when a minute passes, not
   // four times a second.
   let lastMinute = '';
+  // How many events were there when the events pane was last in view; more
+  // than that while on the pitch puts a dot on the switch.
+  let seenEvents = null;
   const minuteKey = (st) => `${st.status}|${st.status === 'running' ? Math.floor(M.elapsedMs(st, now()) / 60000) : ''}`;
 
   // The clock is redrawn four times a second without touching anything else,
@@ -1102,6 +1146,7 @@ export function mountLive(view, ctx) {
     const a = t.dataset.act;
     if (t.dataset.goto) { goToEvent(t.dataset.goto); return; }
     if (t.dataset.tab) { tab = t.dataset.tab; render(); return; }
+    if (t.dataset.pane) { showPane(t.dataset.pane); return; }
     if (st && tab === 'minutes' && ctx.canMinutes()) {
       if (t.dataset.mn === 'fold' || t.dataset.mn === 'unfold') { store.setFolded(t.dataset.mn === 'fold' ? alertKey(st) : ''); render(); return; }
       if (t.dataset.mn === 'edit') { coachSheet(st, () => ctx.coachCfg(st.id), (patch) => saveCoach(st, patch)); return; }
@@ -1187,6 +1232,20 @@ export function mountLive(view, ctx) {
 
   view.addEventListener('click', onClick);
   view.addEventListener('change', onChange);
+  // A sideways swipe over the panes switches them too. RTL: the events sit
+  // to the left of the pitch, so they come in with a swipe to the right.
+  let touch = null;
+  view.addEventListener('touchstart', (e) => {
+    touch = e.touches.length === 1 && e.target.closest('[data-panes]') ? { x: e.touches[0].clientX, y: e.touches[0].clientY } : null;
+  }, { passive: true });
+  view.addEventListener('touchend', (e) => {
+    if (!touch || tab === 'minutes') return;
+    const dx = e.changedTouches[0].clientX - touch.x;
+    const dy = e.changedTouches[0].clientY - touch.y;
+    touch = null;
+    if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+    showPane(dx > 0 ? 'events' : 'pitch');
+  }, { passive: true });
   const unsub = S.subscribe(render);
   S.watching = true;
   S.setPoll(4000);

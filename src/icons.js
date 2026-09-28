@@ -11,6 +11,8 @@ export const icons = {
   shirt: svg('<path d="M16 3l5 3-2 4-2-1v12H7V9L5 10 3 6l5-3z"/><path d="M9 3a3 3 0 0 0 6 0"/>'),
   nav: svg('<path d="M3 11l18-8-8 18-2-8z"/>'),
   play: svg('<path d="M7 4.5v15l13-7.5z" fill="currentColor" stroke="none"/>'),
+  // A football boot, side on: heel left, toe right, laces and studs.
+  boot: svg('<path d="M3 16V8.5A1.5 1.5 0 0 1 4.5 7H8l1.6 2.4 5.9 1.8c2.6.8 4.5 2.1 5.2 4.1.2.6-.2 1.2-.9 1.2H3z"/><path d="M10.6 11.2l1-1.6M13.2 12l1-1.6M5 16v2.2M9 16v2.2M14 16v2.2M18.5 16v2.2"/>'),
   chat: svg('<path d="M21 12a8 8 0 0 1-11.6 7.1L3 21l1.9-6.4A8 8 0 1 1 21 12z"/>'),
   table: svg('<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M9 10v10"/>'),
   calendar: svg('<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>'),

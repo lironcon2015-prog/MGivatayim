@@ -429,6 +429,30 @@ await step('a watching parent sees the goal, with the scorer, without reloading'
   expect(await parent.locator('.ctl-goal').count() === 0, 'a watching parent sees controls');
 });
 
+await step('the match screen switches between the pitch and the events, without scrolling', async () => {
+  await parent.goto(APP + '#/live');
+  await parent.reload();
+  const pitch = parent.locator('#pane-pitch');
+  const events = parent.locator('#pane-events');
+  await pitch.waitFor({ timeout: 8000 });
+  expect(await events.isHidden(), 'both panes show at once');
+  // The switch counts the events, and the goal is behind it.
+  expect((await parent.locator('.pane-tabs [data-pane="events"] .tab-count').innerText()) === '1', 'no event count on the switch');
+  await parent.click('.pane-tabs [data-pane="events"]');
+  await events.locator('.ev-list').waitFor();
+  expect(await pitch.isHidden(), 'the pitch still shows under the events');
+  expect(await parent.locator('.pane-tabs [data-pane="events"]').getAttribute('aria-selected') === 'true', 'the tab is not marked');
+  // Away and back within the visit keeps the chosen pane.
+  await parent.evaluate(() => { location.hash = '#/stats'; });
+  await parent.locator('#pane-events').waitFor({ state: 'detached' });
+  await parent.evaluate(() => { location.hash = '#/live'; });
+  await events.waitFor({ timeout: 8000 });
+  await parent.click('.pane-tabs [data-pane="pitch"]');
+  await pitch.locator('.pitch').waitFor();
+  // A parent is not the coach: no match | minutes switch at all.
+  expect(await parent.locator('.live-tabs').count() === 0, 'a parent sees the screen switch');
+});
+
 await step('the manager sees how many watch, and who; a parent does not', async () => {
   await admin.locator('.watch-chip', { hasText: '1' }).waitFor({ timeout: 8000 });
   await admin.click('.watch-chip');

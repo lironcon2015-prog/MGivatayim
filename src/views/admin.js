@@ -21,7 +21,7 @@ import { DAYS, weekday } from '../trainings.js';
    and splits are computed from these (see CLAUDE.md), so they have no field. */
 
 const HOME_OPTS = [['true', 'בית'], ['false', 'חוץ']];
-const ICON_OPTS = [['chat', 'צ׳אט'], ['table', 'טבלה'], ['calendar', 'לוח'], ['photo', 'תמונות']];
+const ICON_OPTS = [['chat', 'צ׳אט'], ['table', 'טבלה'], ['calendar', 'לוח'], ['photo', 'תמונות'], ['boot', 'נעלי כדורגל']];
 const POS_OPTS = [['', '—'], ...POSITIONS.map((p) => [p.id, p.label])];
 const newId = () => 'p' + Math.random().toString(36).slice(2, 9);
 const today = () => new Date().toISOString().slice(0, 10);

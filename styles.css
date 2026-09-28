@@ -1192,6 +1192,38 @@ button.match:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px
    stays neutral. The minimum is a gold tick on every bar. */
 .live-tabs { margin-top: .9rem; }
 .live-tabs .live-dot { width: 7px; height: 7px; }
+/* Pitch | events inside the match screen: a light strip under a hairline,
+   the chosen one in gold with a gold underline — lighter than the seg above
+   it (match | minutes), which switches screens. */
+.pane-tabs { display: flex; margin-top: 1.1rem; border-bottom: 1px solid var(--line); }
+.pane-tabs button {
+  flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: .45rem;
+  font: inherit; font-size: .95rem; font-weight: 700; cursor: pointer;
+  background: none; border: 0; color: var(--muted); padding: .7rem .3rem .75rem;
+  position: relative; transition: color .15s;
+}
+.pane-tabs button::after {
+  content: ''; position: absolute; inset-inline: 22%; bottom: -1px; height: 2px; border-radius: 2px;
+  background: var(--gold); transform: scaleX(0); transition: transform .2s ease-out;
+}
+.pane-tabs button[aria-selected="true"] { color: var(--gold); }
+.pane-tabs button[aria-selected="true"]::after { transform: scaleX(1); }
+.pane-tabs button:focus-visible { outline: 2px solid var(--gold); outline-offset: -2px; border-radius: 8px; }
+.pane-tabs .live-dot { width: 7px; height: 7px; }
+.pane-tabs .tab-count {
+  min-width: 1.35rem; padding: .05rem .35rem; border-radius: var(--r-pill);
+  font-size: .72rem; font-weight: 700; line-height: 1.35; text-align: center;
+  background: rgba(255, 255, 255, .08); color: var(--muted);
+}
+.pane-tabs button[aria-selected="true"] .tab-count { background: var(--gold-soft); color: var(--gold); }
+.panes > .pane { margin-top: .9rem; }
+.pane > .card, .pane > .pitch { margin-top: 0; }
+.pane-hint { margin: 0 0 .55rem; text-align: center; font-size: .78rem; color: var(--faint); }
+.pane.in-start { animation: pane-in-start .22s ease-out; }
+.pane.in-end { animation: pane-in-end .22s ease-out; }
+@keyframes pane-in-start { from { opacity: 0; transform: translateX(14px); } to { opacity: 1; transform: none; } }
+@keyframes pane-in-end { from { opacity: 0; transform: translateX(-14px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .pane.in-start, .pane.in-end { animation: none; } .pane-tabs button::after { transition: none; } }
 .mn-list { padding: .2rem var(--pad); }
 .mn-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: .35rem .65rem; padding: .7rem 0; }
 .mn-row + .mn-row { border-top: 1px solid var(--line); }

@@ -746,6 +746,22 @@ await step('a useful link is a link on the media screen, not just its title', as
   expect((await a.innerText()).includes('shop.example.com'), 'no host under a link without description');
 });
 
+await step('a link to a social page takes its icon; one picked by hand stays', async () => {
+  await admin.goto(APP + '#/admin');
+  await adminTab(admin, 'media');
+  const at = await newRow(admin, 'links');
+  await admin.fill(`[data-path="${at}.title"]`, 'הפייסבוק של המועדון');
+  await admin.fill(`[data-path="${at}.url"]`, 'https://www.facebook.com/maccabi.givatayim');
+  expect(await admin.locator(`[data-path="${at}.icon"]`).inputValue() === 'facebook', 'the icon did not follow the link');
+  // Picked by hand: another link does not take it over.
+  await admin.selectOption(`[data-path="${at}.icon"]`, 'globe');
+  await admin.fill(`[data-path="${at}.url"]`, 'https://www.instagram.com/maccabi.givatayim');
+  expect(await admin.locator(`[data-path="${at}.icon"]`).inputValue() === 'globe', 'a hand-picked icon was replaced');
+  await admin.click('#save');
+  await waitText(admin, 'נשמר');
+  expect(seasonFile().links.some((l) => l.title === 'הפייסבוק של המועדון' && l.icon === 'globe'), 'icon not saved');
+});
+
 await step('a player added by hand opens first, and is saved in shirt-number order', async () => {
   await admin.goto(APP + '#/admin');
   await adminTab(admin, 'players');

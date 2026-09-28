@@ -21,7 +21,26 @@ import { DAYS, weekday } from '../trainings.js';
    and splits are computed from these (see CLAUDE.md), so they have no field. */
 
 const HOME_OPTS = [['true', 'בית'], ['false', 'חוץ']];
-const ICON_OPTS = [['chat', 'צ׳אט'], ['table', 'טבלה'], ['calendar', 'לוח'], ['photo', 'תמונות'], ['boot', 'נעלי כדורגל']];
+// A link's host → its icon, for the pages parents' groups link to most.
+const ICON_BY_HOST = [
+  [/(^|\.)(facebook|fb)\.(com|me)$/, 'facebook'], [/(^|\.)instagram\.com$/, 'instagram'],
+  [/(^|\.)(youtube\.com|youtu\.be)$/, 'youtube'], [/(^|\.)tiktok\.com$/, 'tiktok'],
+  [/(^|\.)(whatsapp\.com|wa\.me)$/, 'whatsapp'],
+];
+export function iconForUrl(url) {
+  let host = '';
+  try { host = new URL(String(url).trim()).hostname.toLowerCase(); } catch { return ''; }
+  return ICON_BY_HOST.find(([re]) => re.test(host))?.[1] || '';
+}
+
+// The icon of a useful link: what the page is, at a glance.
+const ICON_OPTS = [
+  ['chat', 'צ׳אט'], ['whatsapp', 'קבוצת וואטסאפ'], ['facebook', 'פייסבוק'], ['instagram', 'אינסטגרם'],
+  ['youtube', 'יוטיוב'], ['tiktok', 'טיקטוק'], ['globe', 'אתר'], ['table', 'טבלה'], ['trophy', 'ליגה / גביע'],
+  ['calendar', 'לוח'], ['photo', 'תמונות'], ['film', 'סרטונים'], ['boot', 'נעלי כדורגל'], ['shirt', 'תלבושת'],
+  ['cart', 'חנות'], ['card', 'תשלום'], ['doc', 'טופס'], ['medical', 'אישור רפואי'], ['bus', 'הסעות'],
+  ['pin', 'מגרש'], ['phone', 'טלפון'], ['mail', 'מייל'],
+];
 const POS_OPTS = [['', '—'], ...POSITIONS.map((p) => [p.id, p.label])];
 const newId = () => 'p' + Math.random().toString(36).slice(2, 9);
 const today = () => new Date().toISOString().slice(0, 10);
@@ -1113,6 +1132,18 @@ export function mountAdmin(view, ctx) {
         game.friendly = el.value === 'f';
         game.round = el.value === '' || el.value === 'f' ? null : Number(el.value);
       } else setPath(draft, path, coerce(field, el.value, el));
+      // A link to a social page takes its icon, unless one was already picked
+      // (anything but the default).
+      const linkUrl = /^links\.(\d+)\.url$/.exec(path);
+      if (linkUrl) {
+        const link = draft.links[Number(linkUrl[1])];
+        const guess = iconForUrl(el.value);
+        if (guess && (!link.icon || link.icon === 'chat')) {
+          link.icon = guess;
+          const sel = view.querySelector(`[data-path="links.${linkUrl[1]}.icon"]`);
+          if (sel) sel.value = guess;
+        }
+      }
       // Keep the summary line of an open item in step with what is typed.
       if (list) {
         const idx = Number(path.slice(list.path.length + 1).split('.')[0]);

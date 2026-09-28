@@ -13,6 +13,21 @@ export const icons = {
   play: svg('<path d="M7 4.5v15l13-7.5z" fill="currentColor" stroke="none"/>'),
   // A football boot, side on: heel left, toe right, laces and studs.
   boot: svg('<path d="M3 16V8.5A1.5 1.5 0 0 1 4.5 7H8l1.6 2.4 5.9 1.8c2.6.8 4.5 2.1 5.2 4.1.2.6-.2 1.2-.9 1.2H3z"/><path d="M10.6 11.2l1-1.6M13.2 12l1-1.6M5 16v2.2M9 16v2.2M14 16v2.2M18.5 16v2.2"/>'),
+  // For the useful links: social pages and the kinds of page a team links
+  // to. Drawn in the app's line, in gold like every icon — not in the
+  // brands' colours, which would shout over the rest of the screen.
+  facebook: svg('<path d="M14.5 21v-7.5h2.8l.5-3.3h-3.3V8.3c0-1 .4-1.6 1.6-1.6H18V3.8c-.4-.1-1.6-.2-2.8-.2-2.8 0-4.4 1.6-4.4 4.6v2H8v3.3h2.8V21"/>'),
+  instagram: svg('<rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><path d="M17.3 6.7h.01"/>'),
+  youtube: svg('<rect x="2.5" y="5.5" width="19" height="13" rx="4"/><path d="M10 9.4v5.2l4.6-2.6z"/>'),
+  tiktok: svg('<path d="M13.5 3v11.6a3.6 3.6 0 1 1-3.6-3.6"/><path d="M13.5 3c.5 2.8 2.4 4.6 5.3 4.8"/>'),
+  globe: svg('<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.4 2.6 3.7 5.6 3.7 9s-1.3 6.4-3.7 9c-2.4-2.6-3.7-5.6-3.7-9S9.6 5.6 12 3z"/>'),
+  cart: svg('<path d="M3 4h2.2l2.4 11.2h10.9L20.5 7H6.4"/><circle cx="9.5" cy="19.5" r="1.4"/><circle cx="17" cy="19.5" r="1.4"/>'),
+  card: svg('<rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="M2.5 10h19M6.5 15h4"/>'),
+  doc: svg('<path d="M14 3H6.5a1.5 1.5 0 0 0-1.5 1.5v15A1.5 1.5 0 0 0 6.5 21h11a1.5 1.5 0 0 0 1.5-1.5V8z"/><path d="M14 3v5h5M8.5 13h7M8.5 17h4.5"/>'),
+  medical: svg('<rect x="3" y="3" width="18" height="18" rx="4"/><path d="M12 7.5v9M7.5 12h9"/>'),
+  bus: svg('<rect x="4" y="3.5" width="16" height="14" rx="2.5"/><path d="M4 11h16M7.5 17.5V20M16.5 17.5V20M8 14.3h.01M16 14.3h.01"/>'),
+  phone: svg('<path d="M5.2 3.5h3.6l1.8 4.6-2.3 1.5a11.5 11.5 0 0 0 6.1 6.1l1.5-2.3 4.6 1.8v3.6A1.7 1.7 0 0 1 18.8 20.5 16 16 0 0 1 3.5 5.2 1.7 1.7 0 0 1 5.2 3.5z"/>'),
+  mail: svg('<rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="m3.5 7 8.5 6 8.5-6"/>'),
   chat: svg('<path d="M21 12a8 8 0 0 1-11.6 7.1L3 21l1.9-6.4A8 8 0 1 1 21 12z"/>'),
   table: svg('<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M9 10v10"/>'),
   calendar: svg('<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>'),

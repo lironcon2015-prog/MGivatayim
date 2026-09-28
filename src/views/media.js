@@ -1,5 +1,5 @@
 import { esc, safeUrl } from '../format.js';
-import { sectionHead, videoCard, roundText } from '../components.js';
+import { sectionHead, videoCard, roundText, linkRow } from '../components.js';
 import { cachedGallery } from '../gallery.js';
 
 /* The media screen: the team gallery on top (photos | videos), useful links
@@ -49,6 +49,6 @@ export function renderMedia(s) {
 
   <section>
     ${sectionHead('קישורים שימושיים', '', 'link')}
-    <div class="card">${!s.links.length ? '<div class="empty">טרם נוספו קישורים.</div>' : s.links.map((l) => `<div class="insight"><span class="dot"></span><span><b>${esc(l.title)}:</b> ${esc(l.desc)}</span></div>`).join('')}</div>
+    ${!s.links.length ? '<div class="card"><div class="empty">טרם נוספו קישורים.</div></div>' : `<div class="card rows">${s.links.map(linkRow).join('')}</div>`}
   </section>`;
 }

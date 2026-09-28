@@ -154,7 +154,7 @@ export function splitBar(name, t, maxPoints, side = 'home') {
 export function linkRow({ title, desc, url, icon: name }) {
   const href = safeUrl(url);
   const inner = `<span class="ico">${icon(name)}</span>
-    <span class="txt"><b>${esc(title)}</b><span>${esc(href ? desc : 'טרם הוגדר קישור')}</span></span>
+    <span class="txt"><b>${esc(title)}</b><span>${esc(href ? desc || new URL(href).hostname.replace(/^www\./, '') : 'טרם הוגדר קישור')}</span></span>
     <span class="chev">${icon('chevron')}</span>`;
   return href
     ? `<a class="link" href="${esc(href)}" target="_blank" rel="noopener noreferrer">${inner}</a>`

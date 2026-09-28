@@ -613,6 +613,23 @@ await step('a video link gets a poster in Drive, and the parent sees it', async 
   await parent.locator('.thumb-img[src^="blob:"]').first().waitFor({ timeout: 10000 });
 });
 
+await step('a useful link is a link on the media screen, not just its title', async () => {
+  await admin.goto(APP + '#/admin');
+  await adminTab(admin, 'media');
+  const at = await newRow(admin, 'links');
+  await admin.fill(`[data-path="${at}.title"]`, 'רכישת ציוד');
+  await admin.fill(`[data-path="${at}.url"]`, 'https://www.shop.example.com/login?cid=22');
+  await admin.click('#save');
+  await waitText(admin, 'נשמר');
+  await parent.goto(APP + '#/media');
+  await parent.reload();
+  const a = parent.locator('a.link', { hasText: 'רכישת ציוד' });
+  await a.waitFor({ timeout: 8000 });
+  expect(await a.getAttribute('href') === 'https://www.shop.example.com/login?cid=22', 'wrong href: ' + await a.getAttribute('href'));
+  // No description: the site's name says where it goes.
+  expect((await a.innerText()).includes('shop.example.com'), 'no host under a link without description');
+});
+
 await step('a player added by hand opens first, and is saved in shirt-number order', async () => {
   await admin.goto(APP + '#/admin');
   await adminTab(admin, 'players');

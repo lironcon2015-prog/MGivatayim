@@ -31,19 +31,33 @@ export function oppLogo(ref, name) {
 // after, moves each loaded picture back in place of its new twin (same src),
 // taking the new element's attributes. Before any wiring: a handler bound to
 // the new element would be left on the one thrown away.
+// The loaded pictures are also kept across screens (`pool`, the last few
+// per src): leaving the home screen and coming back made the next match's
+// crests anew, and they showed empty for a couple of frames — a jump every
+// time. A picture taken from the pool is reattached as it was, drawn at once.
+const pool = new Map();          // src → loaded <img> elements not on screen
+const POOL_PER_SRC = 4;
+const POOL_SRCS = 40;
+function keep(img) {
+  const k = img.getAttribute('src');
+  // Newest first: the picture just taken off the screen is the one to put
+  // back (a redraw of the same screen keeps its very elements).
+  const list = [img, ...(pool.get(k) || []).filter((x) => x !== img)].slice(0, POOL_PER_SRC);
+  pool.delete(k);                // re-inserted last: the map's order is its age
+  pool.set(k, list);
+  while (pool.size > POOL_SRCS) pool.delete(pool.keys().next().value);
+}
+
 export function keepImages(root) {
-  const old = new Map();
   root.querySelectorAll('img[src]').forEach((i) => {
-    if (!i.complete || !i.naturalWidth) return;
-    const k = i.getAttribute('src');
-    if (!old.has(k)) old.set(k, []);
-    old.get(k).push(i);
+    if (i.complete && i.naturalWidth) keep(i);
   });
   return (into = root) => {
-    if (!old.size) return;
+    if (!pool.size) return;
     into.querySelectorAll('img[src]').forEach((n) => {
-      const o = old.get(n.getAttribute('src'))?.shift();
+      const o = pool.get(n.getAttribute('src'))?.find((x) => !x.isConnected);
       if (!o) return;
+      pool.get(n.getAttribute('src')).splice(pool.get(n.getAttribute('src')).indexOf(o), 1);
       for (const a of [...o.attributes]) if (!n.hasAttribute(a.name)) o.removeAttribute(a.name);
       for (const a of [...n.attributes]) if (o.getAttribute(a.name) !== a.value) o.setAttribute(a.name, a.value);
       n.replaceWith(o);

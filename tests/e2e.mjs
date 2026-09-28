@@ -830,6 +830,28 @@ await step('a pasted schedule becomes the next match and the list after it', asy
   expect(!clash.length, 'a date runs into its pill: ' + clash.join(' | '));
 });
 
+await step('back on the home screen, the crest is the one already loaded, not a new one that shows empty first', async () => {
+  // Leaving the home screen and coming back drew the next match's crest as
+  // a new <img>: empty for a couple of frames, then there — it jumped.
+  const CREST = '.side.us .disc img';
+  await parent.goto(APP + '#/');
+  await parent.locator(CREST).first().waitFor({ timeout: 8000 });
+  await parent.waitForFunction((sel) => { const i = document.querySelector(sel); return i.complete && i.naturalWidth; }, CREST);
+  await parent.evaluate((sel) => { document.querySelector(sel).__mark = 1; }, CREST);
+  await parent.evaluate(() => { location.hash = '#/stats'; });
+  await parent.locator('#board').waitFor();
+  // Checked in the same task as the redraw: already loaded (a picture kept
+  // from before — the header's crest is the same file, so either may come).
+  const back = await parent.evaluate((sel) => new Promise((res) => {
+    addEventListener('hashchange', () => setTimeout(() => {
+      const i = document.querySelector(sel);
+      res({ same: i?.__mark === 1, ready: !!(i?.complete && i.naturalWidth) });
+    }), { once: true });
+    location.hash = '#/';
+  }), CREST);
+  expect(back.ready, 'the crest came back as a new image, not loaded yet: ' + JSON.stringify(back));
+});
+
 const israelToday = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem' }).format(new Date());
 
 await step('a weekly training shows above the next match, on the first screen, and opens its venue', async () => {

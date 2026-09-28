@@ -16,7 +16,13 @@ const BENCH = /^(ספסל|מחליפים|חילופים|על הספסל|בספס
 const NOISE = /^(ה?הרכב|פותחים|מחר|היום|נגד|מול|בהצלחה|שבת|יום)(?=[\s:!]|$)/;
 
 // A position word, also in the plural a header uses: "חלוצים", "קשרים".
-const posOf = (s) => matchPosition(s) || matchPosition(String(s).trim().replace(/צים$/, 'ץ').replace(/(ים|ות)$/, ''));
+// The plural takes the letter out of its final form: בלמים → בלם.
+const FINAL = { כ: 'ך', מ: 'ם', נ: 'ן', פ: 'ף', צ: 'ץ' };
+const singular = (s) => String(s).trim().replace(/(ים|ות)$/, '').replace(/[כמנפצ]$/, (c) => FINAL[c]);
+const posOf = (s) => matchPosition(s) || matchPosition(singular(s));
+// A header over a whole line ("מגנים:", "הגנה:") names no one position: the
+// players under it keep their own.
+const LINE_HEAD = /^(מגנים|הגנה|קשרים|קישור|התקפה|כנפיים|כנפים)$/;
 
 const norm = (s) => String(s || '')
   .normalize('NFC')
@@ -102,9 +108,13 @@ export function splitLineup(text) {
     const head = line.match(/^([^:]+):\s*(.*)$/);
     let lead = '';
     if (head) {
-      const hp = posOf(head[1].trim());
+      const whole = LINE_HEAD.test(norm(head[1]));
+      const hp = whole ? '' : posOf(head[1].trim());
+      if (whole && !head[2].trim()) { pos = ''; continue; }
       if (hp && !head[2].trim()) { pos = hp; continue; }
-      if (hp) { lead = hp; line = head[2]; }
+      // An inline header ("קשרים: …") also ends the one above it.
+      if (whole) { pos = ''; line = head[2]; }
+      else if (hp) { pos = ''; lead = hp; line = head[2]; }
       else if (NOISE.test(norm(head[1]))) { line = head[2]; if (!line.trim()) continue; }
     } else if (NOISE.test(n) && !/[,،]/.test(line)) continue;
     for (let part of line.split(/[,،;/]/)) {
@@ -115,6 +125,8 @@ export function splitLineup(text) {
       const bits = part.split(/\s*[-–—()]\s*/).map((b) => b.trim()).filter(Boolean);
       const names = [];
       for (const b of bits) { const m = posOf(b); if (m && bits.length > 1) p = lead || m; else names.push(b); }
+      // "שוער - שוער": every bit reads as a position, so the last is a name.
+      if (!names.length && bits.length > 1) names.push(bits[bits.length - 1]);
       let name = names.join(' ');
       const words = name.split(' ');
       for (let i = 1; i <= 2 && i < words.length; i++) {

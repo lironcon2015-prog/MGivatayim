@@ -494,6 +494,13 @@ await test('a lineup pasted from WhatsApp: first names, numbering, positions, be
   assert.deepEqual(both.options, ['a', 'b']);
   assert.equal(matchLineup('משה', squad, 9).rows[0].pid, null, 'an unknown name stays unknown');
   assert.equal(matchLineup('אורי, דני, יונתן, נועם', squad, 2).lineup.length, 2, 'cut to the match size');
+  // Plural headers lose the final letter (בלמים, not בלמם); a whole line's
+  // header keeps each player's own position; a player named like a position.
+  const heads = matchLineup('בלמים:\nדני\nקשרים: יונתן, עידו\nשוער - אורי כהן', squad, 9);
+  assert.deepEqual(heads.lineup, [{ pid: 'c', pos: 'CB' }, { pid: 'd', pos: 'AM' }, { pid: 'h', pos: 'CM' }, { pid: 'a', pos: 'GK' }]);
+  assert.ok(heads.rows.every((r) => r.pid), 'a header was read as a name');
+  const keeper = [{ id: 'k', name: 'שוער', number: 1, pos: 'GK' }];
+  assert.equal(matchLineup('שוער - שוער', keeper, 9).rows[0]?.pid, 'k', 'a player named "שוער" dropped');
 });
 
 export { test, failures };

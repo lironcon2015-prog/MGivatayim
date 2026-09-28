@@ -569,6 +569,35 @@ await test('a live match carries its formation: set before kick-off, reset by a 
   assert.equal(M.cleanLive({ ...st, formation: '4-4-2' }).formation, '4-4-2');
 });
 
+await test('a formation change during the match moves positions from its minute on, and no one on or off', async () => {
+  const M = await import('../src/live/model.js');
+  const players = ['a', 'b', 'c', 'd', 'e'].map((id) => ({ id, name: id, pos: '' }));
+  let st = M.newLive({ id: 'm', size: 9, players, lineup: [{ pid: 'a', pos: 'GK' }, { pid: 'b', pos: 'RB' }, { pid: 'c', pos: 'CM' }] });
+  const shape = { t: 'shape', id: 's1', period: 0, atMs: 600000, formation: '4-2-2', moves: [{ pid: 'b', pos: 'RWB' }, { pid: 'c', pos: 'ST' }] };
+  assert.equal(M.reduce(st, shape), st, 'a formation change before kick-off');
+  st = M.reduce(st, { t: 'start', period: 0, at: '2026-10-01T10:00:00Z', atMs: 0 });
+  st = M.reduce(st, shape);
+  const at = () => Object.fromEntries(M.onField(st).map((f) => [f.pid, f.pos]));
+  assert.deepEqual(at(), { a: 'GK', b: 'RWB', c: 'ST' });
+  assert.equal(M.formationNow(st), '4-2-2');
+  // A sub after it takes the slot as it is now; a sub before it (entered
+  // late) goes in first, and the change still moves the players it names.
+  st = M.reduce(st, { t: 'sub', id: 'x', out: 'c', in: 'd', period: 0, atMs: 900000 });
+  assert.deepEqual(at(), { a: 'GK', b: 'RWB', d: 'ST' });
+  // Entered late, at 5′: e came on for b before the change — the change
+  // named b, who was no longer on, so e keeps b's old slot.
+  st = M.reduce(st, { t: 'sub', id: 'y', out: 'b', in: 'e', period: 0, atMs: 300000 });
+  assert.deepEqual(at(), { a: 'GK', e: 'RB', d: 'ST' }, 'a change moved a player who had already gone off');
+  // Minutes do not move: a formation change is no one on or off.
+  assert.deepEqual(M.minutesPlayed(st, null), M.minutesPlayed({ ...st, events: st.events.filter((e) => e.type !== 'shape') }, null));
+  // Deleted: back to the formation the match started in.
+  st = M.reduce(st, { t: 'del', id: 's1' });
+  assert.equal(M.formationNow(st), '3-2-3');
+  // From the wire: the formation is digits and dashes, moves are pid/pos.
+  const dirty = M.cleanLive({ ...st, events: [{ id: 'z', type: 'shape', period: 0, atMs: 1, formation: '<b>4', moves: [{ pid: 1, pos: 'CB', x: 1 }, null] }] });
+  assert.deepEqual(dirty.events[0], { id: 'z', type: 'shape', period: 0, atMs: 1, formation: '', moves: [{ pid: '1', pos: 'CB' }] });
+});
+
 export { test, failures };
 export const done = () => passed;
 

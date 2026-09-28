@@ -73,6 +73,7 @@ export function timelineHtml(state, { interactive = false, us: usName = '' } = {
       slot.set(e.in, pos);
       subPos.set(e.id, pos);
     }
+    if (e.type === 'shape') for (const m of e.moves || []) if (slot.has(m.pid)) slot.set(m.pid, m.pos);
   }
   const scoreHtml = ([a, b]) => `<b>${a}</b>-${b}`;
   const opp = esc(state.opponent || 'היריבה');
@@ -110,6 +111,10 @@ export function timelineHtml(state, { interactive = false, us: usName = '' } = {
       const text = side === 'them' ? 'פנדל ליריבה לא נכנס' : `פנדל מוחמץ${e.scorer ? ` · ${esc(whoText(state, e.scorer))}` : ''}`;
       return row(`${side} miss`, `<span class="ev-ico">${icon('miss')}</span><span class="ev-txt"><b>${text}</b>${note('החמצה או הצלה')}</span>`);
     }
+    if (e.type === 'shape') {
+      return row('us shape', `<span class="ev-ico">${icon('swap')}</span>
+        <span class="ev-txt"><b>${e.formation ? `שינוי מערך <span class="num" dir="ltr">${esc(e.formation)}</span>` : 'שינוי עמדות'}</b>${note('')}</span>`);
+    }
     if (e.type === 'sub') {
       const pos = subPos.get(e.id);
       return row('us sub', `<span class="ev-pair"><i class="ev-dot in">${icon('arrowIn')}</i><i class="ev-dot out">${icon('arrowOut')}</i></span>
@@ -124,9 +129,11 @@ export function timelineHtml(state, { interactive = false, us: usName = '' } = {
 // `edit` — the lineup editor: every slot of the formation is drawn, the free
 // ones as an outline with their position, and a tap on any slot picks who
 // plays there.
-function pitchHtml(state, slots, { interactive, edit = false }) {
+// `swap` — the formation change preview: a tap marks a player (`selected`),
+// a tap on another swaps their positions.
+function pitchHtml(state, slots, { interactive, edit = false, swap = false, selected = null }) {
   const placed = layout(slots);
-  const tag = interactive || edit ? 'button' : 'div';
+  const tag = interactive || edit || swap ? 'button' : 'div';
   return `<div class="pitch" dir="ltr">
     <svg class="pitch-lines" viewBox="0 0 100 133" preserveAspectRatio="none" aria-hidden="true">
       <rect x="3" y="3" width="94" height="127" rx="2"/><line x1="3" y1="66.5" x2="97" y2="66.5"/><circle cx="50" cy="66.5" r="11"/>
@@ -140,9 +147,10 @@ function pitchHtml(state, slots, { interactive, edit = false }) {
           <span class="pl-num">+</span><span class="pl-name">${esc(posLabel(s.pos) || 'עמדה')}</span></button>`;
       }
       const p = who(state, s.pid);
-      const act = edit ? ` type="button" data-slotp="${esc(s.pid)}" data-slot="${esc(s.pos)}" aria-label="${esc(`${p.name}, ${posLabel(s.pos)} — החלפה`)}"`
+      const act = swap ? ` type="button" data-swap="${esc(s.pid)}" aria-pressed="${s.pid === selected}" aria-label="${esc(`${p.name}, ${posLabel(s.pos)}`)}"`
+        : edit ? ` type="button" data-slotp="${esc(s.pid)}" data-slot="${esc(s.pos)}" aria-label="${esc(`${p.name}, ${posLabel(s.pos)} — החלפה`)}"`
         : interactive ? ` type="button" data-field="${esc(s.pid)}" aria-label="${esc(`${p.name}, ${posLabel(s.pos)} — חילוף`)}"` : '';
-      return `<${tag} class="pl${isKeeper(s.pos) ? ' gk' : ''}" ${at}${act}>
+      return `<${tag} class="pl${isKeeper(s.pos) ? ' gk' : ''}${swap && s.pid === selected ? ' sel' : ''}" ${at}${act}>
         <span class="pl-num num">${p.number ?? '·'}</span><span class="pl-name">${esc(shortName(p.name))}</span></${tag}>`;
     }).join('')}
     ${placed.length ? '' : '<div class="pitch-empty">עוד לא נבחר הרכב</div>'}
@@ -666,7 +674,7 @@ export function mountLive(view, ctx) {
         ${paneTabs}
         <div class="panes" data-panes>
           <section class="pane" id="pane-pitch" role="tabpanel" aria-label="מגרש"${pane === 'pitch' ? '' : ' hidden'}>
-            ${ctl && ['running', 'break'].includes(st.status) ? '<p class="pane-hint">הקישו על שחקן לחילוף</p>' : ''}
+            <p class="pane-hint">מערך <b class="num" dir="ltr">${esc(M.formationNow(st))}</b>${ctl && ['running', 'break'].includes(st.status) ? ' · הקישו על שחקן לחילוף' : ''}</p>
             ${pitchHtml(st, setup ? st.lineup : field, { interactive: ctl && ['running', 'break'].includes(st.status) })}
             ${benchPlayers.length && !setup ? `<div class="bench"><span class="bench-label">ספסל</span>
               ${benchPlayers.map((p) => `<${ctl ? 'button type="button"' : 'span'} class="bench-p" data-bench="${esc(p.id)}"><span class="num">${p.number ?? '·'}</span>${esc(shortName(p.name))}</${ctl ? 'button' : 'span'}>`).join('')}
@@ -1033,14 +1041,79 @@ export function mountLive(view, ctx) {
     }));
   }
 
+  // Another formation during the match, or players swapping positions: the
+  // players on the field now, moved into it — each keeps his spot where the
+  // new formation has it (his own position winning a contested one), and a
+  // tap on two players swaps them. Recorded as one event, from the chosen
+  // minute on; no one comes on or goes off.
+  function shapeSheet() {
+    const st = state();
+    if (!st || !['running', 'break'].includes(st.status)) return;
+    const size = M.sizeOf(st);
+    const field = M.onField(st);
+    const was = M.formationNow(st);
+    const rank = (f) => { const p = M.playerById(st, f.pid); return f.pos === p?.pos ? 0 : f.pos === p?.pos2 ? 1 : 2; };
+    const into = (id) => {
+      const f = formationsFor(size).find((x) => x.id === id);
+      if (!f || id === was) return field.map((x) => ({ ...x }));
+      const entries = [...field].sort((a, b) => rank(a) - rank(b)).map((x) => ({ pid: x.pid, want: x.pos }));
+      const placed = fitFormation(f.slots, entries, st.players);
+      return field.map((x) => placed.find((y) => y.pid === x.pid) || { ...x });
+    };
+    let fid = was;
+    let moves = into(fid);
+    let selected = null;
+    const timing = timingState(st);
+    const changed = () => fid !== was || moves.some((m) => field.find((f) => f.pid === m.pid)?.pos !== m.pos);
+    const html = () => `
+      <div class="seg formation-seg" role="radiogroup" aria-label="מערך">
+        ${formationsFor(size).map((f) => `<button type="button" role="radio" data-shape="${f.id}" aria-checked="${f.id === fid}" aria-selected="${f.id === fid}"><span class="num" dir="ltr">${f.id}</span></button>`).join('')}
+      </div>
+      <p class="formation-note">${selected ? `<b>${esc(shortName(who(st, selected).name))}</b> — הקישו על שחקן להחלפת עמדות` : 'הקישו על שני שחקנים כדי להחליף ביניהם עמדות'}</p>
+      ${pitchHtml(st, moves, { interactive: false, swap: true, selected })}
+      ${timingHtml(st, timing)}
+      <div class="sheet-actions"><button type="button" class="btn" data-shape-go${changed() ? '' : ' disabled'}>${fid !== was ? `מעבר ל-<span class="num" dir="ltr">${fid}</span>` : 'שמירת העמדות'}</button></div>`;
+    const sh = openSheet({
+      title: 'שינוי מערך',
+      subtitle: `עכשיו: <span class="num" dir="ltr">${esc(was)}</span>`,
+      tall: true,
+      body: html(),
+      onMount: ({ body }) => {
+        const paint = () => { const at = timing.stamp; body.innerHTML = html(); wireTiming(body, timing); timing.stamp = at;
+          body.querySelectorAll('[data-timing]').forEach((b) => { const on = timing.options[Number(b.dataset.timing)].stamp === at; b.setAttribute('aria-checked', on); b.setAttribute('aria-selected', on); }); };
+        wireTiming(body, timing);
+        body.addEventListener('click', (e) => {
+          const b = e.target.closest('button');
+          if (!b) return;
+          if (b.dataset.shape) { fid = b.dataset.shape; moves = into(fid); selected = null; paint(); return; }
+          if (b.dataset.swap) {
+            const pid = b.dataset.swap;
+            if (!selected || selected === pid) { selected = selected === pid ? null : pid; paint(); return; }
+            const a = moves.find((m) => m.pid === selected), c = moves.find((m) => m.pid === pid);
+            [a.pos, c.pos] = [c.pos, a.pos];
+            selected = null;
+            paint();
+            return;
+          }
+          if (b.hasAttribute('data-shape-go') && changed()) {
+            sh.close('done');
+            act({ t: 'shape', id: uid(), formation: fid !== was ? fid : '', moves, ...timing.stamp },
+              fid !== was ? `מערך ${M.ltr(fid)}` : 'העמדות עודכנו');
+          }
+        });
+      },
+    });
+  }
+
   function eventSheet(id) {
     const st = state();
     const e = st.events.find((x) => x.id === id);
     if (!e) return;
     const minute = M.minuteLabel(st.format, e.period, e.atMs, { atStart: e.atStart });
-    const title = e.type === 'sub' ? 'חילוף' : e.type === 'miss' ? 'פנדל שלא נכנס'
+    const title = e.type === 'shape' ? 'שינוי מערך' : e.type === 'sub' ? 'חילוף' : e.type === 'miss' ? 'פנדל שלא נכנס'
       : `${e.side === 'them' ? 'שער ליריבה' : 'שער לנו'}${e.pen ? ' · פנדל' : ''}`;
-    const desc = e.type === 'sub' ? `${esc(who(st, e.in).name)} במקום ${esc(who(st, e.out).name)}`
+    const desc = e.type === 'shape' ? (e.formation ? `<span class="num" dir="ltr">${esc(e.formation)}</span>` : 'שינוי עמדות')
+      : e.type === 'sub' ? `${esc(who(st, e.in).name)} במקום ${esc(who(st, e.out).name)}`
       : e.side === 'them' ? '' : esc(e.og ? 'גול עצמי של היריבה' : e.scorer ? whoText(st, e.scorer) : e.type === 'miss' ? 'בועט לא ידוע' : 'מבקיע לא ידוע');
     const sh = openSheet({
       title, subtitle: `<span class="num">${esc(minute)}</span>${desc ? ` · ${desc}` : ''}`,
@@ -1116,6 +1189,9 @@ export function mountLive(view, ctx) {
             <button type="submit" class="btn small">${c?.codeActive ? 'החלפת קוד' : 'הפעלת קוד'}</button></form>
           ${c?.controllers?.length || c?.codeActive ? '<button type="button" class="btn small secondary" data-m="revoke">ביטול שליטת הורים</button>' : ''}
         </div>` : `<div class="more-block"><p class="ctl-who">${icon('check')} אתם שולטים במשחק הזה.</p></div>`}
+        ${st.status === 'running' || st.status === 'break' ? `<div class="more-block"><h3>מערך ועמדות</h3>
+          <p class="note">עכשיו: <b class="num" dir="ltr">${esc(M.formationNow(st))}</b>. מעבר למערך אחר או החלפת עמדות בין שחקנים, בלי חילוף.</p>
+          <button type="button" class="btn secondary" data-m="shape">${icon('swap')} שינוי מערך</button></div>` : ''}
         <div class="more-block">
           ${st.status === 'running' || st.status === 'break' ? '<button type="button" class="btn secondary" data-m="finish">סיום המשחק עכשיו</button>' : ''}
           ${admin && !S.hidden && st.status === 'setup' ? '<button type="button" class="btn secondary" data-m="hide">הסתרה מההורים עד הפרסום</button>' : ''}
@@ -1138,6 +1214,7 @@ export function mountLive(view, ctx) {
           catch (err) { toast(esc(err.message), { kind: 'err' }); }
         });
         el.querySelector('[data-m="finish"]')?.addEventListener('click', () => { sh.close('next'); finish(); });
+        el.querySelector('[data-m="shape"]')?.addEventListener('click', () => { sh.close('next'); shapeSheet(); });
         el.querySelector('[data-m="hide"]')?.addEventListener('click', async () => {
           try { await S.admin('publishLive', { hidden: true }); sh.close('done'); toast('המשחק מוסתר מההורים עד שתפרסמו'); }
           catch (err) { toast(esc(err.message), { kind: 'err' }); }

@@ -453,6 +453,29 @@ await step('the match screen switches between the pitch and the events, without 
   expect(await parent.locator('.live-tabs').count() === 0, 'a parent sees the screen switch');
 });
 
+await step('the formation changes during the match: positions move from that minute, and parents see it', async () => {
+  const before = Object.fromEntries(liveFile().lineup.map((l) => [l.pid, l.pos]));
+  await admin.click('[data-act="more"]');
+  await admin.click('[data-m="shape"]');
+  await admin.locator('.sheet [data-shape="4-2-2"]').click();
+  // Two taps swap two players' positions in the preview.
+  const [p1, p2] = await admin.locator('.sheet [data-swap]').evaluateAll((els) => els.slice(0, 2).map((b) => b.dataset.swap));
+  await admin.locator(`.sheet [data-swap="${p1}"]`).click();
+  await admin.locator(`.sheet [data-swap="${p2}"][aria-pressed="false"]`).click();
+  await admin.click('[data-shape-go]');
+  let ev;
+  for (let k = 0; k < 80 && !(ev = liveFile().events.find((e) => e.type === 'shape')); k++) await new Promise((r) => setTimeout(r, 100));
+  expect(ev && ev.formation === '4-2-2', 'no formation change recorded: ' + JSON.stringify(liveFile().events));
+  const slots = ['GK', 'RWB', 'CB', 'CB', 'LWB', 'CM', 'CM', 'ST', 'ST'];
+  expect(ev.moves.length === Object.keys(before).length && ev.moves.every((m) => slots.includes(m.pos)), 'moves outside 4-2-2: ' + JSON.stringify(ev.moves));
+  // No one came on or off, and the starting lineup is as it was.
+  expect(JSON.stringify(Object.fromEntries(liveFile().lineup.map((l) => [l.pid, l.pos]))) === JSON.stringify(before), 'the change rewrote the starting lineup');
+  await parent.locator('#pane-pitch .pane-hint', { hasText: '4-2-2' }).waitFor({ timeout: 8000 });
+  await parent.click('.pane-tabs [data-pane="events"]');
+  await parent.locator('.ev.shape', { hasText: '4-2-2' }).waitFor();
+  await parent.click('.pane-tabs [data-pane="pitch"]');
+});
+
 await step('the manager sees how many watch, and who; a parent does not', async () => {
   await admin.locator('.watch-chip', { hasText: '1' }).waitFor({ timeout: 8000 });
   await admin.click('.watch-chip');

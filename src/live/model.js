@@ -147,7 +147,7 @@ export function newLive({ id, opponent, home = true, round = null, friendly = fa
    manager's included. tests/e2e.mjs feeds such a state to every screen. */
 
 // Events a controller can fix or delete (the rest are the whistle's).
-export const EDITABLE = ['goal', 'miss', 'sub'];
+export const EDITABLE = ['goal', 'miss', 'sub', 'shape'];
 
 const num = (v, d = null) => (v != null && v !== '' && Number.isFinite(Number(v)) ? Number(v) : d);
 const str = (v) => (v == null ? '' : String(v));
@@ -170,6 +170,11 @@ function cleanEvent(e) {
     if (e.type === 'goal' && e.og === true && out.side === 'us') { out.og = true; out.scorer = null; out.assist = null; }
   } else if (e.type === 'sub') {
     out.out = str(e.out); out.in = str(e.in); out.pos = str(e.pos);
+  } else if (e.type === 'shape') {
+    // "4-2-2": digits and dashes only — it is printed into the page.
+    out.formation = /^\d(-\d){1,4}$/.test(str(e.formation)) ? str(e.formation) : '';
+    out.moves = (Array.isArray(e.moves) ? e.moves : []).slice(0, 30).filter((m) => m && m.pid != null)
+      .map((m) => ({ pid: str(m.pid), pos: str(m.pos) }));
   }
   return out;
 }
@@ -288,6 +293,19 @@ export function reduce(state, op) {
       s.events.push(e);
       return s;
     }
+    // Another formation during the match (or the same one, players moved):
+    // no one comes on or goes off, only positions change from this minute.
+    // `moves` is where every player on the field stands after it.
+    case 'shape': {
+      if (s.events.some((e) => e.id === op.id)) return state;
+      if (!['running', 'break'].includes(s.status)) return state;
+      const moves = (op.moves || []).filter((m) => m && m.pid).map((m) => ({ pid: m.pid, pos: m.pos || '' }));
+      if (!moves.length) return state;
+      const e = { id: op.id, type: 'shape', period: op.period, atMs: op.atMs, formation: op.formation || '', moves };
+      if (op.atStart) e.atStart = true;
+      s.events.push(e);
+      return s;
+    }
     case 'edit': {
       const e = s.events.find((x) => x.id === op.id);
       if (!e || !EDITABLE.includes(e.type)) return state;
@@ -328,20 +346,32 @@ export function score(state) {
   return { us, them };
 }
 
-// Who is on the field now: the starting lineup with every substitution
-// applied in match order. A sub keeps the slot's position unless it names
-// its own.
+// Who is on the field now, and where: the starting lineup with every
+// substitution and formation change applied in match order. A sub keeps the
+// slot's position unless it names its own; a formation change moves the
+// players it names who are still on.
 export function onField(state) {
   const field = new Map(state.lineup.map((l) => [l.pid, l.pos]));
-  const subs = state.events.map((e, i) => ({ e, i })).filter(({ e }) => e.type === 'sub')
+  const changes = state.events.map((e, i) => ({ e, i })).filter(({ e }) => e.type === 'sub' || e.type === 'shape')
     .sort((a, b) => order(a.e, b.e) || a.i - b.i);
-  for (const { e } of subs) {
+  for (const { e } of changes) {
+    if (e.type === 'shape') {
+      for (const m of e.moves || []) if (field.has(m.pid)) field.set(m.pid, m.pos);
+      continue;
+    }
     if (!field.has(e.out)) continue;
     const pos = e.pos || field.get(e.out);
     field.delete(e.out);
     field.set(e.in, pos);
   }
   return [...field].map(([pid, pos]) => ({ pid, pos }));
+}
+
+// The formation on the field now: the last change during the match, else
+// the one the match started in.
+export function formationNow(state) {
+  const shapes = state.events.filter((e) => e.type === 'shape' && e.formation).sort(order);
+  return shapes.length ? shapes[shapes.length - 1].formation : formationOfState(state).id;
 }
 
 export function bench(state) {

@@ -957,6 +957,8 @@ button.pl:focus-visible .pl-num { outline: 2px solid #fff; outline-offset: 2px; 
 }
 /* A free slot of the formation: an outline waiting for a player, with its
    position under it. Quiet, so the filled ones lead. */
+/* The formation change preview: the player picked for a swap. */
+.pl.sel .pl-num { outline: 3px solid #fff; outline-offset: 2px; transform: scale(1.08); }
 .pl.open .pl-num {
   background: rgba(8, 12, 18, .45); color: var(--gold); border: 1.5px dashed var(--gold-line);
   box-shadow: none; font-size: 1.25rem; font-weight: 600;

@@ -1160,6 +1160,9 @@ button.match:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px
 .imp-kind { flex: none; font-size: .7rem; font-weight: 800; padding: .15rem .5rem; border-radius: 999px; background: rgba(255, 255, 255, .07); color: var(--muted); }
 .imp-kind.k-new { background: var(--gold-soft); color: var(--gold); }
 .imp-kind.k-upd { background: rgba(255, 255, 255, .1); color: var(--text); }
+.lu-paste { width: 100%; margin-bottom: .7rem; }
+.lu-imp { cursor: default; padding: .45rem 0; }
+.lu-imp select { width: 100%; margin-top: .25rem; font: inherit; font-size: .9rem; font-weight: 700; color: var(--text); background: var(--well); border: 1px solid var(--line); border-radius: 10px; padding: .4rem .5rem; }
 .imp-missing { margin-top: .9rem; font-weight: 600; font-size: .86rem; }
 
 /* ═══ Install help & invitation ════════════════════════════════════════ */

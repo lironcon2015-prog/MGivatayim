@@ -471,6 +471,31 @@ await test('a fixture played live on another day leaves the schedule', async () 
   assert.equal(F.upcomingFixtures(fixtures, [], now).length, 2, 'a cancelled live match left nothing, so the row is back');
 });
 
+await test('a lineup pasted from WhatsApp: first names, numbering, positions, bench', async () => {
+  const { matchLineup } = await import('../src/lineup-text.js');
+  const squad = [
+    { id: 'a', name: 'אורי כהן', number: 1, pos: 'GK' }, { id: 'b', name: 'אורי לוי', number: 7, pos: 'RW' },
+    { id: 'c', name: 'דניאל מזרחי', number: 4, pos: 'CB' }, { id: 'd', name: 'יונתן אברהם', number: 10, pos: 'AM' },
+    { id: 'e', name: 'נועם שפירא', number: 9, pos: 'ST' }, { id: 'f', name: 'איתי פרץ', number: 12, pos: 'GK', pos2: 'CB' },
+    { id: 'g', name: 'רון ביטון', number: 5, pos: 'LB' }, { id: 'h', name: 'עידו גבאי', number: 8, pos: 'CM' },
+  ];
+  const text = '[27/09/2026, 20:14:03] מאמן: הרכב למחר 💪\n1. אורי כ.\n2) דני\n3. יונתם\nשוער: איתי\nחלוצים:\nנועם\n7 אורי\nספסל: רון, עידו';
+  const { rows, lineup } = matchLineup(text, squad, 9);
+  assert.deepEqual(rows.map((r) => r.pid), ['a', 'c', 'd', 'f', 'e', 'b', 'g', 'h'], 'header and timestamp skipped, every name found');
+  assert.deepEqual(lineup, [
+    { pid: 'a', pos: '' },   // a keeper by position, but the text put איתי in goal
+    { pid: 'c', pos: 'CB' }, { pid: 'd', pos: 'AM' }, { pid: 'f', pos: 'GK' },
+    { pid: 'e', pos: 'ST' }, { pid: 'b', pos: 'ST' },  // under the "חלוצים:" header
+  ], 'bench left out; the text\'s positions win');
+  // Two Uris and no number: whoever is left once the other is named.
+  assert.deepEqual(matchLineup('אורי\nאורי לוי', squad, 9).rows.map((r) => r.pid), ['a', 'b']);
+  const both = matchLineup('אורי, נועם', squad, 9).rows[0];
+  assert.equal(both.pid, null, 'an unsure name is not guessed');
+  assert.deepEqual(both.options, ['a', 'b']);
+  assert.equal(matchLineup('משה', squad, 9).rows[0].pid, null, 'an unknown name stays unknown');
+  assert.equal(matchLineup('אורי, דני, יונתן, נועם', squad, 2).lineup.length, 2, 'cut to the match size');
+});
+
 export { test, failures };
 export const done = () => passed;
 

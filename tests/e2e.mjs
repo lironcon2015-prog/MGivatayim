@@ -570,6 +570,22 @@ await step('the next live match opens with the last starting lineup, capped at t
   expect(text.includes('תשיעיות'), 'size not shown in the format line');
 });
 
+await step('a lineup pasted from WhatsApp is matched by first names and placed', async () => {
+  const before = liveFile().lineup;
+  await admin.locator('[data-act="paste-lineup"]').click();
+  await admin.fill('[data-lu-text]', '[27/09/2026, 20:14] המאמן: הרכב למחר 💪\nשוער: נועם\n1. תומר\n2. גיא\nחלוץ: משה\nספסל: דניאל');
+  await admin.click('[data-lu-go]');
+  // "משה" is no one: left to pick, and nothing is placed until the button.
+  await admin.locator('.lu-imp .imp-kind', { hasText: 'לא זוהה' }).waitFor();
+  expect(JSON.stringify(liveFile().lineup) === JSON.stringify(before), 'the preview changed the lineup');
+  await admin.click('[data-lu-apply]');
+  await admin.waitForFunction(() => document.querySelectorAll('.lu-row.on').length === 3);
+  const byId = Object.fromEntries(liveFile().players.map((p) => [p.id, p.name]));
+  for (let i = 0; i < 80 && liveFile().lineup.length !== 3; i++) await new Promise((r) => setTimeout(r, 100));
+  const got = liveFile().lineup.map((l) => `${byId[l.pid]}:${l.pos}`).join(',');
+  expect(got === 'נועם:GK,תומר עזרא:CB,גיא פרץ:ST', 'pasted lineup: ' + got);
+});
+
 await step('a video link gets a poster in Drive, and the parent sees it', async () => {
   bridge.web('https://clips.example.com/goal', 'text/html', '<meta property="og:image" content="https://clips.example.com/goal.jpg">');
   // A real 1×1 PNG: the card drops an image the browser cannot decode.

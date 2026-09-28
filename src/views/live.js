@@ -8,6 +8,7 @@ import { POSITIONS, posLabel, isKeeper, layout, subGroups } from '../positions.j
 import { openSheet, confirmSheet, toast, buzz } from '../ui/sheet.js';
 import { liveMinutesHtml, hasShortfall, coachFormEvent, coachSheet, matchMinutesHtml } from './minutes.js';
 import { alertKey } from '../minutes.js';
+import { matchLineup, lineupFrom } from '../lineup-text.js';
 import * as store from '../store.js';
 
 // Which half of the live screen the coach is looking at: the match, or the
@@ -363,9 +364,87 @@ export function mountLive(view, ctx) {
     </section>
     <section>
       <div class="sec-head">${icon('user')}<h2>הרכב פותח</h2><span class="aside num">${st.lineup.length} מתוך ${M.sizeOf(st)}</span></div>
+      ${st.players.length ? `<button type="button" class="btn secondary small lu-paste" data-act="paste-lineup">${icon('copy')} הדבקת הרכב מהוואטסאפ</button>` : ''}
       ${pitchHtml(st, st.lineup, { interactive: false })}
       <div class="card lu">${rows || '<div class="empty">אין שחקנים בסגל. הוסיפו שחקנים במסך הניהול.</div>'}</div>
     </section>`;
+  }
+
+  // The coach's lineup as sent on WhatsApp: pasted, matched against the
+  // squad by name (first names too), shown row by row with anything unsure
+  // left to pick, and only then placed. Replaces the lineup being set.
+  let pastedLineup = '';
+  function pasteLineupSheet() {
+    const st0 = state();
+    const size = M.sizeOf(st0);
+    const players = [...st0.players].sort(byNumber);
+    const byId = new Map(players.map((p) => [p.id, p]));
+    let rows = null;
+    const inputHtml = () => `<p class="sheet-text">מעתיקים את ההודעה של המאמן ומדביקים כאן — שם בכל שורה או מופרדים בפסיקים, גם שמות פרטיים בלבד. עמדה ליד השם ("שוער: אורי") נכנסת כמו שהיא, ובלי עמדה — העמדה של השחקן. מה שאחרי "ספסל:" לא נכנס להרכב.</p>
+      <textarea class="paste-box" rows="9" dir="auto" data-lu-text placeholder="שוער: אורי&#10;דני, יונתן, רון&#10;חלוצים: נועם, איתי&#10;ספסל: עידו">${esc(pastedLineup)}</textarea>
+      <div class="sheet-actions"><button type="button" class="btn" data-lu-go>זיהוי השחקנים</button></div>`;
+    const previewHtml = () => {
+      const lineup = lineupFrom(rows, players, size);
+      const posOf = new Map(lineup.map((l) => [l.pid, l.pos]));
+      const used = new Set(rows.map((r) => r.pid).filter(Boolean));
+      const starters = rows.filter((r) => r.pid && !r.bench);
+      const over = new Set(starters.slice(size).map((r) => r.pid));
+      const open = rows.filter((r) => !r.pid).length;
+      const row = (r, i) => {
+        const mine = r.options.filter((id) => byId.has(id));
+        const rest = players.filter((p) => !mine.includes(p.id) && (!used.has(p.id) || p.id === r.pid));
+        const opt = (p) => `<option value="${esc(p.id)}"${p.id === r.pid ? ' selected' : ''}>${p.number != null ? `${p.number} · ` : ''}${esc(p.name)}</option>`;
+        const kind = !r.pid ? ['k-same', mine.length > 1 ? 'לבחור' : 'לא זוהה']
+          : r.bench ? ['', 'ספסל'] : over.has(r.pid) ? ['', `מעבר ל-${size}`] : ['k-new', posLabel(posOf.get(r.pid)) || 'בלי עמדה'];
+        return `<div class="imp-row lu-imp"><span class="imp-name"><small>«${esc(r.text || `#${r.num}`)}»${r.pos ? ` · ${esc(posLabel(r.pos))}` : ''}</small>
+          <select data-lu-row="${i}" aria-label="${esc(`מי זה ${r.text}`)}"><option value="">— דילוג —</option>
+            ${mine.length ? `<optgroup label="${mine.length > 1 ? 'מתאימים' : 'זוהה'}">${mine.map((id) => opt(byId.get(id))).join('')}</optgroup>` : ''}
+            <optgroup label="${mine.length ? 'שאר הסגל' : 'הסגל'}">${rest.map(opt).join('')}</optgroup></select></span>
+          <span class="imp-kind ${kind[0]}">${kind[1]}</span></div>`;
+      };
+      return `<p class="sheet-text"><b class="num">${lineup.length}</b> מתוך ${size} להרכב${open ? ` · <b class="num">${open}</b> לבחירה או דילוג` : ''}${rows.some((r) => r.bench && r.pid) ? ` · ${rows.filter((r) => r.bench && r.pid).length} בספסל` : ''}</p>
+        ${rows.length ? `<div class="imp-list">${rows.map(row).join('')}</div>` : '<div class="empty">לא נמצאו שמות בטקסט.</div>'}
+        <div class="sheet-actions">
+          <button type="button" class="btn" data-lu-apply${lineup.length ? '' : ' disabled'}>הצבה בהרכב${lineup.length ? ` (${lineup.length})` : ''}</button>
+          <button type="button" class="btn secondary" data-lu-back>עריכת הטקסט</button>
+        </div>
+        ${st0.lineup.length ? '<p class="note">מחליף את ההרכב שנבחר עד עכשיו. אפשר לתקן אחר כך כרגיל.</p>' : ''}`;
+    };
+    const sh = openSheet({
+      title: 'הדבקת הרכב',
+      tall: true,
+      body: inputHtml(),
+      onMount: ({ el }) => {
+        const body = el.querySelector('.sheet-body') || el;
+        const paint = (html) => { body.innerHTML = html; };
+        body.addEventListener('click', (e) => {
+          const b = e.target.closest('button');
+          if (!b) return;
+          if (b.hasAttribute('data-lu-go')) {
+            pastedLineup = body.querySelector('[data-lu-text]').value;
+            if (!pastedLineup.trim()) { toast('לא הודבק כלום', { kind: 'err' }); return; }
+            rows = matchLineup(pastedLineup, players, size).rows;
+            paint(previewHtml());
+          } else if (b.hasAttribute('data-lu-back')) {
+            paint(inputHtml());
+          } else if (b.hasAttribute('data-lu-apply')) {
+            const st = state();
+            if (!st || st.status !== 'setup') { sh.close(); return; }
+            const lineup = lineupFrom(rows, players, size);
+            act({ t: 'lineup', lineup });
+            pastedLineup = '';
+            sh.close('done');
+            toast(`${lineup.length} שחקנים הוצבו בהרכב.`);
+          }
+        });
+        body.addEventListener('change', (e) => {
+          const sel = e.target.closest('[data-lu-row]');
+          if (!sel) return;
+          rows[Number(sel.dataset.luRow)].pid = sel.value || null;
+          paint(previewHtml());
+        });
+      },
+    });
   }
 
   // The fixture behind the next match: the schedule's first row, or the row
@@ -1057,6 +1136,7 @@ export function mountLive(view, ctx) {
     if (a === 'more') { moreSheet(); return; }
     if (a === 'finish') { finish(); return; }
     if (a === 'format') { formatSheet(); return; }
+    if (a === 'paste-lineup' && control() && st?.status === 'setup') { pasteLineupSheet(); return; }
     if (a === 'reopen') { act({ t: 'reopen' }); return; }
     if (a === 'clear') {
       if (!(await confirmSheet({ title: 'לסגור את המסך החי?', text: 'התוצאה כבר שמורה בעונה. המסך החי יתפנה למשחק הבא.', ok: 'סגירה' }))) return;

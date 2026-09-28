@@ -34,6 +34,9 @@ const TEAM_FIELDS = [
 ];
 
 // The home ground: the venue of every home game that does not name its own.
+// Switches in the settings tab — a field with its type, so the change is read
+// as the right value (a checkbox is true/false, not "on").
+const SETTINGS_FIELDS = [{ key: 'veo', label: 'יש לקבוצה מצלמת Veo', type: 'check' }];
 const HOME_VENUE_FIELDS = [
   { key: 'name', label: 'שם המגרש', wide: true },
   { key: 'address', label: 'כתובת', hint: 'ממנה נבנה הניווט ב-Waze', wide: true },
@@ -990,6 +993,11 @@ export function mountAdmin(view, ctx) {
             <p class="note">ברירת המחדל לכל משחק חי. אפשר לשנות גם בפתיחת משחק מסוים.</p></div>
         </section>
         <section>
+          <div class="sec-head">${icon('film')}<h2>צילום משחקים (Veo)</h2></div>
+          <div class="card">${fieldHtml(SETTINGS_FIELDS[0], 'settings.veo', draft.settings?.veo === true)}
+            <p class="note">כשמסומן: במשחק החי אפשר להוסיף קישור לשידור, ומי שצופה רואה כפתור "צפייה בשידור חי". בסוף המשחק — "הוספת המשחק המצולם" מכניס את הסרטון לסרטונים. כל עוד לא מסומן, שום דבר מזה לא מופיע.</p></div>
+        </section>
+        <section>
           <div class="sec-head">${icon('sparkle')}<h2>שיפור סמל של יריבה</h2></div>
           <div class="card">
             <p class="note">סמל מאתר של קבוצה יוצא לפעמים מטושטש. מעתיקים את ההנחיה, מדביקים אותה בגמיני יחד עם הסמל, ומעלים את התוצאה במשחק הבא. הרקע הירוק שגמיני מחזיר יורד לבד בהעלאה.</p>
@@ -1097,7 +1105,8 @@ export function mountAdmin(view, ctx) {
       const list = LISTS.find((l) => path.startsWith(l.path + '.'));
       const fields = list ? list.fields
         : path.startsWith('team.homeVenue.') ? HOME_VENUE_FIELDS
-        : path.startsWith('team.') ? TEAM_FIELDS : [{ key: 'note' }];
+        : path.startsWith('team.') ? TEAM_FIELDS
+        : path.startsWith('settings.') ? SETTINGS_FIELDS : [{ key: 'note' }];
       const field = fields.find((f) => f.key === el.dataset.field) || {};
       if (field.type === 'round') {
         const game = getPath(draft, path.slice(0, -'.round'.length));

@@ -554,6 +554,38 @@ await step('a controlling device that writes HTML into the live state runs nothi
   await new Promise((r) => setTimeout(r, 1000));
 });
 
+await step('Veo is hidden until the manager turns it on; then the stream link reaches whoever watches', async () => {
+  const URL_ = 'https://app.veo.co/matches/20261003-nahalim/';
+  await admin.goto(APP + '#/live');
+  await admin.reload();
+  await admin.click('[data-act="more"]');
+  await admin.locator('.sheet [data-m="finish"], .sheet [data-m="cancel"]').first().waitFor();
+  expect(await admin.locator('.sheet [data-stream]').count() === 0, 'a Veo field before the setting is on');
+  await admin.locator('.sheet-x').click();
+  expect(await parent.locator('.stream-link').count() === 0, 'a stream button before the setting is on');
+  // The setting: a switch in the settings tab, saved as true, not "on".
+  await admin.goto(APP + '#/admin');
+  await adminTab(admin, 'team');
+  await admin.locator('#f-settings-veo').check();
+  await admin.click('#save');
+  await waitText(admin, 'נשמר');
+  expect(seasonFile().settings.veo === true, 'setting saved as ' + JSON.stringify(seasonFile().settings.veo));
+  // A bad link is refused; the real one reaches the parent's screen.
+  await admin.goto(APP + '#/live');
+  await admin.click('[data-act="more"]');
+  await admin.fill('.sheet [data-stream]', 'javascript:alert(1)');
+  await admin.click('.sheet [data-m="stream"]');
+  await admin.locator('.toast', { hasText: 'לא נראה כמו קישור' }).waitFor();
+  await admin.fill('.sheet [data-stream]', URL_);
+  await admin.click('.sheet [data-m="stream"]');
+  for (let k = 0; k < 80 && liveFile().stream !== URL_; k++) await new Promise((r) => setTimeout(r, 100));
+  expect(liveFile().stream === URL_, 'stream not saved: ' + liveFile().stream);
+  await parent.reload();
+  const a = parent.locator('a.stream-link');
+  await a.waitFor({ timeout: 8000 });
+  expect(await a.getAttribute('href') === URL_ && await a.getAttribute('target') === '_blank', 'stream button: ' + await a.getAttribute('href'));
+});
+
 await step('finishing saves the result and the scorers into the season', async () => {
   await parent.click('[data-act="end"]');
   await parent.click('[data-ok]');
@@ -566,6 +598,17 @@ await step('finishing saves the result and the scorers into the season', async (
   expect(m && m.gf === 1 && m.ga === 1, 'result: ' + JSON.stringify(m && [m.gf, m.ga]));
   expect(m.opponent === 'מכבי נחלים', 'opponent: ' + m.opponent);
   expect(m.events.some((e) => e.type === 'sub'), 'events not saved with the match');
+});
+
+await step('after the match the manager puts the filmed match into the videos', async () => {
+  await admin.goto(APP + '#/live');
+  await admin.reload();
+  await admin.locator('[data-act="veo-video"]').click({ timeout: 8000 });
+  expect(await admin.locator('.sheet [data-vv-url]').inputValue() === liveFile().stream, 'the stream link is not the starting point');
+  await admin.click('.sheet [data-vv-go]');
+  await admin.locator('.ended-card', { hasText: 'המשחק המצולם בסרטונים' }).waitFor({ timeout: 8000 });
+  const v = seasonFile().videos.find((x) => x.url === liveFile().stream);
+  expect(v && v.title.includes('מכבי נחלים'), 'video not in the season: ' + JSON.stringify(seasonFile().videos));
 });
 
 await step('the scorer\'s total comes from the match events', async () => {
@@ -679,8 +722,8 @@ await step('a video link gets a poster in Drive, and the parent sees it', async 
   await admin.fill(`[data-path="${at}.url"]`, 'https://clips.example.com/goal');
   await admin.click('#save');
   await waitText(admin, 'נשמר');
-  const v = JSON.parse(bridge.driveFile('season.json')).season.videos[0];
-  expect(v.poster && v.posterFor === 'https://clips.example.com/goal', 'no poster made: ' + JSON.stringify(v));
+  const v = JSON.parse(bridge.driveFile('season.json')).season.videos.find((x) => x.url === 'https://clips.example.com/goal');
+  expect(v?.poster && v.posterFor === 'https://clips.example.com/goal', 'no poster made: ' + JSON.stringify(v));
   await parent.goto(APP + '#/media');
   await parent.reload();
   await parent.locator('.thumb-img[src^="blob:"]').first().waitFor({ timeout: 10000 });

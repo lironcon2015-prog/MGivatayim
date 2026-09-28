@@ -12,7 +12,7 @@ import { wireGallery } from './views/gallery.js';
 import * as gate from './views/gate.js';
 import { mountAdmin, hasUnsavedWork } from './views/admin.js';
 import { startUpdater, appVersion } from './updater.js';
-import { hydratePosters } from './posters.js';
+import { hydratePosters, preparePosters } from './posters.js';
 import { wireInstall } from './install.js';
 import { LiveSession } from './live/sync.js';
 import * as LM from './live/model.js';
@@ -393,6 +393,12 @@ function render() {
       matches: () => s.recent,
       schedule: () => s.schedule,
       logo: (name) => opponentLogo(s, name),
+      // Veo: hidden until the manager turns it on in the settings.
+      // Read at call time: a save while the live screen is open (the filmed
+      // match added from it) replaces the season under it.
+      veo: () => state.season?.settings?.veo === true,
+      videos: () => state.season?.videos || [],
+      addVideo,
     });
     return;
   }
@@ -402,6 +408,18 @@ function render() {
   restoreImages();
   teardown = route.wire ? route.wire(view, s) || (() => {}) : () => {};
   hydratePosters(view);
+}
+
+// The filmed match into the season's videos, from the live screen (the
+// manager only — the bridge refuses anyone else): on top of the newest saved
+// season, with its poster made first, as the manager's editor saves.
+async function addVideo(video) {
+  const cur = await call('getSeason', {}, { asAdmin: true });
+  const season = cur.season;
+  season.videos = [...(season.videos || []), video];
+  await preparePosters(season.videos);
+  const r = await call('putSeason', { season, baseVersion: cur.version }, { asAdmin: true });
+  accept({ version: r.version, updatedAt: r.updatedAt, season });
 }
 
 // The coach's alert stays on the home screen for the whole break, unless

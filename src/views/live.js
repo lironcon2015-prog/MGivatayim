@@ -397,6 +397,7 @@ export function mountLive(view, ctx) {
           <label class="field span-2"><span>יריבה</span><input data-meta="opponent" value="${esc(st.opponent)}" placeholder="שם הקבוצה היריבה" /></label>
           <label class="field"><span>תאריך</span><input type="date" data-meta="date" value="${esc(st.date)}" /></label>
           <label class="field"><span>בית / חוץ</span><select data-meta="home"><option value="true"${st.home ? ' selected' : ''}>בית</option><option value="false"${st.home ? '' : ' selected'}>חוץ</option></select></label>
+          ${ctx.veo() ? streamField(st) : ''}
         </div>
         <button type="button" class="format-line" data-act="format"><span>מבנה: <b>${esc(M.describeSize(M.sizeOf(st)))} · ${esc(M.describeFormat(st.format))}</b></span><span class="linkish">שינוי</span></button>
       </div>
@@ -655,7 +656,7 @@ export function mountLive(view, ctx) {
     }
     const restoreImages = keepImages(view);
     if (tab === 'minutes') {
-      view.innerHTML = `${scoreboard(st)}${hiddenNote()}${tabs}<div data-mn-host>${liveMinutesHtml(st, now(), cfg, { folded: store.getFolded() === alertKey(st) })}</div>`;
+      view.innerHTML = `${scoreboard(st)}${hiddenNote()}${streamLink(st)}${tabs}<div data-mn-host>${liveMinutesHtml(st, now(), cfg, { folded: store.getFolded() === alertKey(st) })}</div>`;
       restoreImages();
       lastMinute = minuteKey(st);
       window.scrollTo(0, scroll);
@@ -667,6 +668,7 @@ export function mountLive(view, ctx) {
     view.innerHTML = `
       ${scoreboard(st)}
       ${hiddenNote()}
+      ${streamLink(st)}
       ${tabs}
       ${ctl ? `<section class="ctl-wrap">${controls(st)}${syncChip()}</section>` : ''}
       ${!ctl && S.netDown ? '<p class="sync off" role="status">אין חיבור — ייתכן שהמצב כאן לא עדכני</p>' : ''}
@@ -705,9 +707,62 @@ export function mountLive(view, ctx) {
     </div></section>`;
   }
 
-  function endedPanel() {
+  // Veo: the live stream, for everyone watching — only when the team films
+  // (the manager's setting) and someone put the link in.
+  function streamLink(st) {
+    if (!ctx.veo() || !st.stream || st.status === 'ended') return '';
+    return `<a class="btn secondary stream-link" href="${esc(st.stream)}" target="_blank" rel="noopener noreferrer">${icon('play')} צפייה בשידור חי</a>`;
+  }
+  const streamField = (st) => `<label class="field span-2"><span>קישור לשידור (Veo)</span>
+    <input type="url" inputmode="url" dir="ltr" data-stream value="${esc(st.stream || '')}" placeholder="https://app.veo.co/…" /></label>`;
+  function setStream(value) {
+    const url = String(value || '').trim();
+    if (url && !M.cleanStream(url)) { toast('זה לא נראה כמו קישור. מעתיקים את הקישור המלא מ-Veo (מתחיל ב-https).', { kind: 'err' }); return false; }
+    if (url === (state()?.stream || '')) return true;
+    act({ t: 'stream', url });
+    toast(url ? 'הקישור לשידור עודכן — כולם רואים כפתור צפייה.' : 'הקישור לשידור הוסר.');
+    return true;
+  }
+
+  // The filmed match into the season's videos, once Veo has it edited — the
+  // live link is usually the same page, so it starts there.
+  function veoVideoSheet(st) {
+    const sh = openSheet({
+      title: 'המשחק המצולם',
+      subtitle: `מול ${esc(st.opponent || 'היריבה')}`,
+      body: `<p class="sheet-text">הקישור לסרטון מ-Veo, כשהוא מוכן. הוא ייכנס לסרטונים, ליד המחזור של המשחק.</p>
+        <label class="field"><span>קישור</span><input type="url" inputmode="url" dir="ltr" data-vv-url value="${esc(st.stream || '')}" placeholder="https://app.veo.co/…" /></label>
+        <label class="field"><span>כותרת</span><input data-vv-title value="${esc(`המשחק המלא מול ${st.opponent || 'היריבה'}`)}" /></label>
+        <div class="sheet-actions"><button type="button" class="btn" data-vv-go>הוספה לסרטונים</button></div>`,
+      onMount: ({ el }) => {
+        const go = el.querySelector('[data-vv-go]');
+        go.addEventListener('click', async () => {
+          const url = M.cleanStream(el.querySelector('[data-vv-url]').value);
+          const title = el.querySelector('[data-vv-title]').value.trim();
+          if (!url) { toast('חסר קישור מלא לסרטון (מתחיל ב-https).', { kind: 'err' }); return; }
+          if (!title) { toast('חסרה כותרת.', { kind: 'err' }); return; }
+          go.disabled = true; go.textContent = 'שומר…';
+          try {
+            await ctx.addVideo({ title, url, round: st.round ?? null, duration: '', featured: false });
+            sh.close('done');
+            render();
+            toast('הסרטון נוסף לסרטונים.');
+          } catch (e) {
+            go.disabled = false; go.textContent = 'הוספה לסרטונים';
+            toast(esc(e.code === 'conflict' ? 'העונה נשמרה בינתיים ממכשיר אחר. נסו שוב.' : e.message), { kind: 'err' });
+          }
+        });
+      },
+    });
+  }
+
+  function endedPanel(st) {
+    const filmed = ctx.veo() && S.isAdmin;
+    const added = filmed && st.stream && ctx.videos().some((v) => v.url === st.stream);
     return `<section><div class="card ended-card">
       <p>${icon('check')} המשחק הסתיים ונשמר בתוצאות העונה.</p>
+      ${filmed ? (added ? `<p class="ctl-who">${icon('film')} המשחק המצולם בסרטונים.</p>`
+        : `<button type="button" class="btn small" data-act="veo-video">${icon('film')} הוספת המשחק המצולם</button>`) : ''}
       ${S.isAdmin ? `<div class="row-btns">
         <button type="button" class="btn small secondary" data-act="reopen">פתיחה מחדש לתיקון</button>
         <button type="button" class="btn small secondary" data-act="clear">סגירת המסך החי</button></div>` : ''}
@@ -1189,6 +1244,9 @@ export function mountLive(view, ctx) {
             <button type="submit" class="btn small">${c?.codeActive ? 'החלפת קוד' : 'הפעלת קוד'}</button></form>
           ${c?.controllers?.length || c?.codeActive ? '<button type="button" class="btn small secondary" data-m="revoke">ביטול שליטת הורים</button>' : ''}
         </div>` : `<div class="more-block"><p class="ctl-who">${icon('check')} אתם שולטים במשחק הזה.</p></div>`}
+        ${ctx.veo() ? `<div class="more-block"><h3>שידור Veo</h3>
+          <div class="code-row">${streamField(st).replace('<label class="field span-2">', '<label class="field">')}<button type="button" class="btn small" data-m="stream">שמירה</button></div>
+          <p class="note">מי שצופה במשחק רואה כפתור "צפייה בשידור חי". משאירים ריק כדי להסיר.</p></div>` : ''}
         ${st.status === 'running' || st.status === 'break' ? `<div class="more-block"><h3>מערך ועמדות</h3>
           <p class="note">עכשיו: <b class="num" dir="ltr">${esc(M.formationNow(st))}</b>. מעבר למערך אחר או החלפת עמדות בין שחקנים, בלי חילוף.</p>
           <button type="button" class="btn secondary" data-m="shape">${icon('swap')} שינוי מערך</button></div>` : ''}
@@ -1215,6 +1273,7 @@ export function mountLive(view, ctx) {
         });
         el.querySelector('[data-m="finish"]')?.addEventListener('click', () => { sh.close('next'); finish(); });
         el.querySelector('[data-m="shape"]')?.addEventListener('click', () => { sh.close('next'); shapeSheet(); });
+        el.querySelector('[data-m="stream"]')?.addEventListener('click', () => { if (setStream(el.querySelector('[data-stream]').value)) sh.close('done'); });
         el.querySelector('[data-m="hide"]')?.addEventListener('click', async () => {
           try { await S.admin('publishLive', { hidden: true }); sh.close('done'); toast('המשחק מוסתר מההורים עד שתפרסמו'); }
           catch (err) { toast(esc(err.message), { kind: 'err' }); }
@@ -1358,6 +1417,7 @@ export function mountLive(view, ctx) {
     if (a === 'more') { moreSheet(); return; }
     if (a === 'finish') { finish(); return; }
     if (a === 'format') { formatSheet(); return; }
+    if (a === 'veo-video' && S.isAdmin && ctx.veo()) { veoVideoSheet(st); return; }
     if (t.dataset.formation && control()) { setFormation(t.dataset.formation); return; }
     if (t.dataset.slot && control() && st?.status === 'setup') { slotSheet(t.dataset.slot, t.dataset.slotp || null); return; }
     if (a === 'paste-lineup' && control() && st?.status === 'setup') { pasteLineupSheet(); return; }
@@ -1389,6 +1449,7 @@ export function mountLive(view, ctx) {
     const st = state();
     if (st && tab === 'minutes' && ctx.canMinutes() && coachFormEvent(el, st, ctx.coachCfg(st.id), (patch) => saveCoach(st, patch))) return;
     if (!st || !control()) return;
+    if (el.matches('[data-stream]')) { setStream(el.value); return; }
     if (el.dataset.lupos) {
       act({ t: 'lineup', lineup: st.lineup.map((l) => (l.pid === el.dataset.lupos ? { ...l, pos: el.value } : l)) });
     } else if (el.dataset.meta) {

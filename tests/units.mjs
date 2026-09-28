@@ -598,6 +598,22 @@ await test('a formation change during the match moves positions from its minute 
   assert.deepEqual(dirty.events[0], { id: 'z', type: 'shape', period: 0, atMs: 1, formation: '', moves: [{ pid: '1', pos: 'CB' }] });
 });
 
+await test('the Veo stream link: a web address only, set until the match is closed', async () => {
+  const M = await import('../src/live/model.js');
+  assert.equal(M.cleanStream(' https://app.veo.co/matches/abc/ '), 'https://app.veo.co/matches/abc/');
+  for (const bad of ['javascript:alert(1)', 'app.veo.co/x', 'https://a.b/"><script>', 'https://x y', 'x'.repeat(501), null, 12])
+    assert.equal(M.cleanStream(bad), '', `taken as a link: ${bad}`);
+  let st = M.newLive({ id: 'm', players: [] });
+  assert.equal(st.stream, '');
+  st = M.reduce(st, { t: 'stream', url: 'https://app.veo.co/m/1' });
+  assert.equal(st.stream, 'https://app.veo.co/m/1', 'set before kick-off');
+  st = M.reduce(st, { t: 'stream', url: 'javascript:alert(1)' });
+  assert.equal(st.stream, '', 'a bad link clears, never stays');
+  assert.equal(M.cleanLive({ ...st, stream: 'javascript:alert(1)' }).stream, '', 'the wire carries any string');
+  st = M.reduce({ ...st, status: 'ended' }, { t: 'stream', url: 'https://app.veo.co/m/2' });
+  assert.equal(st.stream, '', 'changed after the match was closed');
+});
+
 export { test, failures };
 export const done = () => passed;
 

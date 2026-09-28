@@ -1211,6 +1211,8 @@ button.match:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px
 /* Pitch | events inside the match screen: a light strip under a hairline,
    the chosen one in gold with a gold underline — lighter than the seg above
    it (match | minutes), which switches screens. */
+/* Veo: the way to the live stream, right under the scoreboard. */
+.stream-link { width: 100%; margin-top: .75rem; }
 .pane-tabs { display: flex; margin-top: 1.1rem; border-bottom: 1px solid var(--line); }
 .pane-tabs button {
   flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: .45rem;

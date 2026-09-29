@@ -313,11 +313,13 @@ section { margin-top: 1.9rem; }
 }
 .meta-chip svg { width: 15px; height: 15px; flex: none; color: var(--gold); }
 
-/* The primary action: a gold pill that throws light on what is under it. */
+/* The primary action: a gold pill that throws light on what is under it.
+   One line always: iOS kept a label measured before the font arrived, and
+   "ניווט אל המגרש ב-Waze" broke over two lines until the next redraw. */
 .btn {
   display: flex; align-items: center; justify-content: center; gap: .5rem;
   width: 100%; margin-top: .9rem; padding: .85rem 1.1rem;
-  font: inherit; font-weight: 800; text-decoration: none;
+  font: inherit; font-weight: 800; text-decoration: none; white-space: nowrap;
   border: 1px solid transparent; border-radius: var(--r-pill); cursor: pointer;
   background: var(--gold-fill); color: var(--on-gold);
   box-shadow: 0 10px 28px -8px rgba(232, 185, 49, .55);

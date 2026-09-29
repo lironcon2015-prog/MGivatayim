@@ -67,6 +67,9 @@ await step('the fonts come with the app: every face exists, is precached, and no
   expect(files.length === 4, 'font files named: ' + files.join(', '));
   const bad = files.filter((f) => !existsSync(join(ROOT, f)) || !core.includes(`'./${f}'`));
   expect(!bad.length, 'missing or not precached: ' + bad.join(', '));
+  const html = read('index.html');
+  const late = files.filter((f) => !html.includes(`<link rel="preload" as="font" type="font/woff2" crossorigin href="./${f}" />`));
+  expect(!late.length, 'not preloaded, so fetched only after the fallback font drew: ' + late.join(', '));
   expect(!/fonts\.(googleapis|gstatic)/.test(read('index.html') + css), 'a font from Google holds up the first paint');
 });
 

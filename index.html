@@ -14,6 +14,15 @@
 <link rel="manifest" href="./manifest.webmanifest" />
 
 <link rel="stylesheet" href="./styles.css" />
+<!-- The fonts, asked for with the stylesheet. Otherwise a font is fetched
+     only once text using it is laid out: the home screen drew in the
+     fallback font, then swapped, and a button measured in the narrower
+     fallback kept its label broken over two lines ("ב-" / "Waze").
+     tests/pwa.mjs fails if one is missing. -->
+<link rel="preload" as="font" type="font/woff2" crossorigin href="./assets/fonts/assistant-hebrew.woff2" />
+<link rel="preload" as="font" type="font/woff2" crossorigin href="./assets/fonts/assistant-latin.woff2" />
+<link rel="preload" as="font" type="font/woff2" crossorigin href="./assets/fonts/rubik-hebrew.woff2" />
+<link rel="preload" as="font" type="font/woff2" crossorigin href="./assets/fonts/rubik-latin.woff2" />
 <!-- Every module, fetched side by side from the start. Without this the
      browser found them one import at a time — app.js, then what it imports,
      then what those import — a round trip each: to the server on a first
@@ -51,7 +60,7 @@
 <link rel="modulepreload" href="./src/views/stats.js" />
 <!-- The running version. `node tools/bump.mjs` rewrites it together with
      version.json and sw.js; the updater compares it with version.json. -->
-<script>window._BUNDLE_VERSION = '1.48.0';</script>
+<script>window._BUNDLE_VERSION = '1.48.1';</script>
 </head>
 <body>
   <div id="app"></div>

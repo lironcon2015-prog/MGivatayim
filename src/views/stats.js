@@ -44,7 +44,7 @@ export function renderStats(s) {
     </div>
   </section>
 
-  <section>
+  <section id="stats-leaders">
     ${sectionHead('טבלת מובילים', '', 'trophy')}
     <div class="seg" role="tablist" id="board-tabs">
       ${BOARDS.map((b, i) => `<button role="tab" type="button" data-board="${b.key}" aria-selected="${i === 0}">${esc(b.label)}</button>`).join('')}
@@ -55,12 +55,12 @@ export function renderStats(s) {
 
   ${s.showMinutes ? seasonMinutesHtml(s) : ''}
 
-  ${s.schedule.length ? `<section>
+  ${s.schedule.length ? `<section id="stats-schedule">
     ${sectionHead('לוח המשחקים', `${s.schedule.length} משחקים`, 'calendar')}
     <div class="card rows">${s.schedule.map(fixtureRow).join('')}</div>
   </section>` : ''}
 
-  <section>
+  <section id="stats-matches">
     ${sectionHead('כל המשחקים', `${s.recent.length} משחקים`, 'trophy')}
     <div class="card rows">${s.recent.length ? s.recent.map(matchRow).join('') : '<div class="empty">טרם נוספו משחקים.</div>'}</div>
   </section>

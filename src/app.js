@@ -555,7 +555,17 @@ function start() {
   }
 }
 
-window.addEventListener('hashchange', () => { state.formError = ''; render(); window.scrollTo(0, 0); });
+// A link can land on a section of the next screen ("ללוח המלא" → the full
+// schedule in stats): the route is the hash, so the section rides beside it.
+let jumpTo = null;
+document.addEventListener('click', (e) => { jumpTo = e.target.closest?.('a[data-jump]')?.dataset.jump || null; }, true);
+window.addEventListener('hashchange', () => {
+  state.formError = '';
+  render();
+  const target = jumpTo && document.getElementById(jumpTo);
+  jumpTo = null;
+  if (target) target.scrollIntoView({ block: 'start' }); else window.scrollTo(0, 0);
+});
 start();
 // An update never reloads under someone mid-action: an unsaved edit, a
 // sheet open (a goal half entered), or live actions still to be sent.

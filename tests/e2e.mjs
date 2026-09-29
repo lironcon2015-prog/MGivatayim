@@ -309,6 +309,21 @@ await step('the Waze link is built from the address', async () => {
   expect(href.includes(encodeURIComponent('שדרות ירושלים 24')), 'waze href: ' + href);
 });
 
+await step('"all matches" and friends on home land on their own section in stats, not its top', async () => {
+  const jumps = await parent.$$eval('a[data-jump]', (as) => as.map((x) => x.dataset.jump));
+  expect(jumps.includes('stats-matches'), 'no jump links on home: ' + jumps.join(', '));
+  for (const id of jumps) {
+    await parent.locator(`a[data-jump="${id}"]`).click();
+    await parent.locator('#' + id).waitFor();
+    // At the top of the screen, or as far as the page scrolls when it is near the end.
+    const { top, bottom } = await parent.evaluate((i) => ({ top: document.getElementById(i).getBoundingClientRect().top,
+      bottom: Math.abs(scrollY + innerHeight - document.documentElement.scrollHeight) < 2 && scrollY > 0 }), id);
+    expect(top >= 0 && (top < 60 || bottom), `${id} is at ${Math.round(top)}px, not the top of the screen`);
+    await parent.evaluate(() => { location.hash = '#/'; });
+    await parent.locator('a[data-jump]').first().waitFor();
+  }
+});
+
 await step('a parent has no manager tab and cannot open the editor', async () => {
   expect(await parent.locator('#nav a[href="#/admin"]').count() === 0, 'parent sees the manager tab');
   await parent.goto(APP + '#/admin');

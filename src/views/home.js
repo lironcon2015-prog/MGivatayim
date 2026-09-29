@@ -268,12 +268,12 @@ export function renderHome(s) {
   </section>
 
   ${s.upcoming.length ? `<section>
-    ${sectionHead('בהמשך', s.upcoming.length > 3 ? '<a href="#/stats">ללוח המלא</a>' : '', 'calendar')}
+    ${sectionHead('בהמשך', s.upcoming.length > 3 ? '<a href="#/stats" data-jump="stats-schedule">ללוח המלא</a>' : '', 'calendar')}
     <div class="card rows">${s.upcoming.slice(0, 3).map(fixtureRow).join('')}</div>
   </section>` : ''}
 
   <section>
-    ${sectionHead('התוצאות האחרונות', s.recent.length ? '<a href="#/stats">לכל המשחקים</a>' : '', 'trophy')}
+    ${sectionHead('התוצאות האחרונות', s.recent.length ? '<a href="#/stats" data-jump="stats-matches">לכל המשחקים</a>' : '', 'trophy')}
     ${last5.length
       ? `<div class="form">${last5.map((m) => formPill(m, s.recent.indexOf(m))).join('')}</div>`
       : `<div class="card"><div class="empty">${s.recent.length ? 'עוד אין תוצאות בליגה.' : 'העונה עוד לא התחילה.'}</div></div>`}
@@ -298,7 +298,7 @@ export function renderHome(s) {
   </section>
 
   <section>
-    ${sectionHead('מובילי העונה', '<a href="#/stats">לטבלה המלאה</a>', 'trophy')}
+    ${sectionHead('מובילי העונה', '<a href="#/stats" data-jump="stats-leaders">לטבלה המלאה</a>', 'trophy')}
     <div class="card rows">
       ${scorers.length
         ? scorers.map((p, i) => leaderRow(p, i + 1, [{ key: 'goals', label: 'שערים' }, { key: 'assists', label: 'בישולים' }])).join('')

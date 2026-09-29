@@ -1,7 +1,7 @@
 import { topBy, opponentLogo } from '../season.js';
 import { longDate, clock, pct, dec, esc, safeUrl, splitDuration, pad2, wazeLink, navLink, isGoogleMaps, isShortMapLink, mapsCoords } from '../format.js';
 import { icon } from '../icons.js';
-import { crestImg, oppLogo, roundText, sectionHead, formPill, matchRow, fixtureRow, leaderRow, tile, splitBar, linkRow, videoCard } from '../components.js';
+import { crestImg, oppLogo, roundText, sectionHead, formPill, fixtureRow, leaderRow, tile, splitBar, linkRow, videoCard } from '../components.js';
 import { DAYS, weekday } from '../trainings.js';
 import { openSheet, toast } from '../ui/sheet.js';
 import { call } from '../bridge.js';
@@ -273,10 +273,10 @@ export function renderHome(s) {
   </section>` : ''}
 
   <section>
-    ${sectionHead('התוצאות האחרונות', `${last5.length} אחרונות`, 'trophy')}
+    ${sectionHead('התוצאות האחרונות', s.recent.length ? '<a href="#/stats">לכל המשחקים</a>' : '', 'trophy')}
     ${last5.length
-      ? `<div class="form">${last5.map(formPill).join('')}</div>`
-      : '<div class="card"><div class="empty">העונה עוד לא התחילה.</div></div>'}
+      ? `<div class="form">${last5.map((m) => formPill(m, s.recent.indexOf(m))).join('')}</div>`
+      : `<div class="card"><div class="empty">${s.recent.length ? 'עוד אין תוצאות בליגה.' : 'העונה עוד לא התחילה.'}</div></div>`}
   </section>
 
   <section>
@@ -304,11 +304,6 @@ export function renderHome(s) {
         ? scorers.map((p, i) => leaderRow(p, i + 1, [{ key: 'goals', label: 'שערים' }, { key: 'assists', label: 'בישולים' }])).join('')
         : `<div class="empty">${esc(s.emptyScorers)}</div>`}
     </div>
-  </section>
-
-  <section>
-    ${sectionHead('היסטוריית משחקים', `${s.recent.length} משחקים`, 'calendar')}
-    <div class="card rows">${s.recent.length ? s.recent.map(matchRow).join('') : '<div class="empty">טרם נוספו משחקים.</div>'}</div>
   </section>
 
   ${s.videos.length ? `<section>

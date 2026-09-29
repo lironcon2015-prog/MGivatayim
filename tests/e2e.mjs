@@ -40,7 +40,13 @@ let passed = 0;
 const failures = [];
 async function step(name, fn) {
   try { await fn(); passed++; console.log('  ✓', name); }
-  catch (e) { failures.push(name); console.log('  ✗', name, '\n     ', e.message.split('\n')[0]); }
+  catch (e) {
+    failures.push(name);
+    // Playwright's call log names the element it waited for: a timeout
+    // alone does not say which of a step's clicks never happened.
+    const waited = e.message.replace(/\x1b\[\d+m/g, '').split('\n').find((l) => /waiting for/.test(l));
+    console.log('  ✗', name, '\n     ', e.message.split('\n')[0], waited ? '\n     ' + waited.trim() : '');
+  }
 }
 const expect = (cond, msg) => { if (!cond) throw new Error(msg); };
 
@@ -286,7 +292,7 @@ await step('manager approves the parent', async () => {
 
 await step('after approval the parent sees the season on returning to the app, with no tap', async () => {
   await parent.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
-  await waitText(parent, 'בני לוד');
+  await parent.locator('.form-pill[aria-label*="בני לוד"]').waitFor({ timeout: 5000 });
   await waitText(parent, 'הפועל כוכבים');
   await parent.locator('.hero .side:not(.us) .opp-logo[src^="blob:"]').waitFor({ timeout: 8000 });
   const hero = await parent.locator('.hero').innerText();
@@ -314,7 +320,7 @@ await step('the manager edits a score; the parent sees it after reopening', asyn
   await admin.click('#save');
   await waitText(admin, 'גרסה 2');
   await parent.reload();
-  await parent.locator('.match .score .ours', { hasText: '3' }).first().waitFor({ timeout: 5000 });
+  await parent.locator('.form-pill[aria-label*="בני לוד"]', { hasText: '3:1' }).waitFor({ timeout: 5000 });
 });
 
 await step('a save over a version changed elsewhere is refused, not merged', async () => {
@@ -626,6 +632,9 @@ await step('Veo is hidden until the manager turns it on; then the stream link re
   await admin.locator('.sheet [data-m="finish"], .sheet [data-m="cancel"]').first().waitFor();
   expect(await admin.locator('.sheet [data-stream]').count() === 0, 'a Veo field before the setting is on');
   await admin.locator('.sheet-x').click();
+  // A closed sheet takes its history step off: a navigation sent before
+  // that step landed was undone by it (no hand is that fast).
+  await admin.waitForFunction(() => !history.state?.mgLayer);
   expect(await parent.locator('.stream-link').count() === 0, 'a stream button before the setting is on');
   // The setting: a switch in the settings tab, saved as true, not "on".
   await admin.goto(APP + '#/admin');
@@ -692,21 +701,31 @@ await step('minutes per player are the manager\'s only', async () => {
   await admin.locator('#minutes .mn-table').waitFor();
 });
 
-await step('a history row opens the match with its goals and subs', async () => {
+await step('a result on the home screen opens its match; every game is on the stats screen', async () => {
+  // The owner's pick: the home screen keeps the last results, as pills that
+  // open their match, and the whole list moved to the stats screen.
   await parent.goto(APP + '#/');
-  await parent.locator('button.match', { hasText: 'מכבי נחלים' }).first().click();
+  await parent.locator('.form-pill').first().waitFor();
+  expect(await parent.locator('#view button.match').count() === 0, 'the home screen still lists every game');
+  await parent.locator('.form-pill[aria-label*="מכבי נחלים"]').click();
   await parent.locator('.sheet .ev-list', { hasText: 'גיא פרץ' }).waitFor();
   // Every sub names a position: a parent has no past lineup, so the slot's
   // is unknown here and the incoming player's own stands in.
   const sub = await parent.locator('.sheet .ev.sub .ev-txt .out').first().innerText();
   expect(/ · \S/.test(sub), 'a sub without a position: ' + sub);
   await parent.locator('.sheet-x').click();
+  await parent.locator('.sheet').waitFor({ state: 'detached' });
+  await parent.getByRole('link', { name: 'לכל המשחקים' }).click();
+  await parent.locator('button.match', { hasText: 'מכבי נחלים' }).first().click();
+  await parent.locator('.sheet .ev-list', { hasText: 'גיא פרץ' }).waitFor();
+  await parent.locator('.sheet-x').click();
+  await parent.locator('.sheet').waitFor({ state: 'detached' });
 });
 
 await step('the back button (a route change) closes an open sheet instead of leaving it over the next screen', async () => {
   await parent.locator('button.match', { hasText: 'מכבי נחלים' }).first().click();
   await parent.locator('.sheet').waitFor();
-  await parent.evaluate(() => { location.hash = '#/stats'; });
+  await parent.evaluate(() => { location.hash = '#/'; });
   await parent.waitForFunction(() => !document.querySelector('.sheet'), null, { timeout: 3000 });
   await parent.goto(APP + '#/');
 });
@@ -714,17 +733,34 @@ await step('the back button (a route change) closes an open sheet instead of lea
 await step('the back button closes an open sheet and stays on the screen', async () => {
   // On the first screen, back with a sheet open closed the app itself.
   await parent.goto(APP + '#/');
-  await parent.locator('button.match', { hasText: 'מכבי נחלים' }).first().click();
+  await parent.locator('.form-pill[aria-label*="מכבי נחלים"]').click();
   await parent.locator('.sheet').waitFor();
   await parent.evaluate(() => history.back());
   await parent.waitForFunction(() => !document.querySelector('.sheet'), null, { timeout: 3000 });
   expect(new URL(parent.url()).hash === '#/', 'back left the screen: ' + parent.url());
   expect(await parent.locator('.hero').count() === 1, 'the home screen is gone');
   // Closed by its own button, a sheet takes its step off the history again.
-  await parent.locator('button.match', { hasText: 'מכבי נחלים' }).first().click();
+  await parent.locator('.form-pill[aria-label*="מכבי נחלים"]').click();
   await parent.locator('.sheet').waitFor();
   await parent.locator('.sheet-x').click();
   await parent.waitForFunction(() => !document.querySelector('.sheet') && !history.state?.mgLayer, null, { timeout: 3000 });
+});
+
+await step('a sheet closed as the route moves on does not take the route back', async () => {
+  // The route moved before the closed sheet's step back ran (a tap handled
+  // first on a busy phone, its hashchange still to come), and the step back
+  // undid it. pushState stands for that tap: a new entry, nothing announced.
+  await parent.goto(APP + '#/');
+  await parent.locator('.form-pill[aria-label*="מכבי נחלים"]').click();
+  await parent.locator('.sheet').waitFor();
+  const hash = await parent.evaluate(async () => {
+    document.querySelector('.sheet-x').click();
+    history.pushState(null, '', '#/stats');
+    await new Promise((r) => setTimeout(r, 400));
+    return location.hash;
+  });
+  expect(hash === '#/stats', 'the route was taken back to ' + hash);
+  await parent.goto(APP + '#/');
 });
 
 await step('the next live match opens with the last starting lineup, capped at the size', async () => {

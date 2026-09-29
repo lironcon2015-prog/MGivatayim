@@ -20,7 +20,7 @@
 
   --text: #E8EDF5;
   --muted: #8B98AC;
-  --faint: #66748A;
+  --faint: #7A889D;                        /* 5.2:1 on the ground, 4.6 on a card: small print read outdoors (was #66748A, 3.9) */
 
   --gold: #E8B931;
   --gold-hi: #F2CB55;
@@ -395,6 +395,9 @@ button.wk-day:active { transform: scale(.97); }
   border: 1px solid transparent; font-size: .75rem; font-weight: 700;
 }
 .form-pill b { display: block; font-size: 1.3rem; font-weight: 600; line-height: 1.2; direction: ltr; unicode-bidi: isolate; }
+/* A pill opens its match: a button, drawn exactly as the pill was. */
+button.form-pill { margin: 0; font-family: inherit; line-height: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+button.form-pill:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 .is-win  { background: var(--win-soft);  color: var(--win);  border-color: var(--win-line); }
 .is-loss { background: var(--loss-soft); color: var(--loss); border-color: var(--loss-line); }
 .is-draw { background: var(--draw-soft); color: var(--draw); border-color: var(--draw-line); }

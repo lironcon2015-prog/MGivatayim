@@ -44,6 +44,10 @@ export function trackLayer(close) {
     setTimeout(() => {
       if (layers.length || !layerEntry) return;
       layerEntry = false;
+      // The route moved on before this ran (a tap handled first on a busy
+      // phone, its hashchange still to come): our entry is behind the new
+      // one, and a step back would undo the move.
+      if (!history.state?.mgLayer) return;
       ownPop = true;
       history.back();
     }, 0);

@@ -133,10 +133,13 @@ export function scoreEl(match) {
   return `<span class="score num"><span class="ours">${match.gf}</span><span class="sep">:</span><span>${match.ga}</span></span>`;
 }
 
-export function formPill(match) {
+// A result pill on the home screen opens its match (`i`, its place in
+// season.recent), as a history row does: the home screen keeps the last few
+// results, and the whole list lives on the stats screen (the owner's pick).
+export function formPill(match, i) {
   const o = outcomeOf(match);
-  return `<div class="form-pill ${CLASS_OF[o]}" title="${esc(OUTCOMES[o])} מול ${esc(match.opponent)}">
-    <b class="num">${match.gf}:${match.ga}</b>${esc(OUTCOMES[o])}</div>`;
+  return `<button type="button" class="form-pill ${CLASS_OF[o]}" data-match="${i}" aria-label="${esc(OUTCOMES[o])} מול ${esc(match.opponent)}, ${match.gf}:${match.ga}">
+    <b class="num">${match.gf}:${match.ga}</b>${esc(OUTCOMES[o])}</button>`;
 }
 
 export function matchRow(match, i) {

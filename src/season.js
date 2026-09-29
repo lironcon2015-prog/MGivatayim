@@ -114,10 +114,13 @@ export function buildSeason(input, now = new Date()) {
   // events every time, so deleting a mistaken goal fixes the table with it.
   const fromLive = { goals: {}, assists: {} };
   const bump = (bag, id, n = 1) => { if (id) bag[id] = (bag[id] || 0) + n; };
+  // The opponent's own goals count for the team and for no player.
+  let ownGoals = 0;
   for (const m of league) {
     if (!Array.isArray(m.events)) continue;
     for (const e of m.events) {
       if (e.type !== 'goal' || e.side === 'them') continue;
+      if (e.og) ownGoals++;
       bump(fromLive.goals, e.scorer);
       bump(fromLive.assists, e.assist);
     }
@@ -180,7 +183,11 @@ export function buildSeason(input, now = new Date()) {
     // missing from the squad list, so the UI can say so instead of quietly
     // showing a share of the wrong whole.
     squadGoals,
-    squadGoalsMatch: squadGoals === overall.gf,
+    // Goals a player can be credited with: the team's, less the opponent's
+    // own goals — with one in the season, the manager was told a scorer was
+    // missing and sent to add it by hand.
+    playerGoals: overall.gf - ownGoals,
+    squadGoalsMatch: squadGoals === overall.gf - ownGoals,
     // What an empty scorers list says. After a first match that was a
     // friendly, "no goals yet" contradicts the goal everyone just watched.
     emptyScorers: friendlyGoals ? 'שערים ממשחקי אימון לא נספרים בטבלה.'

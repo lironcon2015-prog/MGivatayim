@@ -394,6 +394,48 @@ await step('players are imported by pasting cells from a spreadsheet', async () 
   expect(seasonFile().players.find((p) => p.name === 'גיא פרץ').pos === 'ST', 'position not read');
 });
 
+await step('back in the app after a while, the parent sees what changed meanwhile, with no reload', async () => {
+  // iOS resumes a home-screen app instead of loading it again: the season
+  // read when it was opened stayed on screen — last week's next match, a
+  // result missing — until the phone happened to drop the app.
+  await parent.goto(APP + '#/');
+  await parent.locator('.hero').waitFor();
+  const reads = [];
+  const onReq = (r) => { if (r.url().startsWith(BRIDGE) && (r.postData() || '').includes('"getSeason"')) reads.push(1); };
+  parent.on('request', onReq);
+  await parent.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+  await parent.waitForTimeout(500);
+  expect(!reads.length, 'a quick look away read the season again');
+  await adminTab(admin, 'team');
+  const was = await admin.inputValue('[data-path="team.league"]');
+  await admin.fill('[data-path="team.league"]', 'ליגה אחרת מחוז דן');
+  await admin.click('#save');
+  await waitText(admin, 'נשמר');
+  await parent.evaluate(() => { window.__realNow = Date.now; const real = Date.now; Date.now = () => real() + 120000; document.dispatchEvent(new Event('visibilitychange')); });
+  await parent.locator('.topbar', { hasText: 'ליגה אחרת מחוז דן' }).waitFor({ timeout: 5000 });
+  await parent.evaluate(() => { Date.now = window.__realNow; });
+  parent.off('request', onReq);
+  await admin.fill('[data-path="team.league"]', was);
+  await admin.click('#save');
+  await waitText(admin, 'נשמר');
+});
+
+await step('a season read that brings nothing new redraws nothing', async () => {
+  // Each redraw asked the bridge for the gallery again on the media screen,
+  // and put back whatever the parent had opened.
+  await parent.goto(APP + '#/stats');
+  await parent.reload();                    // the device's copy as the season is now
+  await parent.locator('#board-tabs').waitFor();
+  await parent.waitForTimeout(800);
+  const slow = async (r) => { await new Promise((ok) => setTimeout(ok, 700)); await r.continue().catch(() => {}); };
+  await parent.route(BRIDGE, slow);
+  await parent.reload();
+  await parent.locator('#board-tabs [data-board="assists"]').click();
+  await parent.waitForTimeout(2000);   // the season and the first live poll land
+  await parent.unroute(BRIDGE, slow);
+  expect(await parent.getAttribute('#board-tabs [data-board="assists"]', 'aria-selected') === 'true', 'the board was put back by a redraw with nothing new');
+});
+
 await step('the manager opens a live match and picks a lineup', async () => {
   await admin.goto(APP + '#/live');
   await admin.click('[data-act="new"]');
@@ -525,6 +567,28 @@ await step('the parent in control records a goal against; the manager sees it', 
   await admin.locator('.sc-score [data-them]', { hasText: '1' }).waitFor({ timeout: 8000 });
 });
 
+await step('a double tap is one tap: one goal against, and a sheet that stays open', async () => {
+  // Nothing swallows a quick second tap on a phone any more (no double-tap
+  // zoom): on "goal against" it was a second goal, and on "goal" the second
+  // tap landed on the sheet's backdrop and closed it as it opened.
+  const against = () => liveFile().events.filter((e) => e.type === 'goal' && e.side === 'them').length;
+  const before = against();
+  // The step before tapped the same button a moment ago: that tap and this
+  // double tap would read as three taps in a row.
+  await parent.waitForTimeout(800);
+  await parent.dblclick('[data-act="goal-them"]');
+  await admin.locator('.sc-score [data-them]', { hasText: String(before + 1) }).waitFor({ timeout: 8000 });
+  await parent.waitForTimeout(1500);
+  expect(against() === before + 1, `a double tap recorded ${against() - before} goals`);
+  await parent.locator('.toast button', { hasText: 'ביטול' }).click();
+  await admin.locator('.sc-score [data-them]', { hasText: String(before) }).waitFor({ timeout: 8000 });
+  await parent.dblclick('[data-act="goal-us"]');
+  await parent.waitForTimeout(600);
+  expect(await parent.locator('.sheet').count() === 1, 'the scorer sheet closed as it opened');
+  await parent.locator('.sheet-x').click();
+  await parent.locator('.sheet').waitFor({ state: 'detached' });
+});
+
 await step('a controlling phone reopened with no reception still shows the match and can record', async () => {
   await parent.context().setOffline(true);
   await parent.reload();
@@ -645,6 +709,22 @@ await step('the back button (a route change) closes an open sheet instead of lea
   await parent.evaluate(() => { location.hash = '#/stats'; });
   await parent.waitForFunction(() => !document.querySelector('.sheet'), null, { timeout: 3000 });
   await parent.goto(APP + '#/');
+});
+
+await step('the back button closes an open sheet and stays on the screen', async () => {
+  // On the first screen, back with a sheet open closed the app itself.
+  await parent.goto(APP + '#/');
+  await parent.locator('button.match', { hasText: 'מכבי נחלים' }).first().click();
+  await parent.locator('.sheet').waitFor();
+  await parent.evaluate(() => history.back());
+  await parent.waitForFunction(() => !document.querySelector('.sheet'), null, { timeout: 3000 });
+  expect(new URL(parent.url()).hash === '#/', 'back left the screen: ' + parent.url());
+  expect(await parent.locator('.hero').count() === 1, 'the home screen is gone');
+  // Closed by its own button, a sheet takes its step off the history again.
+  await parent.locator('button.match', { hasText: 'מכבי נחלים' }).first().click();
+  await parent.locator('.sheet').waitFor();
+  await parent.locator('.sheet-x').click();
+  await parent.waitForFunction(() => !document.querySelector('.sheet') && !history.state?.mgLayer, null, { timeout: 3000 });
 });
 
 await step('the next live match opens with the last starting lineup, capped at the size', async () => {
@@ -1199,6 +1279,28 @@ await step('before kick-off the coach sets the minimum and who came; a parent se
   await coach.locator(`[data-mn-present="${benched.id}"][data-mn-state="here"]`).click();
   await until(() => !coachFile().matches[id].absent.includes(benched.id), 'the correction to reach Drive');
   coach.benchName = benched.name;
+});
+
+await step('a field being typed in keeps its caret and its text when the screen is redrawn under it', async () => {
+  // The date change goes out; its answer redraws the match details while the
+  // manager already types the opponent's name. The keyboard closed and the
+  // letters went nowhere.
+  const slow = async (r) => { await new Promise((ok) => setTimeout(ok, 800)); await r.continue().catch(() => {}); };
+  await admin.route(BRIDGE, slow);
+  await admin.fill('[data-meta="date"]', '2026-10-04');
+  const opp = admin.locator('[data-meta="opponent"]');
+  await opp.click();
+  await opp.press('End');
+  await admin.keyboard.type(' ב', { delay: 250 });
+  await admin.waitForTimeout(1500);
+  await admin.keyboard.type('ית', { delay: 50 });
+  const focused = await admin.evaluate(() => document.activeElement?.dataset?.meta);
+  const typed = await opp.inputValue();
+  await admin.unroute(BRIDGE, slow);
+  expect(focused === 'opponent', 'the field lost the caret to a redraw: ' + focused);
+  expect(typed === 'הפועל מבחן בית', 'typing was lost to a redraw: ' + typed);
+  await opp.blur();
+  await until(() => liveFile().opponent === 'הפועל מבחן בית', 'the name to be sent on leaving the field');
 });
 
 await step('a match opened ahead is hidden from parents until the manager publishes it', async () => {

@@ -7,11 +7,11 @@ import { formatEditorHtml, wireFormatEditor } from './live.js';
 import { videoOrder } from './media.js';
 import { openSheet, toast } from '../ui/sheet.js';
 import { icon } from '../icons.js';
-import { roundText, oppLogo } from '../components.js';
+import { roundText, oppLogo, keepFocus } from '../components.js';
 import { preparePosters, uploadLogo, hydratePosters } from '../posters.js';
 import { logoKey } from '../season.js';
 import { thumbUrl } from '../gallery.js';
-import { detectFixtureColumns, rowsToFixtures, applyFixtureImport, upcomingFixtures, fixtureKey, mergeNextMatch, FIXTURE_FIELDS } from '../fixtures.js';
+import { detectFixtureColumns, rowsToFixtures, applyFixtureImport, upcomingFixtures, fixtureKey, mergeNextMatch, FIXTURE_FIELDS, todayInIsrael } from '../fixtures.js';
 import { DAYS, weekday } from '../trainings.js';
 
 /* ── What the manager edits ───────────────────────────────────────────────
@@ -28,9 +28,23 @@ const ICON_BY_HOST = [
   [/(^|\.)(whatsapp\.com|wa\.me)$/, 'whatsapp'],
 ];
 export function iconForUrl(url) {
-  let host = '';
-  try { host = new URL(String(url).trim()).hostname.toLowerCase(); } catch { return ''; }
+  const href = safeUrl(url);
+  if (!href) return '';
+  const host = new URL(href).hostname.toLowerCase();
   return ICON_BY_HOST.find(([re]) => re.test(host))?.[1] || '';
+}
+
+// A link typed without https:// ("www.facebook.com/…") is saved with it: the
+// app reads it that way (safeUrl), and so does anything else that opens it.
+function schemeLinks(d) {
+  for (const list of LISTS) {
+    for (const f of list.fields.filter((x) => x.type === 'url')) {
+      for (const item of getPath(d, list.path) || []) {
+        const v = String(getPath(item, f.key) ?? '').trim();
+        if (v && !/^https?:\/\//i.test(v) && safeUrl(v)) setPath(item, f.key, 'https://' + v);
+      }
+    }
+  }
 }
 
 // The icon of a useful link: what the page is, at a glance.
@@ -43,7 +57,9 @@ const ICON_OPTS = [
 ];
 const POS_OPTS = [['', '—'], ...POSITIONS.map((p) => [p.id, p.label])];
 const newId = () => 'p' + Math.random().toString(36).slice(2, 9);
-const today = () => new Date().toISOString().slice(0, 10);
+// Israel's date, not the UTC one: from midnight to three in the morning
+// a new row was dated yesterday.
+const today = () => todayInIsrael();
 const IMPORT_ACCEPT = '.xlsx,.csv,.tsv,.txt,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv';
 
 const TEAM_FIELDS = [
@@ -65,7 +81,9 @@ const HOME_VENUE_FIELDS = [
 // coordinates as Google Maps shows them. It wins over the address.
 const WAZE_FIELD = { key: 'venue.waze', label: 'קישור Waze (לא חובה)', type: 'nav', hint: 'קישור מגוגל מפות או מווייז, או קואורדינטות כמו 31.956020,34.834553', wide: true };
 const DAY_OPTS = DAYS.map((d, i) => [String(i), d]);
-const hours = (t) => (t.start && t.end ? `${t.start}–${t.end}` : t.start || '');
+// Isolated left to right: in the Hebrew summary line "17:00–18:30" read back
+// to front, as the home screen's training sheet once did.
+const hours = (t) => (t.start && t.end ? `\u2066${t.start}–${t.end}\u2069` : t.start || '');
 
 const gameKey = (g) => `${g?.date || ''} ${g?.time || ''}`;
 
@@ -476,20 +494,25 @@ export function mountAdmin(view, ctx) {
   const pendingCount = () => (users || []).filter((u) => u.status === 'pending').length;
   const galleryWaiting = () => (gallery?.items || []).filter((it) => it.status !== 'live');
 
+  const tabLabel = (id, label) => `${label}${id === 'access' && pendingCount() ? ` <b class="count">${pendingCount()}</b>` : id === 'media' && galleryWaiting().length ? ` <b class="count">${galleryWaiting().length}</b>` : ''}`;
   // The access list can answer before the season does (both load on mount);
   // until the season is in, its tab says so instead of drawing nothing.
   function paint() {
     if (!alive) return;
     const scroll = window.scrollY;
+    // A redraw under the manager's hands (an answer for the tab on view, a
+    // newer season) keeps the field being typed in: its caret, its text.
+    const restoreFocus = keepFocus(view);
     view.innerHTML = `
       <section>
         <div class="sec-head">${icon('shield')}<h2>ניהול</h2>
           <span class="aside"><button type="button" class="linkish" id="logout">יציאה ממצב מנהל</button></span></div>
         <div class="seg admin-tabs" role="tablist" aria-label="אזורי ניהול">
-          ${TABS.map(([id, label]) => `<button type="button" role="tab" data-tab="${id}" aria-selected="${tab === id}">${label}${id === 'access' && pendingCount() ? ` <b class="count">${pendingCount()}</b>` : id === 'media' && galleryWaiting().length ? ` <b class="count">${galleryWaiting().length}</b>` : ''}</button>`).join('')}
+          ${TABS.map(([id, label]) => `<button type="button" role="tab" data-tab="${id}" aria-selected="${tab === id}">${tabLabel(id, label)}</button>`).join('')}
         </div>
       </section>
       ${tab === 'access' ? accessHtml() : draft ? seasonHtml() : '<section><div class="card"><div class="empty">טוען…</div></div></section>'}`;
+    restoreFocus();
     window.scrollTo(0, scroll);
     const fmt = view.querySelector('[data-format-editor]');
     if (fmt) {
@@ -844,11 +867,19 @@ export function mountAdmin(view, ctx) {
       </section>`;
   }
 
+  // An answer for a tab that is not showing changes only the count on its
+  // tab: a whole redraw would close a <select> the manager has open.
+  function paintTab(id) {
+    if (tab === id) { paint(); return; }
+    const b = view.querySelector(`.admin-tabs [data-tab="${id}"]`);
+    if (b) b.innerHTML = tabLabel(id, TABS.find((t) => t[0] === id)[1]);
+  }
+
   async function loadGallery() {
     try { gallery = await call('getGallery', {}, { asAdmin: true }); }
     catch { gallery = gallery || null; }
     ctx.onGallery?.(galleryWaiting().length);
-    paint();
+    paintTab('media');
   }
 
   async function galleryAct(action, params, done) {
@@ -860,7 +891,7 @@ export function mountAdmin(view, ctx) {
   async function loadUsers() {
     try { users = await call('listUsers', {}, { asAdmin: true }); usersError = ''; ctx.onPending?.(pendingCount()); }
     catch (e) { usersError = e.message; }
-    paint();
+    paintTab('access');
   }
 
   async function setRole(id, role) {
@@ -1047,6 +1078,7 @@ export function mountAdmin(view, ctx) {
 
   async function save() {
     saving = true; paint();
+    schemeLinks(draft);
     const mapErrs = await resolveMapLinks(draft);
     saving = false;
     const errs = validate(draft);

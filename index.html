@@ -13,13 +13,44 @@
 <link rel="apple-touch-icon" sizes="180x180" href="./icons/apple-touch-icon.png" />
 <link rel="manifest" href="./manifest.webmanifest" />
 
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700;800&family=Rubik:wght@500;600;700&display=swap" />
 <link rel="stylesheet" href="./styles.css" />
+<!-- Every module, fetched side by side from the start. Without this the
+     browser found them one import at a time — app.js, then what it imports,
+     then what those import — a round trip each, on every open (the service
+     worker asks the network first). tests/pwa.mjs fails if one is missing. -->
+<link rel="modulepreload" href="./src/app.js" />
+<link rel="modulepreload" href="./src/bridge.js" />
+<link rel="modulepreload" href="./src/components.js" />
+<link rel="modulepreload" href="./src/config.js" />
+<link rel="modulepreload" href="./src/fixtures.js" />
+<link rel="modulepreload" href="./src/format.js" />
+<link rel="modulepreload" href="./src/gallery.js" />
+<link rel="modulepreload" href="./src/icons.js" />
+<link rel="modulepreload" href="./src/imaging.js" />
+<link rel="modulepreload" href="./src/importer.js" />
+<link rel="modulepreload" href="./src/install.js" />
+<link rel="modulepreload" href="./src/lineup-text.js" />
+<link rel="modulepreload" href="./src/live/model.js" />
+<link rel="modulepreload" href="./src/live/sync.js" />
+<link rel="modulepreload" href="./src/minutes.js" />
+<link rel="modulepreload" href="./src/positions.js" />
+<link rel="modulepreload" href="./src/posters.js" />
+<link rel="modulepreload" href="./src/season.js" />
+<link rel="modulepreload" href="./src/store.js" />
+<link rel="modulepreload" href="./src/trainings.js" />
+<link rel="modulepreload" href="./src/ui/sheet.js" />
+<link rel="modulepreload" href="./src/updater.js" />
+<link rel="modulepreload" href="./src/views/admin.js" />
+<link rel="modulepreload" href="./src/views/gallery.js" />
+<link rel="modulepreload" href="./src/views/gate.js" />
+<link rel="modulepreload" href="./src/views/home.js" />
+<link rel="modulepreload" href="./src/views/live.js" />
+<link rel="modulepreload" href="./src/views/media.js" />
+<link rel="modulepreload" href="./src/views/minutes.js" />
+<link rel="modulepreload" href="./src/views/stats.js" />
 <!-- The running version. `node tools/bump.mjs` rewrites it together with
      version.json and sw.js; the updater compares it with version.json. -->
-<script>window._BUNDLE_VERSION = '1.45.0';</script>
+<script>window._BUNDLE_VERSION = '1.46.0';</script>
 </head>
 <body>
   <div id="app"></div>

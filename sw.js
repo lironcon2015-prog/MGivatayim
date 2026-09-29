@@ -2,7 +2,7 @@
    CACHE_VERSION must equal version.json and window._BUNDLE_VERSION in
    index.html. `node tools/bump.mjs` writes all three; tests/pwa.mjs fails if
    they drift apart. */
-const CACHE_VERSION = '1.45.0';
+const CACHE_VERSION = '1.46.0';
 const CACHE_NAME = 'mgivatayim-' + CACHE_VERSION;
 
 /* Everything the shell needs to open with no network. tests/pwa.mjs fails if
@@ -11,6 +11,7 @@ const CACHE_NAME = 'mgivatayim-' + CACHE_VERSION;
 const CORE = [
   './', './index.html', './styles.css', './manifest.webmanifest',
   './assets/crest.png',
+  './assets/fonts/assistant-hebrew.woff2', './assets/fonts/assistant-latin.woff2', './assets/fonts/rubik-hebrew.woff2', './assets/fonts/rubik-latin.woff2',
   './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png', './icons/favicon-32.png',
   './src/app.js', './src/bridge.js', './src/components.js', './src/config.js',
   './src/fixtures.js', './src/format.js', './src/gallery.js', './src/icons.js', './src/imaging.js', './src/importer.js', './src/install.js', './src/positions.js', './src/trainings.js',
@@ -57,7 +58,7 @@ self.addEventListener('fetch', (e) => {
   const req = e.request;
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
-  // The bridge, Google Fonts, Waze: never cached, never intercepted.
+  // The bridge, Waze, Cloudinary: never cached, never intercepted.
   if (url.origin !== location.origin) return;
   // The server's statement of what is current must never come from a cache.
   if (url.pathname.endsWith('/version.json')) return;
@@ -82,5 +83,7 @@ async function respond(req) {
   if (!cached) return network.catch(() => Response.error());
 
   const timeout = new Promise((resolve) => setTimeout(() => resolve(cached), NETWORK_WAIT_MS));
-  return Promise.race([network.catch(() => cached), timeout]);
+  // An error page (Pages mid-deploy, a 5xx) is no fresher than the copy
+  // that works: a module answered with one took the whole app down.
+  return Promise.race([network.then((res) => (res.ok ? res : cached), () => cached), timeout]);
 }

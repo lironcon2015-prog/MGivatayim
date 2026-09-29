@@ -1,6 +1,6 @@
 import { esc, shortDate, plural } from '../format.js';
 import { icon } from '../icons.js';
-import { openSheet, confirmSheet, toast } from '../ui/sheet.js';
+import { openSheet, confirmSheet, toast, trackLayer } from '../ui/sheet.js';
 import {
   loadGallery, cachedGallery, thumbUrl, fullUrl, posterUrl, saveUrl, uploadOne, hideItem, deleteItem, deleteItems, kindOf, MAX_VIDEO_S,
 } from '../gallery.js';
@@ -321,7 +321,14 @@ function viewer(g, list, start, { asAdmin, onChange }) {
       </div>`;
   }
 
+  // Back closes the viewer, and so does a route change (as a sheet): it
+  // stayed open over the next screen.
+  let closed = false;
+  const release = trackLayer(() => close());
   function close() {
+    if (closed) return;
+    closed = true;
+    release();
     el.remove();
     document.removeEventListener('keydown', onKey, true);
     if (!document.querySelector('.sheet')) document.documentElement.classList.remove('sheet-open');

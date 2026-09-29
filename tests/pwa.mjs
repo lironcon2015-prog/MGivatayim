@@ -51,14 +51,33 @@ await step('every file the service worker precaches exists', () => {
   expect(!missing.length, 'missing: ' + missing.join(', '));
 });
 
+await step('every module under src/ is preloaded by index.html, so none waits for the one importing it', () => {
+  const html = read('index.html');
+  const walk = (d) => readdirSync(d).flatMap((f) => { const p = join(d, f); return statSync(p).isDirectory() ? walk(p) : [p]; });
+  const missing = walk(join(ROOT, 'src')).map((p) => './' + relative(ROOT, p)).filter((p) => !html.includes(`<link rel="modulepreload" href="${p}" />`));
+  expect(!missing.length, 'not preloaded: ' + missing.join(', '));
+});
+
+await step('the fonts come with the app: every face exists, is precached, and nothing is asked of Google', () => {
+  const css = read('styles.css');
+  const core = read('sw.js').match(/const CORE = \[([\s\S]*?)\];/)[1];
+  const files = [...new Set([...css.matchAll(/url\((assets\/fonts\/[^)]+)\)/g)].map((m) => m[1]))];
+  expect(files.length === 4, 'font files named: ' + files.join(', '));
+  const bad = files.filter((f) => !existsSync(join(ROOT, f)) || !core.includes(`'./${f}'`));
+  expect(!bad.length, 'missing or not precached: ' + bad.join(', '));
+  expect(!/fonts\.(googleapis|gstatic)/.test(read('index.html') + css), 'a font from Google holds up the first paint');
+});
+
 // ---- live: deploy a new version under an open page ----
 const site = mkdtempSync(join(tmpdir(), 'mg-pwa-'));
 cpSync(ROOT, site, { recursive: true, filter: (p) => !/node_modules|\.git(\/|$)/.test(p) });
 
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png', '.json': 'application/json', '.webmanifest': 'application/manifest+json' };
 const PORT = 8771;
+let down = null;   // a path the server answers with an error, as Pages mid-deploy
 const server = createServer(async (req, res) => {
   const p = new URL(req.url, 'http://x').pathname;
+  if (p === down) { res.writeHead(503); res.end('down'); return; }
   const f = join(site, p.endsWith('/') ? p + 'index.html' : p);
   try {
     // max-age like GitHub Pages, so the test would catch an update path
@@ -86,6 +105,19 @@ await step('the running version is shown on screen', async () => {
 
 await step('the service worker takes control', async () => {
   await page.waitForFunction(() => !!navigator.serviceWorker.controller, null, { timeout: 10000 });
+});
+
+await step('a server error for a file does not replace the copy that works', async () => {
+  down = '/src/format.js';
+  try {
+    const page2 = await ctx.newPage();
+    const errors = [];
+    page2.on('pageerror', (e) => errors.push(e.message));
+    await page2.goto(`http://localhost:${PORT}/`);
+    await page2.locator('#app-version').waitFor({ timeout: 10000 });
+    expect(!errors.length, 'page errors: ' + errors.join('; '));
+    await page2.close();
+  } finally { down = null; }
 });
 
 let next;

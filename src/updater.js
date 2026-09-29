@@ -59,7 +59,9 @@ function offer() {
 }
 
 async function check() {
-  try { reg?.update(); } catch { /* not blocking */ }
+  // Offline, update() rejects: caught, or every return to the app logged an
+  // uncaught error.
+  try { reg?.update()?.catch?.(() => {}); } catch { /* not blocking */ }
   let json;
   try {
     const url = new URL(VERSION_URL);

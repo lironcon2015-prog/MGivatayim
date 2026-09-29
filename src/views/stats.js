@@ -50,7 +50,7 @@ export function renderStats(s) {
       ${BOARDS.map((b, i) => `<button role="tab" type="button" data-board="${b.key}" aria-selected="${i === 0}">${esc(b.label)}</button>`).join('')}
     </div>
     <div class="card rows" id="board" style="margin-top:.7rem"></div>
-    ${s.squadGoalsMatch || !s.isAdmin ? '' : `<p class="note">למנהל: לשחקנים שויכו ${s.squadGoals} שערים מתוך ${s.overall.gf} של הקבוצה. תוצאה שהוזנה ידנית לא כוללת כובשים — אפשר להשלים ב"שערים לפני הלייב" בעורך השחקנים.</p>`}
+    ${s.squadGoalsMatch || !s.isAdmin ? '' : `<p class="note">למנהל: לשחקנים שויכו ${s.squadGoals} שערים מתוך ${s.playerGoals} של הקבוצה${s.playerGoals !== s.overall.gf ? ' (בלי גולים עצמיים של היריבה)' : ''}. תוצאה שהוזנה ידנית לא כוללת כובשים — אפשר להשלים ב"שערים לפני הלייב" בעורך השחקנים.</p>`}
   </section>
 
   ${s.showMinutes ? seasonMinutesHtml(s) : ''}

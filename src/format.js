@@ -59,10 +59,17 @@ export const esc = (s) =>
 
 // Only http(s) links are emitted. The data file's url fields are pasted in
 // from WhatsApp and elsewhere, and a javascript: URL must never become an href.
+// A link typed without its scheme ("www.facebook.com/…") is a web address,
+// not a path inside the app: read against the page, it became
+// …/MGivatayim/www.facebook.com/… — a dead page. It gets https://; any other
+// string that is not a full address is no link.
+const HOSTLIKE = /^(?:[a-z\d](?:[a-z\d-]*[a-z\d])?\.)+[a-z]{2,}(?::\d+)?(?:[/?#]|$)/i;
 export function safeUrl(url) {
-  if (!url) return null;
+  const v = String(url ?? '').trim();
+  const abs = /^https?:\/\//i.test(v) ? v : HOSTLIKE.test(v) ? 'https://' + v : null;
+  if (!abs) return null;
   try {
-    const u = new URL(url, location.href);
+    const u = new URL(abs);
     return u.protocol === 'http:' || u.protocol === 'https:' ? u.href : null;
   } catch { return null; }
 }

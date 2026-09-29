@@ -228,33 +228,87 @@ function root_() {
   return made;
 }
 
+/* A file found by name costs a walk: the root folder by name and its
+   description, then the file by name — Drive calls on every write, under
+   the lock, while a live match is being sent. The id found is kept in the
+   cache; a file trashed or gone since then is looked up again. */
 function file_(name) {
+  const cache = CacheService.getScriptCache();
+  const known = cache.get('fid:' + name);
+  if (known) {
+    try { const f = DriveApp.getFileById(known); if (!f.isTrashed()) return f; } catch (e) { /* gone: look it up */ }
+  }
   const it = root_().getFilesByName(name);
   while (it.hasNext()) {
     const f = it.next();
-    if (!f.isTrashed()) return f;
+    if (!f.isTrashed()) { cache.put('fid:' + name, f.getId(), CACHE_TTL_S); return f; }
   }
   return null;
 }
 
+/* The cache keeps up to 100KB under a key, counted in bytes, and a Hebrew
+   letter is two of them. A file measured in characters passed for small
+   and was refused: the Drive write done, the request failed anyway, and the
+   cache kept serving the copy from before it for hours. A file past one
+   piece — the season by mid-season, the gallery — is kept in pieces under
+   one tag, so reading it is not a trip to Drive every time. */
+const CACHE_PIECE = 90 * 1024;
+function pieces_(text) {
+  const out = [];
+  let from = 0, bytes = 0;
+  for (let i = 0; i < text.length; i++) {
+    const c = text.charCodeAt(i);
+    const w = c < 0x80 ? 1 : c < 0x800 ? 2 : c >= 0xD800 && c < 0xDC00 ? 4 : 3;
+    if (bytes + w > CACHE_PIECE) { out.push(text.slice(from, i)); from = i; bytes = 0; }
+    bytes += w;
+    if (w === 4) i++;   // the pair's second half: never split from the first
+  }
+  out.push(text.slice(from));
+  return out;
+}
+
+function cacheText_(cache, name) {
+  const hit = cache.get(name);
+  if (!hit || hit.charAt(0) !== '\u0000') return hit;
+  const head = hit.slice(1).split(':');
+  const keys = [];
+  for (let i = 0; i < Number(head[0]); i++) keys.push(name + '#' + head[1] + '#' + i);
+  const got = cache.getAll(keys);
+  return keys.every((k) => got[k] != null) ? keys.map((k) => got[k]).join('') : null;
+}
+
+function cacheKeep_(cache, name, text) {
+  try {
+    const parts = pieces_(text);
+    if (parts.length === 1) { cache.put(name, text, CACHE_TTL_S); return; }
+    const tag = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    const all = {};
+    parts.forEach((p, i) => { all[name + '#' + tag + '#' + i] = p; });
+    cache.putAll(all, CACHE_TTL_S);
+    // The head last: a reader finds all of the new pieces, or the old copy.
+    cache.put(name, '\u0000' + parts.length + ':' + tag, CACHE_TTL_S);
+  } catch (e) {
+    try { cache.remove(name); } catch (e2) { /* nothing left to serve */ }
+  }
+}
+
 function readJson_(name, fallback) {
   const cache = CacheService.getScriptCache();
-  const hit = cache.get(name);
-  if (hit) return JSON.parse(hit);
+  const hit = cacheText_(cache, name);
+  if (hit) { try { return JSON.parse(hit); } catch (e) { /* a torn copy: Drive has the file */ } }
   const f = file_(name);
   const text = f ? f.getBlob().getDataAsString('UTF-8') : null;
-  if (text && text.length < 90 * 1024) cache.put(name, text, CACHE_TTL_S);
+  if (text) cacheKeep_(cache, name, text);
   return text ? JSON.parse(text) : fallback;
 }
 
 function writeJson_(name, obj) {
   const text = JSON.stringify(obj);
+  const cache = CacheService.getScriptCache();
   const f = file_(name);
   if (f) f.setContent(text);
-  else root_().createFile(name, text, 'application/json');
-  const cache = CacheService.getScriptCache();
-  if (text.length < 90 * 1024) cache.put(name, text, CACHE_TTL_S);
-  else cache.remove(name);
+  else cache.put('fid:' + name, root_().createFile(name, text, 'application/json').getId(), CACHE_TTL_S);
+  cacheKeep_(cache, name, text);
 }
 
 /* כל כתיבה עוברת במנעול. שני הורים שמבקשים גישה באותה שנייה היו אחרת
@@ -1154,7 +1208,9 @@ function adminPing_(req) {
   const users = access_().users;
   const pending = Object.keys(users).filter((k) => users[k].status === 'pending').length;
   const galleryWaiting = gallery_().items.filter((it) => it.status !== 'live').length;
-  return { folder: root_().getName(), pending: pending, galleryWaiting: galleryWaiting };
+  // Nothing from Drive itself: the manager's app asks this every minute and
+  // on every season load, and the folder's name it once returned went unused.
+  return { pending: pending, galleryWaiting: galleryWaiting };
 }
 
 function listUsers_(req) {

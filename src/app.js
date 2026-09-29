@@ -1,6 +1,6 @@
 import { buildSeason, opponentLogo } from './season.js';
 import { esc, seasonLabel } from './format.js';
-import { crestImg, keepImages } from './components.js';
+import { crestImg, keepImages, keepFocus } from './components.js';
 import { icon } from './icons.js';
 import { DEFAULT_CREST } from './config.js';
 import { call, bridgeConfigured } from './bridge.js';
@@ -20,6 +20,7 @@ import { mountLive, openMatchSheet, showMinutesTab } from './views/live.js';
 import { cleanCoach, coachFor, shortfall, alertKey } from './minutes.js';
 import { homeAlertHtml } from './views/minutes.js';
 import { toast, buzz } from './ui/sheet.js';
+import { todayInIsrael } from './fixtures.js';
 
 const ROUTES = [
   { hash: '#/',      label: 'בית',    glyph: 'home',      render: renderHome,  wire: (root, s) => wireHome(root, s) },
@@ -67,6 +68,9 @@ const ROOT = new URL('../', import.meta.url);
 function prepare(payload) {
   if (!payload?.season) return null;
   const s = buildSeason(payload.season);
+  // The day it was worked out on: this week's trainings, "today", the next
+  // match — the same data reads differently tomorrow.
+  s.day = todayInIsrael();
   s.team.crestUrl = new URL(s.team.crest || DEFAULT_CREST, ROOT).href;
   // Minutes are the coach's and the manager's: the bridge sends parents
   // neither past lineups nor the coach data, and the screens are left out
@@ -81,10 +85,12 @@ function prepare(payload) {
   return s;
 }
 
+// A save from the manager's editor answers with the season alone; the
+// role and the coach data it did not touch carry over.
+const withCarried = (payload) => (state.payload && payload && !('role' in payload) ? { ...payload, role: state.payload.role, coach: state.payload.coach } : payload);
+
 function accept(payload) {
-  // A save from the manager's editor answers with the season alone; the
-  // role and the coach data it did not touch carry over.
-  if (state.payload && payload && !('role' in payload)) payload = { ...payload, role: state.payload.role, coach: state.payload.coach };
+  payload = withCarried(payload);
   state.payload = payload;
   state.season = prepare(payload);
   state.access = 'approved';
@@ -125,11 +131,34 @@ const pendingDot = () => `<i class="nav-dot" aria-label="${[
 setInterval(() => { if (document.visibilityState === 'visible') checkPending(); }, PENDING_EVERY_MS);
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkPending(); });
 
+// Back in the foreground. iOS resumes a home-screen app instead of loading
+// it again, so the season read when it was opened — last week's next match,
+// a result missing — stayed on screen until the phone happened to drop the
+// app. Re-read after a minute away, and when the network comes back to a
+// screen showing the device's copy; an answer with nothing new draws nothing.
+const SEASON_STALE_MS = 60000;
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && state.access === 'approved' && Date.now() - seasonAt > SEASON_STALE_MS) refresh();
+});
+window.addEventListener('online', () => { if (state.access === 'approved' && state.stale) refresh(); });
+
 /* ---------- talking to the bridge ---------- */
+
+// When the season was last read from the bridge.
+let seasonAt = 0;
 
 async function refresh() {
   try {
-    accept(await call('getSeason', {}, { asAdmin: isAdmin() }));
+    const next = await call('getSeason', {}, { asAdmin: isAdmin() });
+    seasonAt = Date.now();
+    // Nothing new since the screen was drawn — the usual answer on opening
+    // the app and on coming back to it: no redraw. A redraw put back what
+    // the parent had opened on the screen, and the media screen asked the
+    // bridge for the gallery again each time.
+    const same = state.access === 'approved' && !state.stale && state.season?.day === todayInIsrael()
+      && JSON.stringify(withCarried(next)) === JSON.stringify(state.payload);
+    if (same) { checkPending(); return; }
+    accept(next);
   } catch (e) {
     if (e.code === 'not_approved') {
       store.forgetAccess();
@@ -142,7 +171,9 @@ async function refresh() {
       }
       return checkAccess();
     }
-    if (state.payload) state.stale = true;
+    // Already showing the device's copy (back in the app, still offline):
+    // nothing to draw again.
+    if (state.payload) { if (state.stale) return; state.stale = true; }
     else { state.access = 'error'; state.error = e.message; }
   }
   render();
@@ -287,7 +318,15 @@ function markNav(hash) {
   });
 }
 
+// A field being typed in keeps its caret and text across a redraw (a
+// season re-read landing on the manager's screen, say).
 function render() {
+  const restoreFocus = keepFocus(document.getElementById('app'));
+  draw();
+  restoreFocus();
+}
+
+function draw() {
   teardown();
   teardown = () => {};
   const app = document.getElementById('app');
@@ -402,6 +441,7 @@ function render() {
     });
     return;
   }
+  drawnLiveKey = liveKey();
   view.innerHTML = (route.hash === '#/' ? liveBanner() + minutesAlert() : '') + route.render(s)
     + (state.stale ? '<p class="note stale">מוצגים הנתונים האחרונים שנשמרו במכשיר — אין כרגע חיבור לשרת.</p>' : '')
     + `<p class="foot">${esc(s.team.name)} · ${esc(seasonLabel(s.team))}${isAdmin() ? '' : ' · <a href="#/admin">כניסת מנהל</a>'}</p>`;
@@ -443,14 +483,22 @@ function liveBanner() {
 }
 
 // Re-render the ordinary screens only when something they show changed —
-// the banner, the tab's dot — never on the live or manager screens, which
-// manage themselves, and never on a poll that brought nothing new.
+// the banner, the tab's dot, the coach's alert — never on the live or
+// manager screens, which manage themselves, and never on a poll that brought
+// nothing new. `drawnLiveKey` is what the screen on view was drawn with: the
+// first poll's "no match" is what it already shows.
+const liveKey = () => {
+  const st = session.state;
+  if (!st) return 'none';
+  const sc = LM.score(st);
+  return `${st.id}|${st.status}|${st.period}|${sc.us}:${sc.them}`;
+};
+let drawnLiveKey = null;
 let lastLiveKey = '';
 let lastLiveStatus = null;
 session.subscribe(() => {
   checkMinutesAlert();
-  const st = session.state;
-  const key = st ? `${st.id}|${st.status}|${st.period}|${LM.score(st).us}:${LM.score(st).them}` : 'none';
+  const key = liveKey();
   // A match that just ended is now a row in the season's results: fetch it,
   // so the history and the players' totals include it straight away. Keyed
   // on what the *server* has confirmed, not on this phone's optimistic view —
@@ -465,7 +513,7 @@ session.subscribe(() => {
   if (key === lastLiveKey) return;
   lastLiveKey = key;
   const onPlain = !onAdminRoute() && location.hash !== '#/live' && state.access === 'approved' && state.season;
-  if (onPlain) render();
+  if (onPlain) { if (key !== drawnLiveKey) render(); }
   else document.querySelectorAll('#nav a[href="#/live"]').forEach((a) => {
     a.querySelector('.live-dot')?.remove();
     if (liveActive()) a.insertAdjacentHTML('beforeend', '<i class="live-dot" aria-label="משחק חי"></i>');

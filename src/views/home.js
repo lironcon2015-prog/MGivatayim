@@ -5,6 +5,7 @@ import { crestImg, oppLogo, roundText, sectionHead, formPill, matchRow, fixtureR
 import { DAYS, weekday } from '../trainings.js';
 import { openSheet, toast } from '../ui/sheet.js';
 import { call } from '../bridge.js';
+import { sortedVideos } from './media.js';
 
 // Videos and links are left off the home screen while there are none: a
 // summary page of empty cards reads as an app nobody uses. Their own screen
@@ -67,6 +68,9 @@ function nextMatchCard(s) {
    and not a banner. Tapping a training opens its hours, venue and Waze. */
 
 const dayMonth = (iso) => { const [, m, d] = iso.split('-'); return `${+d}.${+m}`; };
+// A range reads left to right as a unit: in the Hebrew line "27.9–3.10"
+// came out as 3.10–27.9, back to front.
+const ltr = (s) => `\u2066${s}\u2069`;
 const hoursOf = (t) => (t.start && t.end ? `${t.start}–${t.end}` : t.start || '');
 // A training that differs from the routine is framed in red with a flag on
 // its top edge (the owner's pick, and the one red outside match results).
@@ -91,7 +95,7 @@ function weekInner(s) {
   const toggle = s.offersNextWeek
     ? `<button type="button" class="wk-next" data-next-week>${week.ahead ? 'השבוע' : 'שבוע הבא'}</button>` : '';
   return `<div class="wk-label">${week.ahead ? 'אימוני השבוע הבא' : 'אימוני השבוע'}
-      <span class="aside num">${dayMonth(week.start)}–${dayMonth(week.end)}</span>${toggle}</div>
+      <span class="aside num">${ltr(`${dayMonth(week.start)}–${dayMonth(week.end)}`)}</span>${toggle}</div>
     ${week.trainings
       ? `<div class="week" style="--n:${Math.max(4, week.items.length)}">${week.items.map(square).join('')}</div>`
       : `<div class="card wk-empty">${week.ahead ? 'אין אימונים בשבוע הבא.' : 'אין אימונים השבוע.'}</div>`}`;
@@ -309,7 +313,7 @@ export function renderHome(s) {
 
   ${s.videos.length ? `<section>
     ${sectionHead('סרטונים מהעונה', '<a href="#/media">לכל הסרטונים</a>', 'film')}
-    ${videoCard(s.videos[0])}
+    ${videoCard(sortedVideos(s)[0])}
   </section>` : ''}
 
   ${s.links.length ? `<section>

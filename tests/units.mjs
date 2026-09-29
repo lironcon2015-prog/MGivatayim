@@ -787,6 +787,32 @@ await test('a border that is not one plain colour is left alone', async () => {
   assert.equal(keyBackground(clear, w, h), false);
 });
 
+await test('a link typed without https:// is a web address, never a page inside the app', async () => {
+  globalThis.location ??= { href: 'https://lironcon2015-prog.github.io/MGivatayim/' };
+  const { safeUrl } = await import('../src/format.js');
+  assert.equal(safeUrl('www.facebook.com/groups/abc'), 'https://www.facebook.com/groups/abc');
+  assert.equal(safeUrl(' chat.whatsapp.com/xyz '), 'https://chat.whatsapp.com/xyz');
+  assert.equal(safeUrl('https://ok.com/a'), 'https://ok.com/a');
+  assert.equal(safeUrl('/etc'), null, 'a path is not a link');
+  assert.equal(safeUrl('קישור'), null);
+  assert.equal(safeUrl('javascript:alert(1)'), null);
+  assert.equal(safeUrl(''), null);
+  assert.equal(safeUrl(undefined), null);
+});
+
+await test('the opponent\'s own goal is the team\'s, and no player\'s: the scorers still add up', async () => {
+  const { buildSeason } = await import('../src/season.js');
+  const ev = (id, extra) => ({ id, type: 'goal', side: 'us', period: 0, atMs: 60000, ...extra });
+  const s = buildSeason({
+    players: [{ id: 'p1', name: 'אורי' }],
+    matches: [{ date: '2026-09-19', opponent: 'א', home: true, gf: 2, ga: 0, liveId: 'm1', events: [ev('g1', { scorer: 'p1' }), ev('g2', { og: true })] }],
+  });
+  assert.equal(s.overall.gf, 2);
+  assert.equal(s.squadGoals, 1);
+  assert.equal(s.playerGoals, 1);
+  assert.equal(s.squadGoalsMatch, true, 'an own goal read as a scorer missing from the squad');
+});
+
   console.log(`\nunits: ${passed} passed, ${failures.length} failed`);
   process.exit(failures.length ? 1 : 0);
 }

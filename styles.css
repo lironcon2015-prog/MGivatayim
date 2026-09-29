@@ -71,10 +71,54 @@
   --shadow-lift: 0 14px 40px rgba(0, 0, 0, .5);
 }
 
+/* ── Fonts ─────────────────────────────────────────────────────────────
+   Served from here, not from Google Fonts: its stylesheet held up the
+   first paint of every open once it was a day old in the browser's cache —
+   three round trips to another host on a pitch-side line — and with no
+   network the app fell back to Arial. One variable file per script and
+   family, declared weight by weight exactly as Google declares them, so
+   text renders as it did (a weight between two, like 500 in Assistant,
+   still falls to the one below). Assistant and Rubik: SIL Open Font
+   License 1.1 — assets/fonts/README.md. */
+@font-face { font-family: 'Assistant'; font-weight: 400; font-display: swap; src: url(assets/fonts/assistant-hebrew.woff2) format('woff2');
+  unicode-range: U+0307-0308, U+0590-05FF, U+200C-2010, U+20AA, U+25CC, U+FB1D-FB4F; }
+@font-face { font-family: 'Assistant'; font-weight: 600; font-display: swap; src: url(assets/fonts/assistant-hebrew.woff2) format('woff2');
+  unicode-range: U+0307-0308, U+0590-05FF, U+200C-2010, U+20AA, U+25CC, U+FB1D-FB4F; }
+@font-face { font-family: 'Assistant'; font-weight: 700; font-display: swap; src: url(assets/fonts/assistant-hebrew.woff2) format('woff2');
+  unicode-range: U+0307-0308, U+0590-05FF, U+200C-2010, U+20AA, U+25CC, U+FB1D-FB4F; }
+@font-face { font-family: 'Assistant'; font-weight: 800; font-display: swap; src: url(assets/fonts/assistant-hebrew.woff2) format('woff2');
+  unicode-range: U+0307-0308, U+0590-05FF, U+200C-2010, U+20AA, U+25CC, U+FB1D-FB4F; }
+@font-face { font-family: 'Assistant'; font-weight: 400; font-display: swap; src: url(assets/fonts/assistant-latin.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: 'Assistant'; font-weight: 600; font-display: swap; src: url(assets/fonts/assistant-latin.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: 'Assistant'; font-weight: 700; font-display: swap; src: url(assets/fonts/assistant-latin.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: 'Assistant'; font-weight: 800; font-display: swap; src: url(assets/fonts/assistant-latin.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: 'Rubik'; font-weight: 500; font-display: swap; src: url(assets/fonts/rubik-hebrew.woff2) format('woff2');
+  unicode-range: U+0307-0308, U+0590-05FF, U+200C-2010, U+20AA, U+25CC, U+FB1D-FB4F; }
+@font-face { font-family: 'Rubik'; font-weight: 600; font-display: swap; src: url(assets/fonts/rubik-hebrew.woff2) format('woff2');
+  unicode-range: U+0307-0308, U+0590-05FF, U+200C-2010, U+20AA, U+25CC, U+FB1D-FB4F; }
+@font-face { font-family: 'Rubik'; font-weight: 700; font-display: swap; src: url(assets/fonts/rubik-hebrew.woff2) format('woff2');
+  unicode-range: U+0307-0308, U+0590-05FF, U+200C-2010, U+20AA, U+25CC, U+FB1D-FB4F; }
+@font-face { font-family: 'Rubik'; font-weight: 500; font-display: swap; src: url(assets/fonts/rubik-latin.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: 'Rubik'; font-weight: 600; font-display: swap; src: url(assets/fonts/rubik-latin.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: 'Rubik'; font-weight: 700; font-display: swap; src: url(assets/fonts/rubik-latin.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+
 * { box-sizing: border-box; }
 /* display: flex on .btn and friends would otherwise beat the hidden attribute. */
 [hidden] { display: none !important; }
 html, body { margin: 0; padding: 0; }
+/* A phone turned sideways keeps the type it was given (iOS enlarges it). */
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+/* Two quick taps on a control are two taps, not a zoom: the minute's
+   −1′ +1′, the coach's ±5 and the live buttons are pressed in a row, and
+   iOS read the pair as a double tap and zoomed the page. Pinch still zooms. */
+a, button, input, select, textarea, label, summary { touch-action: manipulation; }
 
 /* The glows are pinned to the screen, not the page: a fixed layer behind
    everything, blue at the top, green-teal through the middle on the left,
@@ -178,6 +222,9 @@ section { margin-top: 1.9rem; }
 }
 .sec-head h2 .coach-only { font-size: .78rem; }
 .sec-head .aside { margin-inline-start: auto; font-size: .8rem; color: var(--faint); font-weight: 600; }
+/* The narrowest phones: a head with its tools wraps instead of pushing the
+   page sideways (the schedule's "import · + game" at 320px). */
+@media (max-width: 340px) { .sec-head { flex-wrap: wrap; row-gap: .4rem; } }
 .sec-head .aside a { color: var(--gold); text-decoration: none; }
 
 .card {

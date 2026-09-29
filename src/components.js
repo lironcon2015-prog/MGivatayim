@@ -65,6 +65,41 @@ export function keepImages(root) {
   };
 }
 
+// A redraw with innerHTML replaces the field being typed in: the phone's
+// keyboard closes mid-word and the rest of the typing goes nowhere (the
+// manager's screen when a late answer lands, the match details while the
+// last change is sent). Call before the redraw; the function it returns
+// puts the caret back in the same field — found by its id or its data key —
+// with what was typed in it, which wins over the redrawn value until the
+// field is left.
+const FIELD_KEYS = ['data-path', 'data-kick', 'data-meta', 'data-stream', 'data-mn-min', 'name'];
+export function keepFocus(root) {
+  const el = document.activeElement;
+  if (!el || !root.contains(el) || !el.matches('input:not([type=file], [type=checkbox], [type=radio]), textarea, select')) return () => {};
+  const sel = el.id ? `#${CSS.escape(el.id)}`
+    : FIELD_KEYS.filter((k) => el.hasAttribute(k)).map((k) => `[${k}="${CSS.escape(el.getAttribute(k))}"]`).join('');
+  if (!sel) return () => {};
+  const { value } = el;
+  let range = null;
+  try { range = [el.selectionStart, el.selectionEnd]; } catch { /* date, number: no caret to keep */ }
+  return () => {
+    const n = root.querySelector(sel);
+    if (!n || n === el) return;
+    if (n.value !== value) {
+      // Still to be committed: a field that sends on "change" gets one when
+      // it is left, as it would have — a value put back by script never
+      // fires it by itself.
+      const drawn = n.value;
+      let native = false;
+      n.value = value;
+      n.addEventListener('change', () => { native = true; }, { once: true });
+      n.addEventListener('blur', () => { if (!native && n.value !== drawn) n.dispatchEvent(new Event('change', { bubbles: true })); }, { once: true });
+    }
+    n.focus({ preventScroll: true });
+    if (range?.[0] != null) try { n.setSelectionRange(...range); } catch { /* not a text field */ }
+  };
+}
+
 export const CLASS_OF = { win: 'is-win', draw: 'is-draw', loss: 'is-loss' };
 
 // The club's own crest, used wherever the UI means "us". It is deliberately
@@ -185,9 +220,9 @@ export function videoCard(v) {
   const inner = `<div class="thumb">
       ${img}
       <span class="play">${icon('play')}</span>
-      <span class="dur num">${esc(v.duration)}</span>
+      ${v.duration ? `<span class="dur num">${esc(v.duration)}</span>` : ''}
     </div>
-    <div class="cap"><b>${esc(v.title)}</b><span>${esc(roundText(v.round))}</span></div>`;
+    <div class="cap"><b>${esc(v.title || '')}</b><span>${esc(roundText(v.round))}</span></div>`;
   return href
     ? `<a class="video" href="${esc(href)}" target="_blank" rel="noopener noreferrer">${inner}</a>`
     : `<div class="video" aria-disabled="true">${inner}</div>`;

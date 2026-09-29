@@ -23,6 +23,7 @@ export function createBridge({ adminCode = 'test-admin-code-1234' } = {}) {
   const cache = new Map();
   const props = new Map([['ADMIN_CODE', adminCode]]);
   let writes = 0;
+  let walks = 0;     // lookups that start from the root folder's name
 
   // Files and folders get ids like Drive's, so getFileById and getParents
   // behave: the poster check depends on a file knowing which folder it is in.
@@ -84,13 +85,20 @@ export function createBridge({ adminCode = 'test-admin-code-1234' } = {}) {
     console,
     JSON, Date, Math, Object, String, Number, Array, Error, RegExp,
     PropertiesService: { getScriptProperties: () => ({ getProperty: (k) => props.get(k) ?? null }) },
+    // Apps Script refuses a value over 100KB — bytes, not characters: a
+    // Hebrew letter is two. The limit is held here so a bridge that sizes
+    // by characters fails the tests as it fails in production.
     CacheService: {
-      getScriptCache: () => ({
-        get: (k) => cache.get(k) ?? null,
-        put: (k, v) => { cache.set(k, v); },
-        remove: (k) => { cache.delete(k); },
-        getAll: (keys) => Object.fromEntries(keys.filter((k) => cache.has(k)).map((k) => [k, cache.get(k)])),
-      }),
+      getScriptCache: () => {
+        const fits = (v) => { if (Buffer.byteLength(String(v), 'utf8') > 100 * 1024) throw new Error('Argument too large: value'); };
+        return {
+          get: (k) => cache.get(k) ?? null,
+          put: (k, v) => { fits(v); cache.set(k, v); },
+          putAll: (all) => { Object.values(all).forEach(fits); for (const [k, v] of Object.entries(all)) cache.set(k, v); },
+          remove: (k) => { cache.delete(k); },
+          getAll: (keys) => Object.fromEntries(keys.filter((k) => cache.has(k)).map((k) => [k, cache.get(k)])),
+        };
+      },
     },
     LockService: { getScriptLock: () => ({ tryLock: () => true, releaseLock: () => {} }) },
     Utilities: {
@@ -104,7 +112,7 @@ export function createBridge({ adminCode = 'test-admin-code-1234' } = {}) {
       newBlob: (bytes, type, name) => makeBlob(bytes, type, name),
     },
     DriveApp: {
-      getFoldersByName: (n) => iterator(folders.filter((f) => f.name === n)),
+      getFoldersByName: (n) => { walks++; return iterator(folders.filter((f) => f.name === n)); },
       createFolder: (n) => makeFolder(n),
       getFileById: (id) => {
         if (byId.has(id)) return byId.get(id);
@@ -161,6 +169,8 @@ export function createBridge({ adminCode = 'test-admin-code-1234' } = {}) {
     driveFileId: (name) => folders[0]?.files.find((f) => f.name === name)?.getId() ?? null,
     setProp: (k, v) => props.set(k, v),
     get writes() { return writes; },
+    get walks() { return walks; },
+    driveFiles: (name) => folders[0]?.files.filter((f) => f.name === name) ?? [],
   };
 }
 

@@ -2,7 +2,7 @@ import * as M from '../live/model.js';
 import { serverNow } from '../live/sync.js';
 import { esc, splitKickoff, shortName, shortDate, byNumber } from '../format.js';
 import { icon } from '../icons.js';
-import { crestImg, keepImages, oppLogo, roundText, COACH_ONLY } from '../components.js';
+import { crestImg, keepImages, keepFocus, oppLogo, roundText, COACH_ONLY } from '../components.js';
 import { hydratePosters } from '../posters.js';
 import { posLabel, isKeeper, layout, subGroups, formationsFor, freeSlots, fitFormation, refit } from '../positions.js';
 import { openSheet, confirmSheet, toast, buzz } from '../ui/sheet.js';
@@ -655,9 +655,13 @@ export function mountLive(view, ctx) {
       queueMicrotask(() => { const s2 = state(); if (s2?.status === 'setup') act({ t: 'lineup', lineup: refit(M.formationOfState(s2).slots, s2.lineup, s2.players) }); });
     }
     const restoreImages = keepImages(view);
+    // A poll or a send answered while a field is being typed in (the
+    // opponent's name, the coach's minimum) redraws around it, not over it.
+    const restoreFocus = keepFocus(view);
     if (tab === 'minutes') {
       view.innerHTML = `${scoreboard(st)}${hiddenNote()}${streamLink(st)}${tabs}<div data-mn-host>${liveMinutesHtml(st, now(), cfg, { folded: store.getFolded() === alertKey(st) })}</div>`;
       restoreImages();
+      restoreFocus();
       lastMinute = minuteKey(st);
       window.scrollTo(0, scroll);
       hydratePosters(view);
@@ -690,6 +694,7 @@ export function mountLive(view, ctx) {
       ${st.status === 'ended' ? endedPanel(st) : ''}
       ${!S.canControl && st.status !== 'ended' ? '<p class="gate-foot"><button type="button" class="linkish" data-act="claim">יש לי קוד שליטה במשחק</button></p>' : ''}`;
     restoreImages();
+    restoreFocus();
     window.scrollTo(0, scroll);
     hydratePosters(view);
     tick();
@@ -914,7 +919,7 @@ export function mountLive(view, ctx) {
       const id = uid();
       const sc = M.score(state());
       act({ t: 'goal', id, side: 'us', scorer: who_, assist: pid || null, og, ...stamp },
-        `שער! ${esc(og ? 'גול עצמי' : who_ ? whoText(st, who_) : 'מכבי גבעתיים')} · <span class="num">${sc.us + 1}:${sc.them}</span>`);
+        `שער! ${esc(og ? 'גול עצמי' : who_ ? whoText(st, who_) : ctx.team.name)} · <span class="num">${sc.us + 1}:${sc.them}</span>`);
     }
   }
 
@@ -976,7 +981,7 @@ export function mountLive(view, ctx) {
         const sc = M.score(state());
         if (b.dataset.res === 'goal') {
           const line = side === 'us'
-            ? `שער מפנדל! ${esc(scorer ? whoText(st, scorer) : 'מכבי גבעתיים')} · <span class="num">${sc.us + 1}:${sc.them}</span>`
+            ? `שער מפנדל! ${esc(scorer ? whoText(st, scorer) : ctx.team.name)} · <span class="num">${sc.us + 1}:${sc.them}</span>`
             : `שער מפנדל ל${esc(st.opponent || 'יריבה')} · <span class="num">${sc.us}:${sc.them + 1}</span>`;
           act({ t: 'goal', id: uid(), side, scorer, pen: true, ...stamp }, line);
         } else {
@@ -1326,13 +1331,13 @@ export function mountLive(view, ctx) {
   async function newMatch(from) {
     const players = ctx.players();
     let base;
-    if (from?.none) base = { opponent: '', home: true, round: null, friendly: false, date: new Date().toISOString().slice(0, 10), fixture: null };
+    if (from?.none) base = { opponent: '', home: true, round: null, friendly: false, date: M.israelDate(Date.now()), fixture: null };
     else if (from) base = { opponent: from.opponent, home: from.home !== false, round: from.round ?? null, friendly: from.friendly === true, date: from.date, fixture: from };
     else {
       const nm = ctx.nextMatch;
       base = {
         opponent: nm?.opponent || '', home: nm ? nm.home !== false : true, round: nm?.round ?? null, friendly: nm?.friendly === true,
-        date: nm?.kickoff ? splitKickoff(nm.kickoff).date : new Date().toISOString().slice(0, 10),
+        date: nm?.kickoff ? splitKickoff(nm.kickoff).date : M.israelDate(Date.now()),
         fixture: nextFixture(),
       };
     }
@@ -1362,11 +1367,22 @@ export function mountLive(view, ctx) {
 
   /* ---- events ---- */
 
+  // A control that records at once, with no sheet between the tap and the
+  // record: a second tap on it within a moment, with nothing tapped in
+  // between, is the same tap. With no double-tap zoom to swallow it, a
+  // double tap on "goal against" was two goals; a deliberate second goal
+  // comes seconds later. (A control that opens a sheet needs none of this:
+  // the second tap lands on the sheet's backdrop, which ignores it.)
+  const ONE_TAP = new Set(['goal-them']);
+  let lastTap = { a: '', at: 0 };
   const onClick = async (e) => {
     const t = e.target.closest('button');
     if (!t) return;
     const st = state();
     const a = t.dataset.act;
+    const repeat = ONE_TAP.has(a) && a === lastTap.a && Date.now() - lastTap.at < 700;
+    lastTap = { a: a || '', at: Date.now() };
+    if (repeat) return;
     if (t.dataset.goto) { goToEvent(t.dataset.goto); return; }
     if (t.dataset.tab) { tab = t.dataset.tab; render(); return; }
     if (t.dataset.pane) { showPane(t.dataset.pane); return; }

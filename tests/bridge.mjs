@@ -691,4 +691,64 @@ console.log('gallery:');
   });
 }
 
+{
+  // The cache holds 100KB a key, in bytes; Hebrew is two bytes a letter.
+  const C = createBridge({ adminCode: ADMIN });
+  const season = (tag, n) => ({ team: { name: 'מכבי גבעתיים' }, players: Array.from({ length: n }, (_, i) => ({ id: 'p' + i, name: `שחקן ${tag} מספר ${i} עם שם משפחה ארוך מאוד בעברית` })) });
+  const size = (o) => JSON.stringify(o).length;
+
+  test('a season of Hebrew over the cache\'s size in bytes (not in letters) is saved, and read back fresh', () => {
+    const s1 = season('א', 1200);
+    assert.ok(size(s1) < 90 * 1024 && Buffer.byteLength(JSON.stringify(s1)) > 100 * 1024, 'the case: under the old letter count, over the byte limit');
+    const r = C.post({ action: 'putSeason', adminCode: ADMIN, season: s1, baseVersion: 0 });
+    assert.ok(r.ok, 'refused after it was written to Drive: ' + r.error);
+    const s2 = season('ב', 1200);
+    assert.ok(C.post({ action: 'putSeason', adminCode: ADMIN, season: s2, baseVersion: 1 }).ok);
+    const got = C.post({ action: 'getSeason', adminCode: ADMIN }).result;
+    assert.equal(got.version, 2);
+    assert.equal(got.season.players[5].name, s2.players[5].name, 'the cache served the copy from before the save');
+  });
+
+  test('a file past one cache piece is read from the cache, not from Drive every time', () => {
+    const big = season('ג', 5000);
+    assert.ok(Buffer.byteLength(JSON.stringify(big)) > 300 * 1024);
+    assert.ok(C.post({ action: 'putSeason', adminCode: ADMIN, season: big, baseVersion: 2 }).ok);
+    // Drive changed behind the bridge's back: a read that still shows the
+    // saved copy came from the cache.
+    const f = C.fileById(C.driveFileId('season.json'));
+    f.text = JSON.stringify({ version: 99, season: { team: { name: 'מהדרייב' } } });
+    const got = C.post({ action: 'getSeason', adminCode: ADMIN }).result;
+    assert.equal(got.version, 3, 'read from Drive, not from the cache');
+    assert.equal(got.season.players.length, 5000);
+    assert.equal(got.season.players[4999].name, big.players[4999].name);
+    C.clearCache();
+    assert.equal(C.post({ action: 'getSeason', adminCode: ADMIN }).result.version, 99, 'with the cache gone, Drive is read');
+  });
+
+  test('a write goes to the file by the id it kept, not by walking the folder again', () => {
+    const v = C.post({ action: 'getSeason', adminCode: ADMIN }).result.version;
+    assert.ok(C.post({ action: 'putSeason', adminCode: ADMIN, season: season('ד', 3), baseVersion: v }).ok);
+    const walked = C.walks;
+    assert.ok(C.post({ action: 'putSeason', adminCode: ADMIN, season: season('ה', 3), baseVersion: v + 1 }).ok);
+    assert.equal(C.walks, walked, 'the second save looked the file up by name again');
+  });
+
+  test('a file trashed by hand is never written to: the live one is found, or made', () => {
+    const [old] = C.driveFiles('season.json');
+    const before = old.text;
+    old.setTrashed(true);
+    const v = C.post({ action: 'getSeason', adminCode: ADMIN }).result.version;
+    assert.ok(C.post({ action: 'putSeason', adminCode: ADMIN, season: season('ו', 3), baseVersion: v }).ok);
+    assert.equal(old.text, before, 'the save went into the trash');
+    const live = C.driveFiles('season.json').filter((f) => !f.isTrashed());
+    assert.equal(live.length, 1);
+    assert.ok(live[0].text.includes('שחקן ו'), 'the save is not in the live file');
+  });
+
+  test('the manager\'s ping answers from the cache alone', () => {
+    const r = C.post({ action: 'adminPing', adminCode: ADMIN }).result;
+    assert.deepEqual(Object.keys(r).sort(), ['galleryWaiting', 'pending']);
+  });
+}
+
 console.log(`\nbridge: ${passed} passed`);

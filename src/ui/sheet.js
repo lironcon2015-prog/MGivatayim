@@ -8,11 +8,54 @@ import { esc } from '../format.js';
 let openCount = 0;
 const reduceMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-// A sheet belongs to the screen it opened on. Android's back button (and a
-// swipe back) changes the route under an open sheet, which then sat on top
-// of the new screen; any route change closes them.
+// A sheet belongs to the screen it opened on: any route change closes them.
 const openClosers = new Set();
-window.addEventListener('hashchange', () => { for (const close of [...openClosers]) close('nav'); });
+window.addEventListener('hashchange', () => {
+  // The route moved on by itself (a link, a toast's button): the entry the
+  // layers held stays behind it in the history, as an ordinary step back.
+  layerEntry = false;
+  for (const close of [...openClosers]) close('nav');
+});
+
+/* Android's back button (and the back gesture) closes what is open on top —
+   a sheet, the photo viewer — instead of changing the screen under it, or
+   closing the app when the sheet was opened on its first screen. While
+   anything is open, one history entry stands for it: back takes it off and
+   closes the top layer; a layer closed any other way takes the entry off
+   itself — once nothing is left open, since a tap often closes one sheet
+   and opens the next. */
+const layers = [];          // close functions, the top one last
+let layerEntry = false;     // our entry is the history's current one
+let ownPop = false;         // a step back we took ourselves
+function pushLayerEntry() {
+  try { history.pushState({ mgLayer: true }, ''); layerEntry = true; } catch { /* no history: back leaves, as before */ }
+}
+// Registers something open over the screen (a sheet, the photo viewer):
+// `close(reason)` is called on back ('back') and on a route change ('nav').
+// The function returned is for the layer to call when it closes.
+export function trackLayer(close) {
+  layers.push(close);
+  openClosers.add(close);
+  if (!layerEntry) pushLayerEntry();
+  return () => {
+    openClosers.delete(close);
+    const i = layers.indexOf(close);
+    if (i >= 0) layers.splice(i, 1);
+    setTimeout(() => {
+      if (layers.length || !layerEntry) return;
+      layerEntry = false;
+      ownPop = true;
+      history.back();
+    }, 0);
+  };
+}
+window.addEventListener('popstate', () => {
+  if (ownPop) { ownPop = false; return; }
+  if (!layerEntry) return;
+  layerEntry = false;
+  layers.pop()?.('back');
+  if (layers.length) pushLayerEntry();
+});
 
 export function openSheet({ title, subtitle = '', body = '', onMount, onClose, tall = false, label }) {
   const back = document.createElement('div');
@@ -37,16 +80,18 @@ export function openSheet({ title, subtitle = '', body = '', onMount, onClose, t
   document.documentElement.classList.add('sheet-open');
 
   let closed = false;
+  let release = () => {};
   const close = (reason) => {
     if (closed) return;
     closed = true;
-    openClosers.delete(close);
+    release();
     document.removeEventListener('keydown', onKey, true);
     sheet.classList.remove('in');
     back.classList.remove('in');
     const done = () => {
       back.remove(); sheet.remove();
-      if (--openCount === 0) document.documentElement.classList.remove('sheet-open');
+      // The photo viewer under a confirmation keeps the page still.
+      if (--openCount === 0 && !document.querySelector('.gv')) document.documentElement.classList.remove('sheet-open');
       returnFocus?.focus?.({ preventScroll: true });
     };
     if (reduceMotion()) done(); else setTimeout(done, 220);
@@ -64,8 +109,11 @@ export function openSheet({ title, subtitle = '', body = '', onMount, onClose, t
     else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
   };
   document.addEventListener('keydown', onKey, true);
-  openClosers.add(close);
-  back.addEventListener('click', () => close('backdrop'));
+  release = trackLayer(close);
+  // The second tap of a double tap on the button that opened the sheet lands
+  // on its backdrop: it closed the sheet as it opened.
+  const openedAt = Date.now();
+  back.addEventListener('click', () => { if (Date.now() - openedAt > 400) close('backdrop'); });
   sheet.querySelector('.sheet-x').addEventListener('click', () => close('x'));
 
   // Drag the grip down to dismiss, the way every phone sheet works.

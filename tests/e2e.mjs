@@ -100,6 +100,9 @@ async function adminTools(page, list) {
 const openItem = (page, path) => page.locator(`details[data-item="${path}"]`).evaluate((d) => { d.open = true; });
 const text = (page) => page.locator('#view').innerText();
 const waitText = (page, s, timeout = 5000) => page.locator('#view').getByText(s, { exact: false }).first().waitFor({ timeout });
+// A save of the manager's screen, done: its message, not the text "נשמר" —
+// "יש שינויים שלא נשמרו." has it too, and the wait passed before the save.
+const waitSaved = (page, timeout = 5000) => page.locator('#view .save-msg.ok').waitFor({ timeout });
 
 const parent = await device('parent');
 const IPHONE = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1';
@@ -223,7 +226,7 @@ await step('manager fills a season and saves it', async () => {
   const keyed = await admin.locator('.logo-row .opp-logo[src]').evaluate(async (i) => { await i.decode(); return `${i.naturalWidth}x${i.naturalHeight}`; });
   expect(keyed === '12x30', 'green background not removed: ' + keyed);
   await admin.click('#save');
-  await waitText(admin, 'נשמר');
+  await waitSaved(admin);
   // Saved, the row folds, marked as the next match, with its crest.
   const nextRow = admin.locator('details[data-item^="fixtures."]', { hasText: 'הפועל כוכבים' });
   expect(await nextRow.getAttribute('open') === null, 'the next match stays open after saving');
@@ -369,7 +372,7 @@ await step('a next match stored the old way folds into the schedule on the manag
   await adminTab(admin, 'games');
   await admin.locator('details[data-item^="fixtures."]', { hasText: 'מכבי ישן' }).waitFor();
   await admin.click('#save');
-  await waitText(admin, 'נשמר');
+  await waitSaved(admin);
   const s = JSON.parse(bridge.driveFile('season.json')).season;
   const row = s.fixtures.find((f) => f.opponent === 'מכבי ישן');
   expect(!('nextMatch' in s) && row && row.time === '11:00' && row.arrival === '10:15' && row.kit === 'צהוב', 'folded as ' + JSON.stringify(row));
@@ -394,7 +397,7 @@ await step('players are imported by pasting cells from a spreadsheet', async () 
   await admin.click('[data-go]');
   await admin.locator('[data-apply]').click();
   await admin.click('#save');
-  await waitText(admin, 'נשמר');
+  await waitSaved(admin);
   const names = seasonFile().players.map((p) => p.name);
   expect(['גיא פרץ', 'דניאל לוי', 'תומר עזרא', 'נועם'].every((n) => names.includes(n)), 'imported: ' + names.join(','));
   expect(seasonFile().players.find((p) => p.name === 'גיא פרץ').pos === 'ST', 'position not read');
@@ -416,14 +419,14 @@ await step('back in the app after a while, the parent sees what changed meanwhil
   const was = await admin.inputValue('[data-path="team.league"]');
   await admin.fill('[data-path="team.league"]', 'ליגה אחרת מחוז דן');
   await admin.click('#save');
-  await waitText(admin, 'נשמר');
+  await waitSaved(admin);
   await parent.evaluate(() => { window.__realNow = Date.now; const real = Date.now; Date.now = () => real() + 120000; document.dispatchEvent(new Event('visibilitychange')); });
   await parent.locator('.topbar', { hasText: 'ליגה אחרת מחוז דן' }).waitFor({ timeout: 5000 });
   await parent.evaluate(() => { Date.now = window.__realNow; });
   parent.off('request', onReq);
   await admin.fill('[data-path="team.league"]', was);
   await admin.click('#save');
-  await waitText(admin, 'נשמר');
+  await waitSaved(admin);
 });
 
 await step('a season read that brings nothing new redraws nothing', async () => {
@@ -641,7 +644,7 @@ await step('Veo is hidden until the manager turns it on; then the stream link re
   await adminTab(admin, 'team');
   await admin.locator('#f-settings-veo').check();
   await admin.click('#save');
-  await waitText(admin, 'נשמר');
+  await waitSaved(admin);
   expect(seasonFile().settings.veo === true, 'setting saved as ' + JSON.stringify(seasonFile().settings.veo));
   // A bad link is refused; the real one reaches the parent's screen.
   await admin.goto(APP + '#/live');
@@ -837,7 +840,7 @@ await step('a video link gets a poster in Drive, and the parent sees it', async 
   await admin.fill(`[data-path="${at}.title"]`, 'השער מול נחלים');
   await admin.fill(`[data-path="${at}.url"]`, 'https://clips.example.com/goal');
   await admin.click('#save');
-  await waitText(admin, 'נשמר');
+  await waitSaved(admin);
   const v = JSON.parse(bridge.driveFile('season.json')).season.videos.find((x) => x.url === 'https://clips.example.com/goal');
   expect(v?.poster && v.posterFor === 'https://clips.example.com/goal', 'no poster made: ' + JSON.stringify(v));
   await parent.goto(APP + '#/media');
@@ -852,7 +855,7 @@ await step('a useful link is a link on the media screen, not just its title', as
   await admin.fill(`[data-path="${at}.title"]`, 'רכישת ציוד');
   await admin.fill(`[data-path="${at}.url"]`, 'https://www.shop.example.com/login?cid=22');
   await admin.click('#save');
-  await waitText(admin, 'נשמר');
+  await waitSaved(admin);
   await parent.goto(APP + '#/media');
   await parent.reload();
   const a = parent.locator('a.link', { hasText: 'רכישת ציוד' });
@@ -874,7 +877,7 @@ await step('a link to a social page takes its icon; one picked by hand stays', a
   await admin.fill(`[data-path="${at}.url"]`, 'https://www.instagram.com/maccabi.givatayim');
   expect(await admin.locator(`[data-path="${at}.icon"]`).inputValue() === 'globe', 'a hand-picked icon was replaced');
   await admin.click('#save');
-  await waitText(admin, 'נשמר');
+  await waitSaved(admin);
   expect(seasonFile().links.some((l) => l.title === 'הפייסבוק של המועדון' && l.icon === 'globe'), 'icon not saved');
 });
 
@@ -887,7 +890,7 @@ await step('a player added by hand opens first, and is saved in shirt-number ord
     await admin.fill(`[data-path="${at}.number"]`, num);
   }
   await admin.click('#save');
-  await waitText(admin, 'נשמר');
+  await waitSaved(admin);
   const saved = JSON.parse(bridge.driveFile('season.json')).season.players;
   const nums = saved.map((p) => p.number ?? 999);
   expect(nums.every((n, i) => !i || nums[i - 1] <= n), 'the squad was saved out of number order: ' + saved.map((p) => `${p.number}:${p.name}`).join(', '));
@@ -902,7 +905,7 @@ await step('a player added by hand opens first, and is saved in shirt-number ord
     await admin.click(`[data-remove="${at}"]`);
   }
   await admin.click('#save');
-  await waitText(admin, 'נשמר');
+  await waitSaved(admin);
   const left = JSON.parse(bridge.driveFile('season.json')).season.players.map((p) => p.name);
   expect(!left.includes('תשע') && !left.includes('שלוש'), 'test players left behind: ' + left.join(', '));
 });
@@ -918,7 +921,7 @@ await step('a game added by hand is saved in date order, and saving closes the o
   }
   expect(await admin.locator('details[data-item^="fixtures."][open]').count() === 1, 'opening a new row left the previous one open');
   await admin.click('#save');
-  await waitText(admin, 'נשמר');
+  await waitSaved(admin);
   const { fixtures } = JSON.parse(bridge.driveFile('season.json')).season;
   const names = fixtures.map((f) => f.opponent);
   expect(names.indexOf('מוקדם') < names.indexOf('מאוחר'), 'the schedule was saved out of date order: ' + names.join(', '));
@@ -943,7 +946,7 @@ await step('a pasted schedule becomes the next match and the list after it', asy
   await admin.click('[data-go]');
   await admin.locator('[data-fapply]').click();
   await admin.click('#save');
-  await waitText(admin, 'נשמר');
+  await waitSaved(admin);
   const season = JSON.parse(bridge.driveFile('season.json')).season;
   expect(season.fixtures.length === 2, 'fixtures: ' + season.fixtures.length);
   expect(season.matches.some((m) => m.opponent === 'עירוני לוח' && m.gf === 2), 'the result row was not added');
@@ -995,7 +998,7 @@ await step('a weekly training shows above the next match, on the first screen, a
   await admin.fill(`[data-path="${row}.start"]`, '17:00');
   await admin.fill(`[data-path="${row}.end"]`, '18:30');
   await admin.click('#save');
-  await waitText(admin, 'נשמר');
+  await waitSaved(admin);
   const season = JSON.parse(bridge.driveFile('season.json')).season;
   expect(season.trainings?.length === 1 && season.trainings[0].start === '17:00', 'training not saved: ' + JSON.stringify(season.trainings));
 
@@ -1048,7 +1051,7 @@ await step('a training that differs from the routine is framed and flagged, and 
   bridge.redirect('https://maps.app.goo.gl/e2eTraining', 'https://www.google.com/maps/search/31.956020,+34.834553?entry=tts');
   await admin.fill(`[data-path="${row}.venue.waze"]`, 'https://maps.app.goo.gl/e2eTraining');
   await admin.click('#save');
-  await waitText(admin, 'נשמר');
+  await waitSaved(admin);
 
   const saved = JSON.parse(bridge.driveFile('season.json')).season.trainingChanges;
   expect(saved.at(-1).venue.waze === '31.956020,34.834553', 'the Google Maps link was stored as ' + saved.at(-1).venue.waze);
@@ -1122,7 +1125,7 @@ await step('the manager changes a training from the home screen; a parent has no
   await admin.waitForTimeout(800);
   await admin.fill('[data-path="team.league"]', 'ליגת ילדים א');
   await admin.click('#save');
-  await waitText(admin, 'נשמר');
+  await waitSaved(admin);
 });
 
 await step('a later fixture can go live now; finishing dates it today and takes it off the schedule', async () => {
@@ -1212,7 +1215,7 @@ await step('deleting the games clears the schedule and typed results, and keeps 
   expect(!(await admin.locator('[data-clear="live"]').isChecked()), 'live matches must not be preselected');
   await admin.click('[data-clear-go]');
   await admin.click('#save');
-  await waitText(admin, 'נשמר');
+  await waitSaved(admin);
   const season = JSON.parse(bridge.driveFile('season.json')).season;
   expect(season.fixtures.length === 0, 'fixtures left: ' + season.fixtures.length);
   expect(season.matches.length > 0 && season.matches.every((m) => m.liveId), 'typed results left, or the live one lost: ' + JSON.stringify(season.matches.map((m) => m.opponent)));

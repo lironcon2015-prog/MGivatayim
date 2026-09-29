@@ -1,8 +1,10 @@
 // Updates reaching phones.
 //   node tests/pwa.mjs
 // Static: the three version marks agree, and every module is precached.
-// Live:   a page open on version A notices a deploy of version B, reloads by
-//         itself and shows B — and does NOT reload over unsaved manager work.
+// Live:   the app opens from the copy on the phone without waiting for the
+//         network; a page open on version A notices a deploy of version B,
+//         reloads by itself and shows B — and does NOT reload over unsaved
+//         manager work; a version is taken whole or not at all.
 import { chromium } from 'playwright';
 import { createServer } from 'node:http';
 import { readFileSync, readdirSync, statSync, existsSync, cpSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
@@ -75,15 +77,20 @@ cpSync(ROOT, site, { recursive: true, filter: (p) => !/node_modules|\.git(\/|$)/
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png', '.json': 'application/json', '.webmanifest': 'application/manifest+json' };
 const PORT = 8771;
 let down = null;   // a path the server answers with an error, as Pages mid-deploy
+let slow = 0;      // ms every answer waits: a pitch with one bar
+let stale = null;  // the page a CDN still holds from the last release
+const hits = {};
 const server = createServer(async (req, res) => {
   const p = new URL(req.url, 'http://x').pathname;
+  hits[p] = (hits[p] || 0) + 1;
+  if (slow) await new Promise((r) => setTimeout(r, slow));
   if (p === down) { res.writeHead(503); res.end('down'); return; }
   const f = join(site, p.endsWith('/') ? p + 'index.html' : p);
   try {
     // max-age like GitHub Pages, so the test would catch an update path
     // that only works when the browser happens not to cache.
     res.writeHead(200, { 'Content-Type': TYPES[extname(f)] || 'application/octet-stream', 'Cache-Control': 'max-age=600' });
-    res.end(await readFile(f));
+    res.end(stale && extname(f) === '.html' && /\/(index\.html)?$/.test(p) ? stale : await readFile(f));
   } catch { res.writeHead(404); res.end(); }
 }).listen(PORT);
 
@@ -93,7 +100,9 @@ const ctx = await browser.newContext({ viewport: { width: 400, height: 800 } });
 await ctx.route(/fonts\.|script\.google\.com/, (r) => r.abort());
 const page = await ctx.newPage();
 const shown = () => page.locator('#app-version').innerText();
-const deploy = () => execFileSync(process.execPath, [join(site, 'tools/bump.mjs')], { cwd: site }).toString();
+const deploy = () => execFileSync(process.execPath, [join(site, 'tools/bump.mjs')], { cwd: site }).toString().split('→')[1].trim().split('\n')[0];
+const showing = (p, v) => p.waitForFunction((x) => document.getElementById('app-version')?.textContent === x, v, { timeout: 15000 });
+const hasCopy = (p, v) => p.evaluate((x) => caches.has('mgivatayim-' + x), v);
 
 const start = versions(site).json;
 
@@ -103,8 +112,24 @@ await step('the running version is shown on screen', async () => {
   expect(await shown() === start, `shows ${await shown()}, expected ${start}`);
 });
 
-await step('the service worker takes control', async () => {
+await step('the service worker takes control, with the whole version in its copy', async () => {
   await page.waitForFunction(() => !!navigator.serviceWorker.controller, null, { timeout: 10000 });
+  expect(await hasCopy(page, start), 'no copy of ' + start);
+});
+
+await step('an open does not wait for the network: the app comes from the copy on the phone', async () => {
+  // Every answer from the server takes 3 s. Network first, each module
+  // waited for it in turn.
+  slow = 3000;
+  try {
+    const page2 = await ctx.newPage();
+    const t0 = Date.now();
+    await page2.goto(`http://localhost:${PORT}/`, { waitUntil: 'commit' });
+    await page2.locator('#app-version').waitFor({ timeout: 20000 });
+    const ms = Date.now() - t0;
+    expect(ms < 1500, `the app took ${ms} ms to show on a slow line`);
+    await page2.close();
+  } finally { slow = 0; }
 });
 
 await step('a server error for a file does not replace the copy that works', async () => {
@@ -120,22 +145,76 @@ await step('a server error for a file does not replace the copy that works', asy
   } finally { down = null; }
 });
 
-let next;
 await step('a deploy is picked up and the open page reloads onto it by itself', async () => {
-  next = deploy().split('→')[1].trim().split('\n')[0];
+  const next = deploy();
   // Returning to the foreground is how a home-screen app is reopened.
   await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
-  await page.waitForFunction((v) => document.getElementById('app-version')?.textContent === v, next, { timeout: 15000 });
+  await showing(page, next);
 });
 
-await step('a code change without a bump still reaches a fresh open (network first)', async () => {
-  writeFileSync(join(site, 'src/config.js'), read('src/config.js', site).replace("DEFAULT_CREST = 'assets/crest.png'", "DEFAULT_CREST = 'assets/crest.png?probe'"));
+await step('the first open after a deploy shows the last version, then reloads once onto the new one', async () => {
+  const before = versions(site).json;
+  const after = deploy();
   const page2 = await ctx.newPage();
-  await page2.goto(`http://localhost:${PORT}/`);
-  const src = await page2.evaluate(async () => (await import('./src/config.js')).DEFAULT_CREST);
-  expect(src.endsWith('?probe'), 'served stale module: ' + src);
+  // Every load of the tab writes down the version it ran.
+  await page2.addInitScript(() => addEventListener('DOMContentLoaded', () => {
+    const seen = JSON.parse(sessionStorage.getItem('seen') || '[]');
+    sessionStorage.setItem('seen', JSON.stringify([...seen, window._BUNDLE_VERSION]));
+  }));
+  // Asked again and again, not waited on: the reload may land at any point.
+  const seen = () => page2.evaluate(() => JSON.parse(sessionStorage.getItem('seen') || '[]')).catch(() => []);
+  await page2.goto(`http://localhost:${PORT}/`).catch(() => {});
+  for (let k = 0; k < 150 && !(await seen()).includes(after); k++) await page2.waitForTimeout(100);
+  await page2.waitForTimeout(2000);            // and nothing after it
+  expect(JSON.stringify(await seen()) === JSON.stringify([before, after]), 'loads: ' + JSON.stringify(await seen()));
   await page2.close();
 });
+
+await step('a change pushed without a bump waits for the next bump, which brings it with the rest', async () => {
+  writeFileSync(join(site, 'src/config.js'), read('src/config.js', site).replace("DEFAULT_CREST = 'assets/crest.png'", "DEFAULT_CREST = 'assets/crest.png?probe'"));
+  const crest = (p) => p.evaluate(async () => (await import('./src/config.js')).DEFAULT_CREST);
+  const page2 = await ctx.newPage();
+  await page2.goto(`http://localhost:${PORT}/`);
+  await page2.locator('#app-version').waitFor();
+  await page2.waitForTimeout(1500);            // its check of the server has come and gone
+  expect(!(await crest(page2)).endsWith('?probe'), 'the open did not come from the copy');
+  const shipped = deploy();
+  await page2.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+  await showing(page2, shipped);
+  expect((await crest(page2)).endsWith('?probe'), 'the bump did not bring the change');
+  await page2.close();
+});
+
+// An update that cannot come whole is not taken: the page stays on the last
+// version, all of it, and the next check asks again.
+async function notTakenHalf(broken, fix, path) {
+  const before = versions(site).json;
+  await showing(page, before);
+  const loadedAt = await page.evaluate(() => performance.timeOrigin);
+  let next;
+  try {
+    broken();
+    const asked = hits[path] || 0;
+    next = deploy();
+    await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+    for (let k = 0; k < 100 && (hits[path] || 0) === asked; k++) await page.waitForTimeout(100);
+    expect((hits[path] || 0) > asked, 'the update never asked for ' + path);
+    // Until the attempt is over: a check while it still runs waits for it.
+    await page.waitForFunction(async () => !(await navigator.serviceWorker.getRegistration())?.installing, null, { timeout: 10000 });
+    await page.waitForTimeout(500);
+    expect(await page.evaluate(() => performance.timeOrigin) === loadedAt, 'the page reloaded onto a version that did not come whole');
+    expect(await shown() === before, `shows ${await shown()}, expected ${before}`);
+    expect(!(await hasCopy(page, next)), 'a copy of the version was kept');
+  } finally { fix(); }
+  await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+  await showing(page, next);
+}
+
+await step('an update with a file that fails is not taken half; the next check brings all of it', () =>
+  notTakenHalf(() => { down = '/src/format.js'; }, () => { down = null; }, '/src/format.js'));
+
+await step('an update whose page is still the last release (a CDN behind) is not taken either', () =>
+  notTakenHalf(() => { stale = readFileSync(join(site, 'index.html')); }, () => { stale = null; }, '/index.html'));
 
 await step('unsaved manager work blocks the automatic reload; a bar is offered instead', async () => {
   const admin = await ctx.newPage();
@@ -148,7 +227,7 @@ await step('unsaved manager work blocks the automatic reload; a bar is offered i
   await admin.waitForFunction(() => !!navigator.serviceWorker.controller, null, { timeout: 10000 });
   await admin.fill('[data-path="team.league"]', 'עריכה שלא נשמרה');   // now dirty
   const loadedAt = await admin.evaluate(() => performance.timeOrigin);
-  const shipped = deploy().split('→')[1].trim().split('\n')[0];
+  const shipped = deploy();
   await admin.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
   await admin.locator('.update-bar').waitFor({ timeout: 15000 });
   expect(await admin.evaluate(() => performance.timeOrigin) === loadedAt, 'the page reloaded over unsaved work');

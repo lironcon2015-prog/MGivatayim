@@ -11,16 +11,22 @@
 //
 // Checked at launch and every time the app comes back to the foreground,
 // which is how a home-screen app is "reopened" on iOS: it resumes, it does
-// not relaunch.
+// not relaunch. The page opens from the worker's copy (sw.js), so the first
+// open after a release shows the last one until the new copy is in: one
+// reload, a few seconds in.
 
 const running = () => window._BUNDLE_VERSION || '';
 const SW_URL = new URL('../sw.js', import.meta.url);
+const SCOPE = new URL('./', SW_URL).href;
 const VERSION_URL = new URL('../version.json', import.meta.url);
 
 let reg = null;
 let remote = '';
-let registered = '';
 let canReload = () => true;
+
+// The worker fills this cache only once every file of the version is in
+// (sw.js): its presence means the update is complete on this phone.
+const hasCopy = async (v) => { try { return await caches.has('mgivatayim-' + v); } catch { return false; } };
 
 /* Reload brake. If version.json and the page keep disagreeing after a
    reload — a half-finished Pages deploy, a CDN serving an old index.html
@@ -59,9 +65,6 @@ function offer() {
 }
 
 async function check() {
-  // Offline, update() rejects: caught, or every return to the app logged an
-  // uncaught error.
-  try { reg?.update()?.catch?.(() => {}); } catch { /* not blocking */ }
   let json;
   try {
     const url = new URL(VERSION_URL);
@@ -69,28 +72,42 @@ async function check() {
     json = await (await fetch(url, { cache: 'no-store' })).json();
   } catch { return; } // offline: nothing to compare against
   const v = json?.version;
-  if (!v || v === running()) return;
-  remote = v;
-  if (reg && !reg.waiting && !reg.installing && registered !== v) {
-    // Once per version: re-registering at a changing URL is itself a pump
-    // for controllerchange, the other half of the same reload loop.
-    registered = v;
-    const url = new URL(SW_URL);
-    url.searchParams.set('v', v);
-    try { reg = await navigator.serviceWorker.register(url, { updateViaCache: 'none' }); } catch { /* not blocking */ }
+  if (!v) return;
+  if (v === running()) {
+    // The worker can still be older than the page (a page that came from the
+    // network — the first open, or one before this worker's time): a look at
+    // sw.js brings it level. Offline, update() rejects: caught, or every
+    // return to the app logged an uncaught error.
+    try { reg?.update()?.catch?.(() => {}); } catch { /* not blocking */ }
     return;
   }
-  if (reg?.waiting) offer();
+  remote = v;
   // No service worker at all (unsupported, or blocked): a plain reload still
   // brings the new code, because nothing else stands between page and server.
-  if (!reg) reload();
+  if (!reg) { reload(); return; }
+  if (reg.installing) return;               // on its way: taking control reloads the page
+  if (reg.waiting) { offer(); return; }
+  // In, and in control, with this page still on the last one (the reload was
+  // held back): the reload, or the bar. Not another download.
+  if (await hasCopy(v)) { reload(); return; }
+  // Not in yet — the first ask, or a download that failed (a file down, a
+  // page of the last release): asked for again, never taken half. A URL no
+  // cache has seen.
+  const url = new URL(SW_URL);
+  url.searchParams.set('v', v);
+  try { reg = await navigator.serviceWorker.register(url, { updateViaCache: 'none' }); } catch { /* not blocking */ }
 }
 
 export function startUpdater({ isBusy } = {}) {
   if (isBusy) canReload = () => !isBusy();
   if (!('serviceWorker' in navigator)) { check(); return; }
 
-  navigator.serviceWorker.register(SW_URL, { updateViaCache: 'none' })
+  // The registration there is, as it is: registering sw.js over one made at
+  // sw.js?v=… is a new script URL, and installed the same version again.
+  // Ours by its scope — another app on this github.io origin may hold one
+  // over the whole site.
+  navigator.serviceWorker.getRegistration(SCOPE)
+    .then((r) => (r?.scope === SCOPE ? r : navigator.serviceWorker.register(SW_URL, { updateViaCache: 'none' })))
     .then((r) => { reg = r; check(); })
     .catch(() => { check(); });
 

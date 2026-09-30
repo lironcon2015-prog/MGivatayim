@@ -303,6 +303,13 @@ await step('the manager renames an approved device from the access list', async 
     await admin.locator('.sheet').waitFor({ state: 'detached' });
     await admin.locator('.user-row .who-name', { hasText: new RegExp('^' + to + '$') }).waitFor({ timeout: 5000 });
   };
+  // The name (with its pencil) on one line, when they asked and were last seen on the next.
+  const lines = await admin.locator('.user-row .who').first().evaluate((w) => {
+    const name = w.querySelector('.who-name').getBoundingClientRect();
+    const meta = w.querySelector(':scope > span').getBoundingClientRect();
+    return { nameBottom: name.bottom, metaTop: meta.top };
+  });
+  expect(lines.metaTop >= lines.nameBottom - 1, 'the request line sits beside the name: ' + JSON.stringify(lines));
   await rename('אבא של איתי', 'אבא של איתי כהן');
   const users = await bridge.post({ action: 'listUsers', adminCode: ADMIN });
   expect(users.result.some((u) => u.name === 'אבא של איתי כהן' && u.status === 'approved'), 'not renamed in the bridge: ' + JSON.stringify(users.result));

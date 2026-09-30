@@ -1661,6 +1661,40 @@ await step('the manager picks anyone\'s items; the uploads switch answers at onc
   bridge.post({ action: 'removeUser', adminCode: ADMIN, id });
 });
 
+await step('a sample schedule: one switch puts a note by the schedule and the results, and takes it off', async () => {
+  // The page draws the cached season first; wait for the fresh one to land.
+  const notes = async (on) => {
+    await parent.goto(APP + '#/');
+    await parent.reload();
+    await parent.waitForFunction((want) => !!document.querySelector('#view .sample-note') === want, on, { timeout: 8000 }).catch(() => {});
+    const home = await parent.locator('.sample-note').allInnerTexts();
+    await parent.evaluate(() => { location.hash = '#/stats'; });
+    await parent.locator('#stats-matches').waitFor();
+    const stats = await parent.locator('.sample-note').allInnerTexts();
+    const schedule = await parent.locator('#stats-schedule').count();
+    return { home, stats, schedule };
+  };
+  const toggle = async (on) => {
+    await admin.goto(APP + '#/admin');
+    await adminTab(admin, 'team');
+    await admin.locator('#f-settings-sampleSchedule').setChecked(on);
+    await admin.click('#save');
+    await waitSaved(admin);
+    const saved = JSON.parse(bridge.driveFile('season.json')).season.settings?.sampleSchedule;
+    expect(saved === on, 'setting saved as ' + JSON.stringify(saved));
+  };
+  const before = await notes(false);
+  expect(!before.home.length && !before.stats.length, 'a note before the switch is on');
+  await toggle(true);
+  const on = await notes(true);
+  expect(on.home.some((t) => t.includes('תוצאות לדוגמה')), 'home notes: ' + JSON.stringify(on.home));
+  expect(on.stats.length === 1 + on.schedule && on.stats.at(-1).includes('תוצאות לדוגמה')
+    && (!on.schedule || on.stats[0].includes('לוח לדוגמה')), 'stats notes: ' + JSON.stringify(on));
+  await toggle(false);
+  const off = await notes(false);
+  expect(!off.home.length && !off.stats.length, 'notes left after the switch went off: ' + JSON.stringify(off));
+});
+
 await step('revoking locks the parent out and drops their cached copy', async () => {
   await admin.goto(APP + '#/admin');
   await admin.click('[data-tab="access"]');

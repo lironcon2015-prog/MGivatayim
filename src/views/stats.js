@@ -1,6 +1,6 @@
 import { topBy } from '../season.js';
 import { pct, dec, esc } from '../format.js';
-import { sectionHead, leaderRow, tile, splitBar, matchRow, fixtureRow } from '../components.js';
+import { sectionHead, leaderRow, tile, splitBar, matchRow, fixtureRow, sampleNote, SCHEDULE_SAMPLE, RESULTS_SAMPLE } from '../components.js';
 import { seasonMinutesHtml, wireSeasonMinutes } from './minutes.js';
 
 const BOARDS = [
@@ -57,11 +57,13 @@ export function renderStats(s) {
 
   ${s.schedule.length ? `<section id="stats-schedule">
     ${sectionHead('לוח המשחקים', `${s.schedule.length} משחקים`, 'calendar')}
+    ${sampleNote(s, SCHEDULE_SAMPLE)}
     <div class="card rows">${s.schedule.map(fixtureRow).join('')}</div>
   </section>` : ''}
 
   <section id="stats-matches">
     ${sectionHead('כל המשחקים', `${s.recent.length} משחקים`, 'trophy')}
+    ${s.recent.length ? sampleNote(s, RESULTS_SAMPLE) : ''}
     <div class="card rows">${s.recent.length ? s.recent.map(matchRow).join('') : '<div class="empty">טרם נוספו משחקים.</div>'}</div>
   </section>
 

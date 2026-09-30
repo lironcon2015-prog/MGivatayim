@@ -123,6 +123,16 @@ export function sectionHead(title, aside = '', glyph = '', { coachOnly = false }
 // request). Those places are drawn only for the coach and the manager, so
 // the manager sees the note too. Inside the live minutes tab there is none:
 // the tab already carries it.
+// Before the official schedule is out the manager fills in a sample one, and
+// parents should not plan by it (the owner's request, option 1 of a mockup: a
+// quiet line under the heading). One switch in the settings turns it off
+// everywhere at once when the real schedule comes in.
+export function sampleNote(s, text) {
+  return s.settings?.sampleSchedule === true ? `<p class="sample-note">${icon('info')}${esc(text)}</p>` : '';
+}
+export const SCHEDULE_SAMPLE = 'לוח לדוגמה. הלוח יתעדכן כשההתאחדות תפרסם את הלוח הרשמי.';
+export const RESULTS_SAMPLE = 'תוצאות לדוגמה, עד שהעונה תתחיל.';
+
 export const COACH_ONLY = '<span class="coach-only">(רק למאמן)</span>';
 
 // The scoreline is assembled from two separate numbers with our goals pinned

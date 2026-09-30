@@ -71,7 +71,10 @@ const TEAM_FIELDS = [
 // The home ground: the venue of every home game that does not name its own.
 // Switches in the settings tab — a field with its type, so the change is read
 // as the right value (a checkbox is true/false, not "on").
-const SETTINGS_FIELDS = [{ key: 'veo', label: 'יש לקבוצה מצלמת Veo', type: 'check' }];
+const SETTINGS_FIELDS = [
+  { key: 'veo', label: 'יש לקבוצה מצלמת Veo', type: 'check' },
+  { key: 'sampleSchedule', label: 'הלוח עוד לא רשמי', type: 'check' },
+];
 const HOME_VENUE_FIELDS = [
   { key: 'name', label: 'שם המגרש', wide: true },
   { key: 'address', label: 'כתובת', hint: 'ממנה נבנה הניווט ב-Waze', wide: true },
@@ -1079,6 +1082,11 @@ export function mountAdmin(view, ctx) {
           <div class="sec-head">${icon('film')}<h2>צילום משחקים (Veo)</h2></div>
           <div class="card">${fieldHtml(SETTINGS_FIELDS[0], 'settings.veo', draft.settings?.veo === true)}
             <p class="note">כשמסומן: במשחק החי אפשר להוסיף קישור לשידור, ומי שצופה רואה כפתור "צפייה בשידור חי". בסוף המשחק — "הוספת המשחק המצולם" מכניס את הסרטון לסרטונים. כל עוד לא מסומן, שום דבר מזה לא מופיע.</p></div>
+        </section>
+        <section>
+          <div class="sec-head">${icon('info')}<h2>לוח לדוגמה</h2></div>
+          <div class="card">${fieldHtml(SETTINGS_FIELDS[1], 'settings.sampleSchedule', draft.settings?.sampleSchedule === true)}
+            <p class="note">כשמסומן: ליד לוח המשחקים והתוצאות, בבית ובנתונים, ההורים רואים ש"לוח לדוגמה. הלוח יתעדכן כשההתאחדות תפרסם את הלוח הרשמי". כשהלוח הרשמי נכנס — מבטלים את הסימון, וההערה יורדת מכל המקומות.</p></div>
         </section>
         <section>
           <div class="sec-head">${icon('sparkle')}<h2>שיפור סמל של יריבה</h2></div>

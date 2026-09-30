@@ -542,6 +542,9 @@ button.form-pill:focus-visible { outline: 2px solid var(--gold); outline-offset:
 .insight b { color: var(--gold); font-weight: 700; }
 
 .note { font-size: .8rem; color: var(--faint); margin: .8rem 0 0; }
+/* A sample schedule: a quiet line under the heading, the icon in gold so the eye stops. */
+.sample-note { display: flex; align-items: flex-start; gap: .4rem; margin: -.3rem 2px .65rem; font-size: .82rem; line-height: 1.45; color: var(--muted); }
+.sample-note svg { width: 15px; height: 15px; flex: none; margin-top: .15rem; color: var(--gold); }
 .foot { margin-top: 2.2rem; text-align: center; font-size: .78rem; color: var(--faint); }
 
 /* ── Segmented control ───────────────────────────────────────────────── */

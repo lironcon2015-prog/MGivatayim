@@ -789,7 +789,7 @@ export function mountAdmin(view, ctx) {
       return `<span class="role-tg" role="group" aria-label="${esc(`תפקיד של ${u.name}`)}">${opt('parent', 'הורה', !coach)}${opt('coach', 'מאמן', coach)}</span>`;
     };
     const row = (u, actions) => `<div class="user-row">
-        <span class="who"><b>${esc(u.name)}</b><span>ביקש ${esc(stamp(u.requestedAt))}${u.lastSeen ? ` · נראה ${esc(stamp(u.lastSeen))}` : ''}</span></span>
+        <span class="who"><button type="button" class="who-name" data-rename="${esc(u.id)}" aria-label="${esc(`שינוי השם של ${u.name}`)}"><b>${esc(u.name)}</b>${icon('edit')}</button><span>ביקש ${esc(stamp(u.requestedAt))}${u.lastSeen ? ` · נראה ${esc(stamp(u.lastSeen))}` : ''}</span></span>
         <span class="acts">${u.status === 'approved' ? roleSwitch(u) : ''}${actions.map(([st, label, cls]) =>
           `<button type="button" class="btn small ${cls || ''}" data-user="${esc(u.id)}" data-set="${st}">${label}</button>`).join('')}</span>
       </div>`;
@@ -898,6 +898,39 @@ export function mountAdmin(view, ctx) {
     try { await call('setRole', { id, role }, { asAdmin: true }); }
     catch (e) { usersError = e.message; }
     await loadUsers();
+  }
+
+  // The name the manager approved by, and the one the live screen's watchers
+  // list shows. Only the manager renames: a parent could take another's name.
+  function renameSheet(id) {
+    const u = users?.find((x) => x.id === id);
+    if (!u) return;
+    const sh = openSheet({
+      title: 'שינוי שם',
+      body: `<label class="field"><span>השם שמופיע ברשימת הגישה</span>
+          <input type="text" maxlength="40" value="${esc(u.name)}" data-rename-input /></label>
+        <div class="sheet-actions"><button type="button" class="btn" data-go>שמירה</button></div>`,
+      onMount: ({ el }) => {
+        const input = el.querySelector('[data-rename-input]');
+        const go = el.querySelector('[data-go]');
+        const save = async () => {
+          const name = input.value.replace(/\s+/g, ' ').trim();
+          if (!name) { toast('צריך למלא שם', { kind: 'err' }); return; }
+          if (name === u.name) { sh.close(); return; }
+          go.disabled = true; go.textContent = 'שומר…';
+          try {
+            await call('renameUser', { id, name }, { asAdmin: true });
+            sh.close();
+            await loadUsers();
+          } catch (e) {
+            toast(esc(e.message), { kind: 'err' });
+            go.disabled = false; go.textContent = 'שמירה';
+          }
+        };
+        go.addEventListener('click', save);
+        input.addEventListener('keydown', (e) => { if (e.key === 'Enter') save(); });
+      },
+    });
   }
 
   async function setStatus(id, st) {
@@ -1270,6 +1303,7 @@ export function mountAdmin(view, ctx) {
     }
     if (t.dataset.set) { t.disabled = true; setStatus(t.dataset.user, t.dataset.set); return; }
     if (t.dataset.role) { t.disabled = true; setRole(t.dataset.user, t.dataset.role); return; }
+    if (t.dataset.rename) { renameSheet(t.dataset.rename); return; }
     if (t.dataset.import === 'file') { view.querySelector('[data-import-file]')?.click(); return; }
     if (t.dataset.clearGames !== undefined) { clearGamesSheet(); return; }
     if (t.dataset.inviteCopy !== undefined) { copyInvite(); return; }

@@ -293,6 +293,22 @@ await step('manager approves the parent', async () => {
   await waitText(admin, 'אין בקשות חדשות');
 });
 
+await step('the manager renames an approved device from the access list', async () => {
+  const rename = async (from, to) => {
+    await admin.locator('[data-rename]', { hasText: from }).click();
+    const input = admin.locator('.sheet [data-rename-input]');
+    expect(await input.inputValue() === from, 'the sheet does not start from the current name');
+    await input.fill(to);
+    await admin.locator('.sheet [data-go]').click();
+    await admin.locator('.sheet').waitFor({ state: 'detached' });
+    await admin.locator('.user-row .who-name', { hasText: new RegExp('^' + to + '$') }).waitFor({ timeout: 5000 });
+  };
+  await rename('אבא של איתי', 'אבא של איתי כהן');
+  const users = await bridge.post({ action: 'listUsers', adminCode: ADMIN });
+  expect(users.result.some((u) => u.name === 'אבא של איתי כהן' && u.status === 'approved'), 'not renamed in the bridge: ' + JSON.stringify(users.result));
+  await rename('אבא של איתי כהן', 'אבא של איתי');
+});
+
 await step('after approval the parent sees the season on returning to the app, with no tap', async () => {
   await parent.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
   await parent.locator('.form-pill[aria-label*="בני לוד"]').waitFor({ timeout: 5000 });

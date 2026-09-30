@@ -439,6 +439,19 @@ console.log('live:');
     assert.equal(C.post({ action: 'listUsers', adminCode: ADMIN }).result.find((u) => u.id === coachId).role, 'coach');
   });
 
+  test('only the manager renames a device, and an approved device keeps the new name', () => {
+    assert.equal(err(C.post({ action: 'renameUser', deviceKey: coach, id: coachId, name: 'מישהו אחר' })), 'bad_code');
+    assert.equal(err(C.post({ action: 'renameUser', adminCode: ADMIN, id: coachId, name: '   ' })), 'bad_name');
+    assert.equal(err(C.post({ action: 'renameUser', adminCode: ADMIN, id: 'nobody', name: 'x' })), 'not_found');
+    assert.equal(C.post({ action: 'renameUser', adminCode: ADMIN, id: coachId, name: '  דני   המאמן ' }).result.name, 'דני המאמן');
+    const u = C.post({ action: 'listUsers', adminCode: ADMIN }).result.find((x) => x.id === coachId);
+    assert.equal(u.name, 'דני המאמן');
+    assert.equal(u.role, 'coach', 'renaming leaves the role alone');
+    assert.equal(u.status, 'approved');
+    // The device asking again does not undo the manager's name.
+    assert.equal(C.post({ action: 'requestAccess', deviceKey: coach, name: 'המאמן' }).result.name, 'דני המאמן');
+  });
+
   test('the coach reads minutes and past lineups; a parent still does not', () => {
     const c = C.post({ action: 'getSeason', deviceKey: coach }).result;
     assert.equal(c.role, 'coach');

@@ -725,6 +725,9 @@ button.form-pill:focus-visible { outline: 2px solid var(--gold); outline-offset:
 .user-row + .user-row { border-top: 1px solid var(--line); }
 .user-row .who { flex: 1; min-width: 0; }
 .user-row .who b { display: block; font-size: .95rem; }
+.user-row .who-name { display: inline-flex; align-items: center; gap: .35rem; max-width: 100%; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: start; cursor: pointer; }
+.user-row .who-name b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.user-row .who-name svg { width: 13px; height: 13px; flex: none; color: var(--faint); }
 .user-row .who span { font-size: .75rem; color: var(--faint); }
 .user-row .acts { display: flex; gap: 6px; flex: none; }
 

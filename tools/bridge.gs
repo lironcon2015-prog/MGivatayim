@@ -127,6 +127,7 @@ function handle_(req) {
     case 'listUsers':     return listUsers_(req);
     case 'setStatus':     return setStatus_(req);
     case 'setRole':       return setRole_(req);
+    case 'renameUser':    return renameUser_(req);
     case 'removeUser':    return removeUser_(req);
     case 'putSeason':     return putSeason_(req);
     case 'makePoster':    return makePoster_(req);
@@ -1249,6 +1250,22 @@ function setRole_(req) {
     else delete u.role;
     writeJson_(ACCESS_FILE, a);
     return { id: req.id, role: role };
+  });
+}
+
+/* שינוי שם של מכשיר בידי המנהל (בקשת בעל הריפו). רק המנהל: שם הוא מה שהמנהל
+   רואה כשהוא מאשר ומי שצופה בלייב, והורה שמשנה את שמו יכול להתחזות לאחר. */
+function renameUser_(req) {
+  requireAdmin_(req);
+  const name = String(req.name || '').replace(/\s+/g, ' ').trim().slice(0, MAX_NAME);
+  if (!name) throw fail_('צריך למלא שם', 'bad_name');
+  return withLock_(() => {
+    const a = access_();
+    const u = a.users[String(req.id || '')];
+    if (!u) throw fail_('המשתמש לא נמצא', 'not_found');
+    u.name = name;
+    writeJson_(ACCESS_FILE, a);
+    return { id: req.id, name: name };
   });
 }
 

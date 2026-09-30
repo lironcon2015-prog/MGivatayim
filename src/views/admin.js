@@ -1079,14 +1079,13 @@ export function mountAdmin(view, ctx) {
             <p class="note">ברירת המחדל לכל משחק חי. אפשר לשנות גם בפתיחת משחק מסוים.</p></div>
         </section>
         <section>
-          <div class="sec-head">${icon('film')}<h2>צילום משחקים (Veo)</h2></div>
-          <div class="card">${fieldHtml(SETTINGS_FIELDS[0], 'settings.veo', draft.settings?.veo === true)}
-            <p class="note">כשמסומן: במשחק החי אפשר להוסיף קישור לשידור, ומי שצופה רואה כפתור "צפייה בשידור חי". בסוף המשחק — "הוספת המשחק המצולם" מכניס את הסרטון לסרטונים. כל עוד לא מסומן, שום דבר מזה לא מופיע.</p></div>
-        </section>
-        <section>
-          <div class="sec-head">${icon('info')}<h2>לוח לדוגמה</h2></div>
-          <div class="card">${fieldHtml(SETTINGS_FIELDS[1], 'settings.sampleSchedule', draft.settings?.sampleSchedule === true)}
-            <p class="note">כשמסומן: ליד לוח המשחקים והתוצאות, בבית ובנתונים, ההורים רואים ש"לוח לדוגמה. הלוח יתעדכן כשההתאחדות תפרסם את הלוח הרשמי". כשהלוח הרשמי נכנס — מבטלים את הסימון, וההערה יורדת מכל המקומות.</p></div>
+          <div class="sec-head">${icon('eye')}<h2>מה ההורים רואים</h2></div>
+          <div class="card">
+            <div class="opt">${fieldHtml(SETTINGS_FIELDS[1], 'settings.sampleSchedule', draft.settings?.sampleSchedule === true)}
+              <p class="note">ליד לוח המשחקים והתוצאות, בבית ובנתונים: "לוח לדוגמה. הלוח יתעדכן כשההתאחדות תפרסם את הלוח הרשמי". כשהלוח הרשמי נכנס מבטלים את הסימון, וההערה יורדת מכל המקומות.</p></div>
+            <div class="opt">${fieldHtml(SETTINGS_FIELDS[0], 'settings.veo', draft.settings?.veo === true)}
+              <p class="note">במשחק החי אפשר להוסיף קישור לשידור, ומי שצופה רואה כפתור "צפייה בשידור חי". בסוף המשחק — "הוספת המשחק המצולם" מכניס את הסרטון לסרטונים. כל עוד לא מסומן, שום דבר מזה לא מופיע.</p></div>
+          </div>
         </section>
         <section>
           <div class="sec-head">${icon('sparkle')}<h2>שיפור סמל של יריבה</h2></div>

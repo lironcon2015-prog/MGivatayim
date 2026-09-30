@@ -617,6 +617,8 @@ button.form-pill:focus-visible { outline: 2px solid var(--gold); outline-offset:
 .field input, .field select, .pair input { color-scheme: dark; }
 .field.check { grid-template-columns: auto 1fr; align-items: center; gap: .6rem; font-weight: 600; color: var(--text); }
 .field.check input { width: 20px; height: 20px; min-height: 0; accent-color: var(--gold); }
+/* Switches that share one card (settings): a line between them. */
+.opt + .opt { margin-top: .9rem; padding-top: .9rem; border-top: 1px solid var(--line); }
 .pair { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 8px; }
 /* Errors are said in gold, not red: red belongs to lost matches. The weight
    and the alert role carry the urgency. */

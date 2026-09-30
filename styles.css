@@ -616,25 +616,25 @@ button.form-pill:focus-visible { outline: 2px solid var(--gold); outline-offset:
    background it vanishes. */
 .field input, .field select, .pair input { color-scheme: dark; }
 .field.check { grid-template-columns: auto 1fr; align-items: center; gap: .6rem; font-weight: 600; color: var(--text); }
-.field.check input { width: 20px; height: 20px; min-height: 0; accent-color: var(--gold); }
 /* Switches that share one card (settings): a line between them. */
 .opt + .opt { margin-top: .9rem; padding-top: .9rem; border-top: 1px solid var(--line); }
-/* There a checkbox is drawn as a switch (the owner chose it in a mockup): a
+/* Every checkbox is drawn as a switch (the owner's rule, after a mockup): a
    dark well off, gold on, the knob moving across. Still a checkbox underneath,
-   so saving and the keyboard are unchanged. */
-.opt .field.check input {
+   so saving, labels and the keyboard are unchanged. */
+input[type="checkbox"] {
   appearance: none; -webkit-appearance: none; position: relative; flex: none;
-  width: 42px; height: 26px; margin: 0; border-radius: var(--r-pill); cursor: pointer;
+  width: 42px; height: 26px; min-height: 0; margin: 0; padding: 0; border-radius: var(--r-pill); cursor: pointer;
   background: var(--well); border: 1px solid var(--line-strong); transition: background .15s, border-color .15s;
 }
-.opt .field.check input::before {
+input[type="checkbox"]::before {
   content: ''; position: absolute; top: 3px; inset-inline-end: 3px; width: 18px; height: 18px;
   border-radius: 50%; background: var(--faint); transition: inset-inline-end .15s, background .15s;
 }
-.opt .field.check input:checked { background: var(--gold-soft); border-color: var(--gold-line); }
-.opt .field.check input:checked::before { inset-inline-end: 19px; background: var(--gold); }
-.opt .field.check input:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
-@media (prefers-reduced-motion: reduce) { .opt .field.check input, .opt .field.check input::before { transition: none; } }
+input[type="checkbox"]:checked { background: var(--gold-soft); border-color: var(--gold-line); }
+input[type="checkbox"]:checked::before { inset-inline-end: 19px; background: var(--gold); }
+input[type="checkbox"]:disabled { opacity: .45; cursor: default; }
+input[type="checkbox"]:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { input[type="checkbox"], input[type="checkbox"]::before { transition: none; } }
 .pair { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 8px; }
 /* Errors are said in gold, not red: red belongs to lost matches. The weight
    and the alert role carry the urgency. */
@@ -1245,7 +1245,6 @@ button.match:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px
 .imp-list { border: 1px solid var(--line); border-radius: 20px; padding: 0 .85rem; }
 .imp-row { display: flex; align-items: center; gap: .65rem; min-height: 58px; cursor: pointer; }
 .imp-row + .imp-row { border-top: 1px solid var(--line); }
-.imp-row input { width: 20px; height: 20px; accent-color: var(--gold); flex: none; }
 .imp-row.off .imp-name, .imp-row.off .pick-num { opacity: .45; }
 .imp-name { flex: 1; min-width: 0; }
 .imp-name b { display: block; font-size: .92rem; }

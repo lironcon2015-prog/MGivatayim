@@ -619,6 +619,22 @@ button.form-pill:focus-visible { outline: 2px solid var(--gold); outline-offset:
 .field.check input { width: 20px; height: 20px; min-height: 0; accent-color: var(--gold); }
 /* Switches that share one card (settings): a line between them. */
 .opt + .opt { margin-top: .9rem; padding-top: .9rem; border-top: 1px solid var(--line); }
+/* There a checkbox is drawn as a switch (the owner chose it in a mockup): a
+   dark well off, gold on, the knob moving across. Still a checkbox underneath,
+   so saving and the keyboard are unchanged. */
+.opt .field.check input {
+  appearance: none; -webkit-appearance: none; position: relative; flex: none;
+  width: 42px; height: 26px; margin: 0; border-radius: var(--r-pill); cursor: pointer;
+  background: var(--well); border: 1px solid var(--line-strong); transition: background .15s, border-color .15s;
+}
+.opt .field.check input::before {
+  content: ''; position: absolute; top: 3px; inset-inline-end: 3px; width: 18px; height: 18px;
+  border-radius: 50%; background: var(--faint); transition: inset-inline-end .15s, background .15s;
+}
+.opt .field.check input:checked { background: var(--gold-soft); border-color: var(--gold-line); }
+.opt .field.check input:checked::before { inset-inline-end: 19px; background: var(--gold); }
+.opt .field.check input:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { .opt .field.check input, .opt .field.check input::before { transition: none; } }
 .pair { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 8px; }
 /* Errors are said in gold, not red: red belongs to lost matches. The weight
    and the alert role carry the urgency. */

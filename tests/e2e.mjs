@@ -1092,7 +1092,7 @@ await step('a weekly training shows above the next match, on the first screen, a
 
   await parent.goto(APP + '#/');
   await parent.reload();
-  const sq = parent.locator('.week-sec .wk-day.today');
+  const sq = parent.locator('.week-sec .wk-day.training.today');
   await sq.waitFor({ timeout: 8000 });
   const t = (await sq.innerText()).replace(/\s+/g, ' ');
   expect(t.includes('היום') && t.includes('17:00') && t.includes('אצטדיון גבעתיים'), 'today\'s square: ' + t);
@@ -1117,9 +1117,9 @@ await step('a weekly training shows above the next match, on the first screen, a
     await parent.locator('.wk-label', { hasText: 'אימוני השבוע הבא' }).waitFor();
     const n = (await parent.locator('.week-sec .wk-day').first().innerText()).replace(/\s+/g, ' ');
     expect(n.includes('שבת') && n.includes('17:00'), 'next week\'s square: ' + n);
-    expect(!(await parent.locator('.week-sec .wk-day.today').count()), 'next week has a "today"');
+    expect(!(await parent.locator('.week-sec .wk-day.training.today').count()), 'next week has a "today"');
     await parent.locator('[data-next-week]').click();
-    await parent.locator('.week-sec .wk-day.today').waitFor();
+    await parent.locator('.week-sec .wk-day.training.today').waitFor();
   } else expect(!(await next.count()), 'the next week button shows before Saturday');
 });
 
@@ -1146,7 +1146,7 @@ await step('a training that differs from the routine is framed and flagged, and 
 
   await parent.goto(APP + '#/');
   await parent.reload();
-  const sq = parent.locator('.week-sec .wk-day.today.chg');
+  const sq = parent.locator('.week-sec .wk-day.training.today.chg');
   await sq.waitFor({ timeout: 8000 });
   expect((await sq.locator('.wk-flag').innerText()).trim() === 'שינוי', 'no "change" flag');
   const t = (await sq.innerText()).replace(/\s+/g, ' ');
@@ -1165,26 +1165,26 @@ await step('a training that differs from the routine is framed and flagged, and 
 
 await step('the manager changes a training from the home screen; a parent has no such button', async () => {
   expect(await parent.locator('[data-tr-edit]').count() === 0, 'a sheet left open');
-  await parent.locator('.week-sec .wk-day.today').click();
+  await parent.locator('.week-sec .wk-day.training.today').click();
   await parent.locator('.sheet .wk-sheet').waitFor();
   expect(await parent.locator('[data-tr-edit]').count() === 0, 'a parent can change a training');
   await parent.locator('.sheet-x').click();
 
   await admin.goto(APP + '#/');
   await admin.reload();
-  await admin.locator('.week-sec .wk-day.today').click();
+  await admin.locator('.week-sec .wk-day.training.today').click();
   await admin.click('[data-tr-edit]');
   await admin.click('[data-tr-state="off"]');
   await admin.click('[data-tr-save]');
-  await admin.locator('.week-sec .wk-day.today.cancelled').waitFor({ timeout: 8000 });
+  await admin.locator('.week-sec .wk-day.training.today.cancelled').waitFor({ timeout: 8000 });
   const ch = () => JSON.parse(bridge.driveFile('season.json')).season.trainingChanges.filter((c) => c.date === israelToday());
   expect(ch().length === 1 && ch()[0].cancelled === true, 'cancelled from home: ' + JSON.stringify(ch()));
   // Only what differs from the routine is kept: the hours were the routine's.
   // Back to the routine, and the date has no change at all.
-  await admin.locator('.week-sec .wk-day.today').click();
+  await admin.locator('.week-sec .wk-day.training.today').click();
   await admin.click('[data-tr-edit]');
   await admin.click('[data-tr-reset]');
-  await admin.locator('.week-sec .wk-day.today:not(.chg)').waitFor({ timeout: 8000 });
+  await admin.locator('.week-sec .wk-day.training.today:not(.chg)').waitFor({ timeout: 8000 });
   expect(ch().length === 0, 'the change is still there: ' + JSON.stringify(ch()));
 
   // Moved to another day of the week: struck through here, there on the
@@ -1192,11 +1192,11 @@ await step('the manager changes a training from the home screen; a parent has no
   const today = israelToday();
   const shift = new Date(today + 'T12:00:00Z').getUTCDay() > 0 ? -1 : 1;
   const target = new Date(Date.parse(today + 'T12:00:00Z') + shift * 86400000).toISOString().slice(0, 10);
-  await admin.locator('.week-sec .wk-day.today').click();
+  await admin.locator('.week-sec .wk-day.training.today').click();
   await admin.click('[data-tr-edit]');
   await admin.fill('#tr-date', target);
   await admin.click('[data-tr-save]');
-  await admin.locator('.week-sec .wk-day.today.away').waitFor({ timeout: 8000 });
+  await admin.locator('.week-sec .wk-day.training.today.away').waitFor({ timeout: 8000 });
   const [, m, d] = target.split('-');
   const movedSq = admin.locator('.week-sec .wk-day.moved');
   const mt = (await movedSq.innerText()).replace(/\s+/g, ' ');
@@ -1205,7 +1205,7 @@ await step('the manager changes a training from the home screen; a parent has no
   await movedSq.click();
   await admin.click('[data-tr-edit]');
   await admin.click('[data-tr-reset]');
-  await admin.locator('.week-sec .wk-day.today:not(.chg)').waitFor({ timeout: 8000 });
+  await admin.locator('.week-sec .wk-day.training.today:not(.chg)').waitFor({ timeout: 8000 });
   expect(await admin.locator('.week-sec .wk-day.moved').count() === 0 && ch().length === 0, 'the move is still there');
   // The manager's editor picks the new version up instead of saving over it.
   await admin.goto(APP + '#/admin');

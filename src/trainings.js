@@ -34,8 +34,8 @@ function venueOf(v, home) {
 
 // Sunday to Saturday around today (Israel), the week a parent plans by;
 // `ahead` = 1 is the week after (the owner's "next week" button, offered
-// from Saturday). The first game on the schedule that falls in the week
-// closes the row.
+// from Saturday). The week's games sit in their days, a played one with
+// its score.
 export function trainingWeek(season, games, now = new Date(), ahead = 0) {
   const today = todayInIsrael(now);
   const start = addDays(today, 7 * ahead - weekday(today));
@@ -96,9 +96,17 @@ export function trainingWeek(season, games, now = new Date(), ahead = 0) {
   }
 
   const items = days.map((d) => ({ ...d, kind: 'training', past: d.date < today, today: d.date === today }));
-  const game = (games || []).find((g) => g?.date >= start && g.date <= end);
-  if (game) {
-    items.push({ kind: 'game', date: game.date, start: time(game.time), opponent: text(game.opponent), past: game.date < today, today: game.date === today });
+  // Every game of the week, played ones too: a game that ended stays in its
+  // day like a training that took place (the owner's ask), with its score.
+  const seen = new Set();
+  for (const g of games || []) {
+    if (!g || !(g.date >= start && g.date <= end)) continue;
+    const key = g.date + '|' + text(g.opponent);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const played = Number.isInteger(g.gf) && Number.isInteger(g.ga);
+    items.push({ kind: 'game', date: g.date, start: time(g.time), opponent: text(g.opponent),
+      ...(played ? { gf: g.gf, ga: g.ga } : {}), past: played || g.date < today, today: g.date === today });
   }
   items.sort((a, b) => a.date.localeCompare(b.date) || (a.kind === 'game') - (b.kind === 'game'));
   return { start, end, ahead, trainings: days.length, items };

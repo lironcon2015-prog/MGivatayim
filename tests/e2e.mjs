@@ -1616,6 +1616,14 @@ await step('several items are deleted at once by picking them; a parent picks on
   await parent.locator('[data-gallery] .gl-album').first().click();
   await parent.locator('[data-gallery] [data-back]').waitFor();
   expect(await parent.locator('[data-gallery] .gl-album-grid .gl-tile').count() === 3, 'the game page does not hold all three photos');
+  // The upload button stays on screen above the nav wherever the page is
+  // scrolled: after the last of many photos it was screens away.
+  for (const y of [0, 1e6]) {
+    await parent.evaluate((v) => { document.body.style.minHeight = '4000px'; window.scrollTo(0, v); }, y);
+    const [btn, nav, vh] = await parent.evaluate(() => [document.querySelector('[data-upload-here]')?.getBoundingClientRect().toJSON(), document.querySelector('.nav, nav')?.getBoundingClientRect().toJSON(), innerHeight]);
+    expect(btn && btn.top >= 0 && btn.bottom <= (nav ? nav.top : vh), `the upload button is off screen at scroll ${y}: ${JSON.stringify(btn)} nav ${JSON.stringify(nav)}`);
+  }
+  await parent.evaluate(() => { document.body.style.minHeight = ''; window.scrollTo(0, 0); });
   // The photos | videos switch stays on a game's page, even for a game
   // with photos only.
   await parent.click('[data-gallery] [data-gtab="videos"]');
@@ -1629,6 +1637,7 @@ await step('several items are deleted at once by picking them; a parent picks on
   expect(await parent.evaluate(() => window.scrollY) === 0, 'back to the gallery left the page scrolled');
   await parent.locator('[data-gallery] .gl-album').first().click();
   await parent.click('[data-sel="start"]');
+  expect(await parent.locator('[data-upload-here]').count() === 0, 'the upload bar stayed under the picking bar');
   expect(await parent.locator('.gl-tile.pick.nopick').count() === 1, 'another parent\'s photo is pickable');
   await parent.click('[data-sel="all"]');
   expect(await parent.locator('.gl-tile.pick.on').count() === 2, 'select all did not take both of mine');

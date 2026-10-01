@@ -132,6 +132,10 @@ function tabsHtml(tab, nPhotos, nVideos) {
 
 const fileInput = '<input type="file" data-files accept="image/*,video/*" multiple hidden />';
 
+// The upload button in a bar fixed above the nav (the owner's pick from a
+// mockup): after the last of 40 photos it was screens away.
+const dock = (button) => `<div class="gl-dock">${button}${fileInput}</div>`;
+
 function overviewHtml(g, s) {
   const canUpload = g.mode !== 'closed' && !g.blocked;
   const items = visible(g);
@@ -150,10 +154,10 @@ function overviewHtml(g, s) {
   return `<section>
     <div class="sec-head">${icon('photo')}<h2>הגלריה של הקבוצה</h2>
       <button type="button" class="help-btn" data-help aria-label="איך זה עובד">?</button></div>
-    ${canUpload ? `<button type="button" class="btn" data-upload>${icon('upload')} העלאת תמונות וסרטונים</button>${fileInput}` : ''}
     ${tabsHtml(tab, photos.length, clips.length + linked.length)}
     ${body}
-  </section>`;
+  </section>
+  ${canUpload ? dock(`<button type="button" class="btn" data-upload>${icon('upload')} העלאת תמונות וסרטונים</button>`) : ''}`;
 }
 
 // One game's page: every photo (or clip) of it, picking, and an upload that
@@ -172,9 +176,8 @@ function albumHtml(g, grp, sel) {
     ${tabsHtml(shownTab, photos.length, clips.length)}
     ${list.length ? `<div class="gl-grid gl-album-grid">${list.map((it) => tile(g, it, sel)).join('')}</div>`
       : empty(shownTab === 'videos' ? 'אין סרטונים מהמשחק הזה.' : 'אין תמונות מהמשחק הזה.')}
-    ${canUpload && !sel.on ? `<button type="button" class="btn secondary gl-here" data-upload-here>${icon('upload')} העלאה למשחק הזה</button>${fileInput}` : ''}
   </section>
-  ${sel.on ? selBar(sel) : ''}`;
+  ${sel.on ? selBar(sel) : canUpload ? dock(`<button type="button" class="btn" data-upload-here>${icon('upload')} העלאה למשחק הזה</button>`) : ''}`;
 }
 
 /* ---- help ---- */

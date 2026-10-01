@@ -1639,7 +1639,17 @@ body.with-nav .gl-selbar { bottom: calc(var(--nav-space) + .5rem); }
 .gl-back svg { width: 16px; height: 16px; transform: scaleX(-1); }
 .gl-meta { margin: -.35rem .15rem .8rem; }
 .gl-album-grid { margin-top: .8rem; }
-.gl-here { margin-top: 1rem; }
+.gl-dock {
+  position: fixed; z-index: 44; inset-inline: 12px; bottom: calc(12px + env(safe-area-inset-bottom));
+  max-width: calc(var(--shell) - 8px); margin: 0 auto; padding: .5rem;
+  border-radius: var(--r-pill); background: rgba(10, 17, 29, .92); border: 1px solid var(--line-strong);
+  -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); box-shadow: var(--shadow-lift);
+}
+.gl-dock .btn { margin-top: 0; }
+body.with-nav .gl-dock { bottom: calc(var(--nav-space) + .5rem); }
+/* The page's end and the toasts clear the bar. */
+body:has(.gl-dock) { padding-bottom: calc(var(--nav-space) + 5rem); }
+body:has(.gl-dock) .toast { bottom: calc(var(--nav-space) + 4.8rem); }
 
 /* A section scrolled to (a new row in the manager's lists) keeps its heading
    off the screen's edge. */

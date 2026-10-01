@@ -1407,6 +1407,35 @@ await step('before kick-off the coach sets the minimum and who came; a parent se
   await coach.locator(`[data-mn-present="${benched.id}"][data-mn-state="here"]`).click();
   await until(() => !coachFile().matches[id].absent.includes(benched.id), 'the correction to reach Drive');
   coach.benchName = benched.name;
+
+  // Taps in a row on a slow line: every one lands, and none jumps back when
+  // the answer to an earlier one comes in. Two of them are starters: marked
+  // absent before kick-off they leave the lineup — the coach controls the
+  // match — and their slots stay open for someone else.
+  const lineup = liveFile().lineup;
+  const starters = [lineup[1].pid, lineup[2].pid];
+  const row = [benched.id, ...starters];
+  const slow = async (r) => { await new Promise((ok) => setTimeout(ok, 900)); await r.continue().catch(() => {}); };
+  await coach.route(BRIDGE, slow);
+  for (const pid of row) {
+    await coach.locator(`[data-mn-present="${pid}"][data-mn-state="away"]`).click();
+    await coach.waitForTimeout(250);
+  }
+  const shown = () => coach.locator('.mn-att.away').count();
+  let least = await shown();
+  for (let i = 0; i < 25; i++) { least = Math.min(least, await shown()); await coach.waitForTimeout(100); }
+  await coach.unroute(BRIDGE, slow);
+  await until(() => row.every((pid) => (coachFile().matches[id].absent || []).includes(pid)), 'every tap to reach Drive');
+  expect(least === row.length, `a player marked absent jumped back while the answers came in (${least} of ${row.length})`);
+  await until(() => !liveFile().lineup.some((l) => starters.includes(l.pid)), 'the absent starters to leave the lineup');
+  expect(liveFile().lineup.length === lineup.length - 2, 'two starters less, the others where they were');
+  await admin.locator('.pl.open').first().waitFor({ timeout: 8000 });
+  // Back as it was, for the rest of the run.
+  for (const pid of row) await coach.locator(`[data-mn-present="${pid}"][data-mn-state="here"]`).click();
+  await until(() => !(coachFile().matches[id].absent || []).length, 'the corrections to reach Drive');
+  const v = JSON.parse(bridge.driveFile('live.json')).version;
+  await asAdmin('putLive', { baseVersion: v, state: { ...liveFile(), lineup } });
+  await until(() => liveFile().lineup.length === lineup.length, 'the lineup restored');
 });
 
 await step('a field being typed in keeps its caret and its text when the screen is redrawn under it', async () => {

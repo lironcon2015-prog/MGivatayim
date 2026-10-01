@@ -193,6 +193,8 @@ const RECENT_SHOWN = 5;
 export function mountLive(view, ctx) {
   const S = ctx.session;
   let alive = true;
+  let pressing = false;     // a finger (or button) is down on the screen
+  let redrawLater = false;  // a redraw that waited for it to lift
 
   const state = () => S.state;
   const control = () => S.canControl && state() && state().status !== 'ended';
@@ -631,6 +633,11 @@ export function mountLive(view, ctx) {
 
   function render() {
     if (!alive) return;
+    // Not under a finger: a redraw between touch-down and lift replaces the
+    // button being pressed, and the tap never happens (the coach's "absent"
+    // toggles, tapped in a row while each answer came back). It waits for the
+    // lift, and runs after the tap's click.
+    if (pressing) { redrawLater = true; return; }
     const st = state();
     if (!S.loaded) { view.innerHTML = '<section><div class="card gate"><p class="gate-lead" role="status">מתחבר למשחק…</p></div></section>'; return; }
     if (!st) { view.innerHTML = noLive(); return; }
@@ -802,7 +809,7 @@ export function mountLive(view, ctx) {
   function tick() {
     const st = state();
     if (!st) return;
-    if (tab === 'minutes' && st.status !== 'setup' && minuteKey(st) !== lastMinute) {
+    if (tab === 'minutes' && !pressing && st.status !== 'setup' && minuteKey(st) !== lastMinute) {
       const host = view.querySelector('[data-mn-host]');
       if (host) { host.innerHTML = liveMinutesHtml(st, now(), ctx.coachCfg(st.id), { folded: store.getFolded() === alertKey(st) }); lastMinute = minuteKey(st); }
     }
@@ -1406,6 +1413,14 @@ export function mountLive(view, ctx) {
     }
   }
 
+  // Marked absent before kick-off: off the lineup, his slot left open.
+  function dropAbsent(pid) {
+    const s = state();
+    if (s?.status === 'setup' && control() && s.lineup.some((l) => l.pid === pid)) {
+      act({ t: 'lineup', lineup: s.lineup.filter((l) => l.pid !== pid) });
+    }
+  }
+
   // The coach's threshold and attendance: drawn at once, then again with
   // what the bridge kept — or back as it was, with the reason.
   function saveCoach(st, patch) {
@@ -1439,7 +1454,7 @@ export function mountLive(view, ctx) {
     if (st && tab === 'minutes' && ctx.canMinutes()) {
       if (t.dataset.mn === 'fold' || t.dataset.mn === 'unfold') { store.setFolded(t.dataset.mn === 'fold' ? alertKey(st) : ''); render(); return; }
       if (t.dataset.mn === 'edit') { coachSheet(st, () => ctx.coachCfg(st.id), (patch) => saveCoach(st, patch)); return; }
-      if (coachFormEvent(t, st, ctx.coachCfg(st.id), (patch) => saveCoach(st, patch))) return;
+      if (coachFormEvent(t, st, ctx.coachCfg(st.id), (patch) => saveCoach(st, patch), dropAbsent)) return;
     }
     if (a === 'new') { t.disabled = true; newMatch(); return; }
     if (a === 'pick') { pickFixtureSheet(); return; }
@@ -1527,6 +1542,15 @@ export function mountLive(view, ctx) {
 
   view.addEventListener('click', onClick);
   view.addEventListener('change', onChange);
+  const onDown = () => { pressing = true; };
+  const onUp = () => {
+    if (!pressing) return;
+    pressing = false;
+    if (redrawLater) setTimeout(() => { if (!pressing && redrawLater) { redrawLater = false; render(); } }, 0);
+  };
+  view.addEventListener('pointerdown', onDown);
+  window.addEventListener('pointerup', onUp);
+  window.addEventListener('pointercancel', onUp);
   // A sideways swipe over the panes switches them too. RTL: the events sit
   // to the left of the pitch, so they come in with a swipe to the right.
   let touch = null;
@@ -1552,6 +1576,9 @@ export function mountLive(view, ctx) {
     unsub();
     view.removeEventListener('click', onClick);
     view.removeEventListener('change', onChange);
+    view.removeEventListener('pointerdown', onDown);
+    window.removeEventListener('pointerup', onUp);
+    window.removeEventListener('pointercancel', onUp);
     S.watching = false;
     S.setPoll(20000);
   };

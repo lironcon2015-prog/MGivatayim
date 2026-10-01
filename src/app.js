@@ -229,6 +229,14 @@ async function saveTraining(date, change) {
   await refresh();
 }
 
+// One save at a time, in the order tapped: each carries the whole absent list
+// as it stood at its tap, so the last one sent is the truth. An answer that a
+// newer tap already overtook draws nothing — it used to put the screen back a
+// step (a player marked absent jumped back to present, then again).
+let coachChain = Promise.resolve();
+let coachSeq = 0;
+let coachInFlight = 0;
+let coachConfirmed = null;
 async function saveCoach(liveId, patch) {
   const c = coachData();
   const e = { ...(c.matches[liveId] || {}) };
@@ -249,13 +257,21 @@ async function saveCoach(liveId, patch) {
     if (state.season) state.season.coach = cleanCoach(coach);
     store.setCachedSeason(state.payload);
   };
-  const before = state.payload?.coach;
+  if (!coachInFlight) coachConfirmed = state.payload?.coach;
   setCoach(c);
+  const seq = ++coachSeq;
+  coachInFlight++;
+  const send = coachChain.then(() => call('setCoachMatch', { liveId, ...patch }, { asAdmin: isAdmin() }));
+  coachChain = send.catch(() => {});
   try {
-    setCoach(await call('setCoachMatch', { liveId, ...patch }, { asAdmin: isAdmin() }));
+    const kept = await send;
+    coachConfirmed = kept;
+    if (seq === coachSeq) setCoach(kept);
   } catch (err) {
-    setCoach(before);
+    if (seq === coachSeq) setCoach(coachConfirmed);
     throw err;
+  } finally {
+    coachInFlight--;
   }
 }
 

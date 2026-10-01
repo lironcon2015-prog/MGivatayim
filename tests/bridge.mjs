@@ -517,13 +517,30 @@ console.log('live:');
     C.post({ action: 'clearLive', adminCode: ADMIN, discard: true });
   });
 
-  test('a coach writes nothing else: not the season, not the live match, not access', () => {
+  test('the coach controls the live match like a code holder, and writes nothing else: not the season, not access', () => {
     assert.equal(err(C.post({ action: 'putSeason', deviceKey: coach, baseVersion: 1, season: {} })), 'bad_code');
     assert.equal(err(C.post({ action: 'startLive', deviceKey: coach, state: { id: 'X', status: 'setup' } })), 'bad_code');
+    C.post({ action: 'clearLive', adminCode: ADMIN, discard: true });
     C.post({ action: 'startLive', adminCode: ADMIN, state: { id: 'X', status: 'setup' } });
+    // A parent without a code still cannot.
+    const pv = C.post({ action: 'getLive', deviceKey: other }).result;
+    assert.equal(pv.canControl, false);
     const v = C.post({ action: 'getLive', deviceKey: coach }).result;
-    assert.equal(v.canControl, false);
-    assert.equal(err(C.post({ action: 'putLive', deviceKey: coach, baseVersion: v.version, state: { id: 'X', status: 'running' } })), 'not_controller');
+    assert.equal(v.canControl, true, 'the coach controls the match without a code');
+    assert.equal(C.post({ action: 'putLive', deviceKey: coach, baseVersion: v.version, state: { id: 'X', status: 'setup', lineup: [{ pid: 'p1', pos: 'GK' }] } }).ok, true);
+    assert.equal(err(C.post({ action: 'putLive', deviceKey: other, baseVersion: v.version + 1, state: { id: 'X', status: 'running' } })), 'not_controller');
+    // Opening, publishing, codes and discarding stay the manager's.
+    assert.equal(err(C.post({ action: 'publishLive', deviceKey: coach })), 'bad_code');
+    assert.equal(err(C.post({ action: 'setLiveCode', deviceKey: coach, code: '1234' })), 'bad_code');
+    assert.equal(err(C.post({ action: 'clearLive', deviceKey: coach, discard: true })), 'bad_code');
+    // The coach finishes it; once saved, only the manager corrects it.
+    const v2 = C.post({ action: 'getLive', deviceKey: coach }).result.version;
+    const ended = { id: 'X', status: 'ended', opponent: 'y', date: '2026-10-01', events: [] };
+    assert.equal(C.post({ action: 'finishLive', deviceKey: coach, baseVersion: v2, state: ended }).ok, true);
+    const v3 = C.post({ action: 'getLive', deviceKey: coach }).result.version;
+    assert.equal(err(C.post({ action: 'finishLive', deviceKey: coach, baseVersion: v3, state: ended })), 'conflict');
+    assert.equal(err(C.post({ action: 'putLive', deviceKey: coach, baseVersion: v3, state: { ...ended, status: 'running' } })), 'not_controller');
+    C.post({ action: 'clearLive', adminCode: ADMIN, discard: true });
     assert.equal(err(C.post({ action: 'setStatus', deviceKey: coach, id: coachId, status: 'approved' })), 'bad_code');
   });
 

@@ -657,6 +657,11 @@ await test('a training match is listed with the results but counts in no figure'
   assert.equal(s.overall.streak.current, 2, 'the loss in training broke the winning streak');
   assert.deepEqual(s.form.map((m) => m.opponent), ['ג', 'א']);
   assert.equal(s.players[0].goals, 0, 'a goal in training counted in the player table');
+  // Yet the home screen's latest results show it, marked (the owner's ask).
+  const { formPill } = await import('../src/components.js');
+  const pills = s.recent.slice(0, 5).map((m, i) => formPill(m, i)).join('');
+  assert.equal((pills.match(/class="form-pill/g) || []).length, 3, 'a pill per result, the training match included');
+  assert.match(pills, /form-pill is-loss friendly"[^>]*aria-label="משחק אימון,[^"]*">\s*<b class="num">0:5<\/b>אימון/);
   // The flag is a boolean whatever arrived, in the season and in live state.
   assert.equal(cleanPlayedMatch({ date: '2026-01-01', friendly: '<b>' }).friendly, false);
   assert.equal(cleanLive({ id: 'm', friendly: true }).friendly, true);

@@ -241,7 +241,7 @@ function uploadSheet(files, s, g, { asAdmin, onDone, preset = null }) {
       ${matches.length > MATCHES_SHOWN ? `<button type="button" class="linkish mp-more" data-more-matches>${((n) => (n === 1 ? 'עוד משחק אחד' : n === 2 ? 'עוד שני משחקים' : `עוד ${n} משחקים`))(matches.length - MATCHES_SHOWN)}</button>` : ''}
       <div class="up-list" data-list>${rows.map(rowHtml).join('')}</div>
       <p class="note">כל קובץ מופיע בגלריה ברגע שהוא עולה, עם השם שלך. סרטון: עד ${MAX_VIDEO_S} שניות.</p>
-      <button type="button" class="btn" data-go${rows.some((r) => r.state === 'wait') ? '' : ' disabled'}>${icon('upload')} העלאה</button>`,
+      <div class="up-go"><button type="button" class="btn" data-go${rows.some((r) => r.state === 'wait') ? '' : ' disabled'}>${icon('upload')} העלאה</button></div>`,
     onMount: ({ el }) => {
       const redraw = (r) => { el.querySelector(`[data-row="${r.i}"]`).outerHTML = rowHtml(r); };
       el.querySelector('[data-more-matches]')?.addEventListener('click', (e) => {

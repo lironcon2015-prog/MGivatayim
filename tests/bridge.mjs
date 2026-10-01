@@ -697,6 +697,27 @@ console.log('gallery:');
     assert.ok(G.post({ action: 'signUpload', deviceKey: noa, kind: 'image' }).ok);
   });
 
+  test('a one-time extra lifts one device over the daily photo limit, for 24 hours', () => {
+    G.post({ action: 'setGallery', adminCode: ADMIN, dayPhotos: 0 });
+    assert.equal(err(G.post({ action: 'signUpload', deviceKey: noa, kind: 'image' })), 'quota');
+    assert.equal(err(G.post({ action: 'grantQuota', deviceKey: noa, id: noaId, image: 5 })), 'bad_code');
+    const used = G.post({ action: 'getGallery', adminCode: ADMIN }).result.items.filter((x) => x.by === noaId && x.kind === 'image').length;
+    assert.ok(G.post({ action: 'grantQuota', adminCode: ADMIN, id: noaId, image: used + 1 }).ok);
+    assert.equal(G.post({ action: 'getGallery', deviceKey: noa }).result.left.image, 1);
+    assert.equal(err(G.post({ action: 'signUpload', deviceKey: gal, kind: 'image' })), 'quota', 'the extra reached another device');
+    assert.ok(upload(noa).ok);
+    assert.equal(err(G.post({ action: 'signUpload', deviceKey: noa, kind: 'image' })), 'quota', 'the extra is not spent by an upload');
+    const list = G.post({ action: 'getGallery', adminCode: ADMIN }).result.extraList;
+    assert.deepEqual(list.map((x) => [x.id, x.image]), [[noaId, used + 1]]);
+    const g = JSON.parse(G.driveFile('gallery.json'));
+    g.extra[noaId].at = new Date(Date.now() - 25 * 3600 * 1000).toISOString();
+    G.fileById(G.driveFileId('gallery.json')).setContent(JSON.stringify(g));
+    G.clearCache();
+    assert.equal(G.post({ action: 'getGallery', adminCode: ADMIN }).result.extraList.length, 0, 'an expired extra still counts');
+    assert.ok(G.post({ action: 'grantQuota', adminCode: ADMIN, id: noaId, image: 0 }).ok);
+    G.post({ action: 'setGallery', adminCode: ADMIN, dayPhotos: 30 });
+  });
+
   test('the gallery never lands in the season file', () => {
     assert.equal(G.driveFile('season.json'), null);
     assert.ok(G.driveFile('gallery.json'));

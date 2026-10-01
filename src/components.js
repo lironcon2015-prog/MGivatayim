@@ -146,10 +146,13 @@ export function scoreEl(match) {
 // A result pill on the home screen opens its match (`i`, its place in
 // season.recent), as a history row does: the home screen keeps the last few
 // results, and the whole list lives on the stats screen (the owner's pick).
+// A friendly is among the latest results too (the owner's ask), marked: a
+// dashed edge and "אימון" where the outcome word goes — its colour still
+// says the outcome, and it counts in no figure.
 export function formPill(match, i) {
   const o = outcomeOf(match);
-  return `<button type="button" class="form-pill ${CLASS_OF[o]}" data-match="${i}" aria-label="${esc(OUTCOMES[o])} מול ${esc(match.opponent)}, ${match.gf}:${match.ga}">
-    <b class="num">${match.gf}:${match.ga}</b>${esc(OUTCOMES[o])}</button>`;
+  return `<button type="button" class="form-pill ${CLASS_OF[o]}${match.friendly ? ' friendly' : ''}" data-match="${i}" aria-label="${match.friendly ? 'משחק אימון, ' : ''}${esc(OUTCOMES[o])} מול ${esc(match.opponent)}, ${match.gf}:${match.ga}">
+    <b class="num">${match.gf}:${match.ga}</b>${match.friendly ? 'אימון' : esc(OUTCOMES[o])}</button>`;
 }
 
 export function matchRow(match, i) {

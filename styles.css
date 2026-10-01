@@ -400,6 +400,7 @@ button.wk-day:active { transform: scale(.97); }
 /* A pill opens its match: a button, drawn exactly as the pill was. */
 button.form-pill { margin: 0; font-family: inherit; line-height: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
 button.form-pill:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.form-pill.friendly { border-style: dashed; }
 .is-win  { background: var(--win-soft);  color: var(--win);  border-color: var(--win-line); }
 .is-loss { background: var(--loss-soft); color: var(--loss); border-color: var(--loss-line); }
 .is-draw { background: var(--draw-soft); color: var(--draw); border-color: var(--draw-line); }
@@ -1502,6 +1503,10 @@ button.match:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px
 .help .note { margin-top: .45rem; }
 
 .up-list { margin: .9rem 0 .2rem; }
+/* Many files make a long list: the button stays at the sheet's bottom edge
+   instead of below the last row (the owner could not find it). */
+.up-go { position: sticky; bottom: -1.1rem; margin: .4rem calc(-1 * var(--pad)) -1.1rem; padding: .7rem var(--pad) .9rem; background: var(--surface-solid); border-top: 1px solid var(--line); }
+.up-go .btn { margin-top: 0; width: 100%; }
 .up-row { display: flex; align-items: center; gap: .7rem; padding: .55rem 0; border-top: 1px solid var(--line); }
 .up-kind { flex: none; width: 38px; height: 38px; border-radius: 12px; display: grid; place-items: center; background: var(--well); color: var(--muted); }
 .up-kind svg { width: 18px; height: 18px; }

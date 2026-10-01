@@ -866,6 +866,12 @@ export function mountAdmin(view, ctx) {
           ${(gallery.blockedList || []).length ? `<div class="gw-blocked"><span class="field"><span>חסומים להעלאה</span></span>
             ${gallery.blockedList.map((b) => `<div class="user-row"><span class="who"><b>${esc(b.name)}</b></span>
               <button type="button" class="btn small secondary" data-g-unblock="${esc(b.id)}">ביטול חסימה</button></div>`).join('')}</div>` : ''}
+          <div class="gw-blocked"><span class="field"><span>תוספת חד-פעמית</span></span>
+            ${(gallery.extraList || []).map((x) => `<div class="user-row"><span class="who"><b>${esc(x.name)}</b>
+              <span>עוד <span class="num">${x.image}</span> תמונות, עד ${esc(stamp(x.until))}</span></span>
+              <button type="button" class="btn small secondary" data-g-extra-off="${esc(x.id)}">ביטול</button></div>`).join('')}
+            <button type="button" class="btn secondary" data-g-extra>${icon('photo')} תוספת תמונות להורה</button>
+            <p class="note">הורה שהגיע למכסה ומעלה היום יותר: התוספת ל-24 שעות, רק לטלפון שלו.</p></div>
         </div>
       </section>`;
   }
@@ -905,6 +911,40 @@ export function mountAdmin(view, ctx) {
 
   // The name the manager approved by, and the one the live screen's watchers
   // list shows. Only the manager renames: a parent could take another's name.
+  // A one-time allowance over the daily photo limit, for one parent's phone
+  // (the owner's ask: a parent with a whole game's photos, once).
+  function extraSheet() {
+    const people = [...(gallery?.people || [])].sort((a, b) => a.name.localeCompare(b.name, 'he'));
+    if (!people.length) { toast('אין עדיין מכשירים מאושרים'); return; }
+    const sh = openSheet({
+      title: 'תוספת תמונות להורה',
+      subtitle: `מעבר ל-${esc(gallery.dayPhotos)} ביום, ל-24 השעות הקרובות`,
+      body: `<label class="field"><span>לאיזה טלפון</span>
+          <select data-extra-who>${people.map((p) => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('')}</select></label>
+        <label class="field"><span>כמה תמונות נוספות</span>
+          <input type="number" inputmode="numeric" min="1" max="500" value="30" data-extra-n /></label>
+        <div class="sheet-actions"><button type="button" class="btn" data-go>אישור</button></div>`,
+      onMount: ({ el }) => {
+        const go = el.querySelector('[data-go]');
+        go.addEventListener('click', async () => {
+          const id = el.querySelector('[data-extra-who]').value;
+          const image = Math.round(Number(el.querySelector('[data-extra-n]').value));
+          if (!(image >= 1 && image <= 500)) { toast('מספר בין 1 ל-500', { kind: 'err' }); return; }
+          go.disabled = true; go.textContent = 'שומר…';
+          try {
+            await call('grantQuota', { id, image }, { asAdmin: true });
+            sh.close();
+            toast('התוספת נשמרה');
+            await loadGallery();
+          } catch (e) {
+            toast(esc(e.message), { kind: 'err' });
+            go.disabled = false; go.textContent = 'אישור';
+          }
+        });
+      },
+    });
+  }
+
   function renameSheet(id) {
     const u = users?.find((x) => x.id === id);
     if (!u) return;
@@ -1291,6 +1331,8 @@ export function mountAdmin(view, ctx) {
       galleryAct('blockUploader', { id: t.dataset.gBlock, blocked: true }, 'המכשיר נחסם להעלאה');
       return;
     }
+    if (t.dataset.gExtra != null) { extraSheet(); return; }
+    if (t.dataset.gExtraOff) { galleryAct('grantQuota', { id: t.dataset.gExtraOff, image: 0 }, 'התוספת בוטלה'); return; }
     if (t.dataset.gUnblock) { galleryAct('blockUploader', { id: t.dataset.gUnblock, blocked: false }, 'החסימה בוטלה'); return; }
     if (t.dataset.more) {
       if (expanded.has(t.dataset.more)) expanded.delete(t.dataset.more); else expanded.add(t.dataset.more);

@@ -141,6 +141,7 @@ function handle_(req) {
     case 'restoreGalleryItem': return restoreGalleryItem_(req);
     case 'setGallery':    return setGallery_(req);
     case 'blockUploader': return blockUploader_(req);
+    case 'grantQuota': return grantQuota_(req);
     default: throw fail_('פעולה לא מוכרת: ' + req.action, 'bad_action');
   }
 }
@@ -978,6 +979,7 @@ function gallery_() {
     },
     items: Array.isArray(g.items) ? g.items : [],
     blocked: Array.isArray(g.blocked) ? g.blocked : [],
+    extra: g.extra && typeof g.extra === 'object' ? g.extra : {},
   };
 }
 
@@ -1004,9 +1006,16 @@ function usedToday_(g, id, kind) {
   return g.items.filter((it) => it.by === id && it.kind === kind && Date.parse(it.at) > since).length;
 }
 
+/* תוספת חד-פעמית שהמנהל נתן למכשיר (בקשת בעל הריפו): תמונות מעבר למכסה
+   היומית, ל-24 השעות שמרגע הנתינה. אחר כך היא פשוט לא נספרת. */
+function extraPhotos_(g, id) {
+  const x = g.extra[id];
+  return x && Date.parse(x.at) > Date.now() - DAY_MS ? Number(x.image) || 0 : 0;
+}
+
 function leftToday_(g, id) {
   return {
-    image: Math.max(0, g.settings.dayPhotos - usedToday_(g, id, 'image')),
+    image: Math.max(0, g.settings.dayPhotos + extraPhotos_(g, id) - usedToday_(g, id, 'image')),
     video: Math.max(0, g.settings.dayVideos - usedToday_(g, id, 'video')),
   };
 }
@@ -1043,6 +1052,11 @@ function getGallery_(req) {
   if (who.admin) {
     const users = access_().users;
     out.blockedList = g.blocked.map((id) => ({ id: id, name: users[id] ? users[id].name : 'מכשיר שהוסר' }));
+    out.extraList = Object.keys(g.extra).filter((id) => extraPhotos_(g, id) > 0).map((id) => ({
+      id: id, name: users[id] ? users[id].name : 'מכשיר שהוסר', image: extraPhotos_(g, id),
+      until: new Date(Date.parse(g.extra[id].at) + DAY_MS).toISOString(),
+    }));
+    out.people = Object.keys(users).filter((id) => users[id].status === 'approved').map((id) => ({ id: id, name: users[id].name }));
   }
   return out;
 }
@@ -1199,6 +1213,27 @@ function blockUploader_(req) {
     if (req.blocked) g.blocked.push(id);
     saveGallery_(g);
     return { blocked: g.blocked.length };
+  });
+}
+
+const MAX_EXTRA_PHOTOS = 500;
+
+function grantQuota_(req) {
+  requireAdmin_(req);
+  const id = String(req.id || '');
+  if (!/^[0-9a-f]{32}$/.test(id)) throw fail_('מכשיר לא מוכר', 'bad_id');
+  const n = Math.round(Number(req.image));
+  if (!isFinite(n) || n < 0 || n > MAX_EXTRA_PHOTOS) throw fail_('מספר לא תקין', 'bad_extra');
+  const u = access_().users[id];
+  if (n && (!u || u.status !== 'approved')) throw fail_('המכשיר לא מאושר', 'not_found');
+  return withLock_(() => {
+    const g = gallery_();
+    // Expired grants go on every write: the file holds only live ones.
+    Object.keys(g.extra).forEach((k) => { if (!extraPhotos_(g, k)) delete g.extra[k]; });
+    if (n) g.extra[id] = { image: n, at: new Date().toISOString() };
+    else delete g.extra[id];
+    saveGallery_(g);
+    return { image: n };
   });
 }
 

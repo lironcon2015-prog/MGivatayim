@@ -257,7 +257,7 @@ export function wireHome(root, s) {
 
 export function renderHome(s) {
   const o = s.overall;
-  const last5 = s.form.slice(0, 5);
+  const last5 = s.recent.slice(0, 5);
   const maxPoints = Math.max(s.splits.home.points, s.splits.away.points, 1);
   const scorers = topBy(s.players, 'goals', 5);
 
@@ -278,7 +278,7 @@ export function renderHome(s) {
     ${s.recent.length ? sampleNote(s, RESULTS_SAMPLE) : ''}
     ${last5.length
       ? `<div class="form">${last5.map((m) => formPill(m, s.recent.indexOf(m))).join('')}</div>`
-      : `<div class="card"><div class="empty">${s.recent.length ? 'עוד אין תוצאות בליגה.' : 'העונה עוד לא התחילה.'}</div></div>`}
+      : '<div class="card"><div class="empty">העונה עוד לא התחילה.</div></div>'}
   </section>
 
   <section>

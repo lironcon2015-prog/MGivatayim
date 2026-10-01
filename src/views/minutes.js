@@ -130,7 +130,9 @@ export function matchMinutesHtml(state, cfg) {
 /* ── Threshold and attendance ────────────────────────────────────────── */
 
 export function coachFormHtml(state, cfg) {
-  const took = appeared(state);
+  // Before kick-off the lineup is only a plan (carried over from the last
+  // match): a starter can still be marked absent, which takes him off it.
+  const took = state.status === 'setup' ? new Set() : appeared(state);
   const players = [...state.players].sort((a, b) => (a.number ?? 999) - (b.number ?? 999) || a.name.localeCompare(b.name, 'he'));
   const here = players.filter((p) => took.has(p.id) || !cfg.absent.has(p.id)).length;
   return `<section data-minutes>
@@ -162,8 +164,10 @@ export function coachFormHtml(state, cfg) {
 }
 
 // Handles a click or change inside coachFormHtml. `save` takes a patch —
-// { min } or { absent } — and returns a promise.
-export function coachFormEvent(target, state, cfg, save) {
+// { min } or { absent } — and returns a promise. `onAway(pid)`, when given,
+// hears of a player just marked absent (the live screen takes him off the
+// lineup before kick-off).
+export function coachFormEvent(target, state, cfg, save, onAway) {
   const step = target.closest?.('[data-mn-step]');
   if (step) { save({ min: Math.max(0, Math.min(200, cfg.min + Number(step.dataset.mnStep))) }); return true; }
   if (target.matches?.('[data-mn-min]') && target.value !== '') {
@@ -178,6 +182,7 @@ export function coachFormEvent(target, state, cfg, save) {
     if (away === cfg.absent.has(pid)) return true;
     const absent = new Set(cfg.absent);
     if (away) absent.add(pid); else absent.delete(pid);
+    if (away) onAway?.(pid);
     save({ absent: [...absent] });
     return true;
   }

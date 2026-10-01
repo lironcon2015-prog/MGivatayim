@@ -603,7 +603,9 @@ function live_() {
 function canControl_(who, l, allowEnded) {
   if (who.admin) return true;
   if (!l.state || (l.state.status === 'ended' && !allowEnded)) return false;
-  return (l.meta.controllers || []).indexOf(who.id) >= 0;
+  /* המאמן שולט בכל משחק חי, כמו מי שמימש קוד (בקשת בעל הריפו): הרכב,
+     חילופים, שערים. לא פותח, לא מפרסם, לא מבטל, ולא מתקן אחרי הסיום. */
+  return who.coach || (l.meta.controllers || []).indexOf(who.id) >= 0;
 }
 
 function requireControl_(req, l, allowEnded) {

@@ -1392,7 +1392,7 @@ await step('before kick-off the coach sets the minimum and who came; a parent se
   await until(() => liveFile().opponent === 'הפועל מבחן', 'the opponent to be saved');
   const id = liveFile().id;
   await coach.goto(APP + '#/live');
-  await coach.locator('[data-tab="minutes"]', { hasText: 'איזור המאמן' }).waitFor({ timeout: 8000 });
+  await coach.locator('[data-tab="minutes"]', { hasText: 'איזור המאמן' }).locator('.coach-only').waitFor({ timeout: 8000 });
   await coach.locator('[data-tab="minutes"]').click({ timeout: 8000 });
   await coach.locator('[data-mn-step="5"]').click();
   await until(() => coachFile().matches?.[id]?.min === 25, 'the minimum to reach Drive');

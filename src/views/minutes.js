@@ -11,7 +11,7 @@ import * as MN from '../minutes.js';
 import { esc, shortName, shortDate } from '../format.js';
 import { icon } from '../icons.js';
 import { openSheet } from '../ui/sheet.js';
-import { sectionHead, COACH_ONLY } from '../components.js';
+import { sectionHead, COACH_ONLY, foldRows } from '../components.js';
 import { outcomeOf } from '../season.js';
 import { posLabel } from '../positions.js';
 
@@ -297,11 +297,13 @@ export function wireSeasonMinutes(root, s) {
   const box = root.querySelector('#minutes');
   if (!box) return () => {};
   const sm = MN.seasonMinutes(s, s.coach);
+  foldRows(body?.querySelector('tbody'), 'minutes');
   const onClick = (e) => {
     const v = e.target.closest('[data-mnview]');
     if (v && tabs && body) {
       tabs.querySelectorAll('button').forEach((b) => b.setAttribute('aria-selected', String(b === v)));
       body.innerHTML = v.dataset.mnview === 'map' ? mapHtml(sm, s) : tableHtml(sm);
+      foldRows(body.querySelector('tbody'), 'minutes');
       return;
     }
     const p = e.target.closest('[data-mnp]');

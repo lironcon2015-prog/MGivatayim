@@ -158,6 +158,24 @@ export async function run(test) {
     assert.equal(m.e, undefined);
   });
 
+  await test('a sub corrected to another player counts as if entered that way, minutes included', () => {
+    let s = M.reduce(base(), { t: 'start', at: T0 });
+    s = M.reduce(s, { t: 'sub', id: 's1', out: 'a', in: 'd', pos: 'LB', period: 0, atMs: 10 * MIN });
+    s = M.reduce(s, { t: 'finish', at: T0 + 30 * MIN });
+    // The wrong player came on: it was e, not d.
+    s = M.reduce(s, { t: 'edit', id: 's1', patch: { in: 'e' } });
+    let m = M.minutesPlayed(s);
+    assert.deepEqual([m.a, m.e, m.d], [10, 20, undefined]);
+    // And it was b who went off, not a.
+    assert.deepEqual(M.onFieldBefore(s, 's1').map((f) => f.pid).sort(), ['a', 'b', 'c', 'g']);
+    s = M.reduce(s, { t: 'edit', id: 's1', patch: { out: 'b', pos: 'AM' } });
+    m = M.minutesPlayed(s);
+    assert.deepEqual([m.a, m.b, m.e], [30, 10, 20]);
+    assert.deepEqual(M.onField(s).find((f) => f.pid === 'e'), { pid: 'e', pos: 'AM' });
+    // Nobody is subbed for himself.
+    assert.equal(M.reduce(s, { t: 'edit', id: 's1', patch: { in: 'b' } }), s);
+  });
+
   await test('the same operations replayed on the same state give the same result', () => {
     const ops = [
       { t: 'start', at: T0 },

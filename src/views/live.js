@@ -111,10 +111,9 @@ export function timelineHtml(state, { interactive = false, us: usName = '' } = {
       const text = side === 'them' ? 'פנדל ליריבה לא נכנס' : `פנדל מוחמץ${e.scorer ? ` · ${esc(whoText(state, e.scorer))}` : ''}`;
       return row(`${side} miss`, `<span class="ev-ico">${icon('miss')}</span><span class="ev-txt"><b>${text}</b>${note('החמצה או הצלה')}</span>`);
     }
-    if (e.type === 'shape') {
-      return row('us shape', `<span class="ev-ico">${icon('swap')}</span>
-        <span class="ev-txt"><b>${e.formation ? `שינוי מערך <span class="num" dir="ltr">${esc(e.formation)}</span>` : 'שינוי עמדות'}</b>${note('')}</span>`);
-    }
+    // A formation change or a swap of positions is not an event of the match
+    // to the owner: it moves the pitch and the positions on later subs only.
+    if (e.type === 'shape') return '';
     if (e.type === 'sub') {
       const pos = subPos.get(e.id);
       return row('us sub', `<span class="ev-pair"><i class="ev-dot in">${icon('arrowIn')}</i><i class="ev-dot out">${icon('arrowOut')}</i></span>
@@ -632,7 +631,7 @@ export function mountLive(view, ctx) {
     // alone, with no pitch/events switch.
     const setup = st.status === 'setup';
     if (setup) pane = 'pitch';
-    const evCount = st.events.filter((e) => M.EDITABLE.includes(e.type)).length;
+    const evCount = st.events.filter((e) => M.EDITABLE.includes(e.type) && e.type !== 'shape').length;
     if (seenEvents == null || pane === 'events') seenEvents = evCount;
     const fresh = pane !== 'events' && evCount > seenEvents;
     // The match screen and the coach's minutes: two screens, as before.
@@ -1179,11 +1178,14 @@ export function mountLive(view, ctx) {
       title, subtitle: `<span class="num">${esc(minute)}</span>${desc ? ` · ${desc}` : ''}`,
       body: `<div class="sheet-actions stack">
         ${e.type === 'goal' && e.side !== 'them' ? `<button type="button" class="btn secondary" data-e="scorer">${e.pen ? 'שינוי מבקיע' : 'שינוי מבקיע ומבשל'}</button>` : ''}
+        ${e.type === 'sub' ? `<button type="button" class="btn secondary" data-e="in">שינוי הנכנס</button>
+          <button type="button" class="btn secondary" data-e="out">שינוי היוצא</button>` : ''}
         ${e.atStart ? '' : `<div class="minute-adj"><span>דקה <span class="num" data-minute>${esc(minute)}</span></span>
           <button type="button" class="btn small secondary" data-emin="-1" aria-label="דקה אחת אחורה">${M.ltr('−1′')}</button><button type="button" class="btn small secondary" data-emin="1" aria-label="דקה אחת קדימה">${M.ltr('+1′')}</button></div>`}
         <button type="button" class="btn danger" data-e="del">מחיקת האירוע</button></div>`,
       onMount: ({ el }) => {
         el.querySelector('[data-e="scorer"]')?.addEventListener('click', () => { sh.close('next'); goalSheet(e); });
+        el.querySelectorAll('[data-e="in"], [data-e="out"]').forEach((b) => b.addEventListener('click', () => { sh.close('next'); fixSubSheet(e, b.dataset.e); }));
         el.querySelector('[data-e="del"]').addEventListener('click', () => {
           sh.close('done');
           const copy = { ...e };
@@ -1201,6 +1203,39 @@ export function mountLive(view, ctx) {
           el.querySelector('[data-minute]').textContent = M.minuteLabel(st.format, upd.period, upd.atMs);
         }));
       },
+    });
+  }
+
+  // A sub entered with the wrong player: pick the right one, from who was
+  // on the field (out) or on the bench (in) at that minute. The event keeps
+  // its minute and id; everything after it — the pitch, later subs, the
+  // minutes — is computed again as if it had been entered right.
+  function fixSubSheet(e, side) {
+    const st = state();
+    const before = M.onFieldBefore(st, e.id);
+    const onPitch = new Set(before.map((f) => f.pid));
+    const note = (p) => [posLabel(p.pos), posLabel(p.pos2)].filter(Boolean).join(' / ');
+    const players = side === 'out'
+      ? before.map((f) => ({ ...M.playerById(st, f.pid), note: posLabel(f.pos) })).filter((p) => p.id && p.id !== e.out && p.id !== e.in)
+      : st.players.filter((p) => !onPitch.has(p.id) && p.id !== e.in && p.id !== e.out).map((p) => ({ ...p, note: note(p) }));
+    const now = who(st, side === 'out' ? e.out : e.in);
+    const sh = openSheet({
+      title: side === 'out' ? 'מי יצא באמת?' : 'מי נכנס באמת?',
+      subtitle: `במקום ${esc(now.name)}`,
+      tall: true,
+      body: pickerHtml({ groups: [{ label: side === 'out' ? 'על המגרש באותה דקה' : 'בספסל באותה דקה', players: [...players].sort(byNumber) }] })
+        + (players.length ? '' : '<p class="sheet-text">אין את מי לבחור.</p>'),
+      onMount: ({ body }) => wirePicker(body, (pid) => {
+        if (!pid) return;
+        sh.close('done');
+        const patch = side === 'out' ? { out: pid, pos: before.find((f) => f.pid === pid)?.pos || '' } : { in: pid };
+        const next = { ...e, ...patch };
+        const was = side === 'out' ? { out: e.out, pos: e.pos || '' } : { in: e.in };
+        if (act({ t: 'edit', id: e.id, patch })) {
+          toast(`החילוף תוקן: ${esc(who(st, next.in).name)} במקום ${esc(who(st, next.out).name)}`,
+            { action: 'ביטול', onAction: () => { S.dispatch({ t: 'edit', id: e.id, patch: was }); toast('בוטל'); } });
+        }
+      }),
     });
   }
 

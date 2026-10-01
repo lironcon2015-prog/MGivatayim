@@ -243,3 +243,32 @@ export function videoCard(v) {
     ? `<a class="video" href="${esc(href)}" target="_blank" rel="noopener noreferrer">${inner}</a>`
     : `<div class="video" aria-disabled="true">${inner}</div>`;
 }
+
+// A long list or table on the stats screen shows its first rows and a toggle
+// for the rest (the owner's ask: every table folded, five showing). Rows are
+// hidden, not dropped, so a link into a list and a redraw of it still work.
+// `key` keeps the choice for the visit when the list is drawn again.
+const unfolded = new Set();
+export function foldRows(list, key, shown = 5) {
+  if (!list) return;
+  list.querySelector(':scope > [data-fold-btn]')?.remove();
+  list._foldBtn?.remove();
+  const rows = [...list.children];
+  if (rows.length <= shown) { rows.forEach((r) => { r.hidden = false; }); return; }
+  const paint = () => {
+    const open = unfolded.has(key);
+    rows.forEach((r, i) => { r.hidden = !open && i >= shown; });
+    btn.innerHTML = open ? 'הצגת פחות' : `הצגת כל ה-${rows.length} <span>(עוד ${rows.length - shown})</span>`;
+    btn.setAttribute('aria-expanded', String(open));
+  };
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'more-row';
+  btn.dataset.foldBtn = key;
+  btn.onclick = () => { if (unfolded.has(key)) unfolded.delete(key); else unfolded.add(key); paint(); };
+  // A card of rows takes the toggle as its last row; a table's goes under its card.
+  if (list.matches('.card')) list.append(btn);
+  else (list.closest('.card') || list).after(btn);
+  list._foldBtn = btn;
+  paint();
+}

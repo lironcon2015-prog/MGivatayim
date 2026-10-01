@@ -318,6 +318,14 @@ export function reduce(state, op) {
     case 'edit': {
       const e = s.events.find((x) => x.id === op.id);
       if (!e || !EDITABLE.includes(e.type)) return state;
+      // A sub entered with the wrong player is corrected in place: the
+      // minutes, the pitch and the timeline are computed from the events, so
+      // the corrected sub counts as if it had been entered that way.
+      if (e.type === 'sub' && ('in' in op.patch || 'out' in op.patch)) {
+        const inn = 'in' in op.patch ? op.patch.in : e.in, out = 'out' in op.patch ? op.patch.out : e.out;
+        if (!inn || !out || inn === out) return state;
+        e.in = inn; e.out = out;
+      }
       for (const k of ['scorer', 'assist', 'atMs', 'period', 'atStart', 'pos', 'og']) if (k in op.patch) e[k] = op.patch[k];
       if (e.atStart === false) delete e.atStart;
       if (!e.og) delete e.og;
@@ -374,6 +382,16 @@ export function onField(state) {
     field.set(e.in, pos);
   }
   return [...field].map(([pid, pos]) => ({ pid, pos }));
+}
+
+// Who was on the field just before an event: the players a sub could have
+// taken off, when it is corrected.
+export function onFieldBefore(state, id) {
+  const i = state.events.findIndex((e) => e.id === id);
+  if (i < 0) return onField(state);
+  const ev = state.events[i];
+  const events = state.events.filter((e, j) => j !== i && (order(e, ev) < 0 || (order(e, ev) === 0 && j < i)));
+  return onField({ ...state, events });
 }
 
 // The formation on the field now: the last change during the match, else

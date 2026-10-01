@@ -1,6 +1,6 @@
 import { topBy } from '../season.js';
 import { pct, dec, esc } from '../format.js';
-import { sectionHead, leaderRow, tile, splitBar, matchRow, fixtureRow, sampleNote, SCHEDULE_SAMPLE, RESULTS_SAMPLE } from '../components.js';
+import { sectionHead, leaderRow, tile, splitBar, matchRow, fixtureRow, sampleNote, foldRows, SCHEDULE_SAMPLE, RESULTS_SAMPLE } from '../components.js';
 import { seasonMinutesHtml, wireSeasonMinutes } from './minutes.js';
 
 const BOARDS = [
@@ -58,13 +58,13 @@ export function renderStats(s) {
   ${s.schedule.length ? `<section id="stats-schedule">
     ${sectionHead('לוח המשחקים', `${s.schedule.length} משחקים`, 'calendar')}
     ${sampleNote(s, SCHEDULE_SAMPLE)}
-    <div class="card rows">${s.schedule.map(fixtureRow).join('')}</div>
+    <div class="card rows" data-fold="schedule">${s.schedule.map(fixtureRow).join('')}</div>
   </section>` : ''}
 
   <section id="stats-matches">
     ${sectionHead('כל המשחקים', `${s.recent.length} משחקים`, 'trophy')}
     ${s.recent.length ? sampleNote(s, RESULTS_SAMPLE) : ''}
-    <div class="card rows">${s.recent.length ? s.recent.map(matchRow).join('') : '<div class="empty">טרם נוספו משחקים.</div>'}</div>
+    <div class="card rows" data-fold="matches">${s.recent.length ? s.recent.map(matchRow).join('') : '<div class="empty">טרם נוספו משחקים.</div>'}</div>
   </section>
 
   <section>
@@ -78,16 +78,18 @@ export function renderStats(s) {
 }
 
 export function wireStats(root, s) {
+  root.querySelectorAll('[data-fold]').forEach((el) => foldRows(el, el.dataset.fold));
   const tabs = root.querySelector('#board-tabs');
   const out = root.querySelector('#board');
   if (!tabs || !out) return () => {};
 
   const draw = (key) => {
     const board = BOARDS.find((b) => b.key === key) || BOARDS[0];
-    const rows = topBy(s.players, board.key, 10);
+    const rows = topBy(s.players, board.key, Infinity);
     out.innerHTML = rows.length
       ? rows.map((p, i) => leaderRow(p, i + 1, board.figs)).join('')
       : `<div class="empty">${board.key === 'goals' ? esc(s.emptyScorers) : `אין עדיין נתוני ${esc(board.label)}.`}</div>`;
+    foldRows(out, 'board');
   };
 
   const onClick = (e) => {

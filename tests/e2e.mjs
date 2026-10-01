@@ -561,7 +561,9 @@ await step('the formation changes during the match: positions move from that min
   expect(JSON.stringify(Object.fromEntries(liveFile().lineup.map((l) => [l.pid, l.pos]))) === JSON.stringify(before), 'the change rewrote the starting lineup');
   await parent.locator('#pane-pitch .pane-hint', { hasText: '4-2-2' }).waitFor({ timeout: 8000 });
   await parent.click('.pane-tabs [data-pane="events"]');
-  await parent.locator('.ev.shape', { hasText: '4-2-2' }).waitFor();
+  // Not an event of the match to the owner: the pitch shows it, the timeline does not.
+  await parent.locator('#pane-events .ev-kick').waitFor();
+  expect(await parent.locator(`#pane-events li[data-ev="${ev.id}"]`).count() === 0, 'the formation change is in the timeline');
   await parent.click('.pane-tabs [data-pane="pitch"]');
 });
 
@@ -593,6 +595,30 @@ await step('tapping a player on the pitch substitutes them', async () => {
   expect(!!sub, 'no sub recorded');
   await parent.locator('.pl', { hasText: 'תומר' }).waitFor({ timeout: 8000 });
   expect(await parent.evaluate(() => document.querySelector('.sc-crest img').__mark === 1), 'the crest was drawn afresh on a redraw');
+});
+
+await step('a sub entered with the wrong player is corrected from the timeline, as if entered right', async () => {
+  const sub = liveFile().events.find((e) => e.type === 'sub');
+  const outName = 'איתי';
+  await admin.click('.pane-tabs [data-pane="events"]');
+  await admin.click(`#pane-events [data-event="${sub.id}"]`);
+  await admin.click('.sheet [data-e="out"]');
+  const pick = admin.locator('.sheet .pick').first();
+  const pid = await pick.getAttribute('data-pick');
+  expect(pid !== sub.in && pid !== sub.out, 'the picker offered the players of the sub itself');
+  await pick.click();
+  let now;
+  for (let k = 0; k < 80 && (now = liveFile().events.find((e) => e.id === sub.id)).out !== pid; k++) await new Promise((r) => setTimeout(r, 100));
+  expect(now.out === pid && now.in === sub.in && now.atMs === sub.atMs, 'the sub was not corrected in place: ' + JSON.stringify(now));
+  // The player first taken off is back on the pitch, for everyone.
+  await parent.locator('.pl', { hasText: outName }).waitFor({ timeout: 8000 });
+  // Back as it was, through the same sheet.
+  await admin.click(`#pane-events [data-event="${sub.id}"]`);
+  await admin.click('.sheet [data-e="out"]');
+  await admin.locator('.sheet .pick', { hasText: outName }).click();
+  for (let k = 0; k < 80 && liveFile().events.find((e) => e.id === sub.id).out !== sub.out; k++) await new Promise((r) => setTimeout(r, 100));
+  expect(liveFile().events.find((e) => e.id === sub.id).out === sub.out, 'the sub did not go back');
+  await admin.click('.pane-tabs [data-pane="pitch"]');
 });
 
 await step('a wrong live code is refused; the right one hands the parent control', async () => {
@@ -757,6 +783,30 @@ await step('a result on the home screen opens its match; every game is on the st
   await parent.locator('.sheet-x').click();
   await parent.locator('.sheet').waitFor({ state: 'detached' });
   await parent.getByRole('link', { name: 'לכל המשחקים' }).click();
+  // Every list on the stats screen shows five rows and a toggle for the rest.
+  // Seven more games in the schedule make one list long enough to fold.
+  const put = (season, v) => admin.evaluate(([url, season, v]) => import(url).then((m) => m.call('putSeason', { season, baseVersion: v }, { asAdmin: true })), [APP + 'src/bridge.js', season, v]);
+  const cur = JSON.parse(bridge.driveFile('season.json'));
+  const extra = Array.from({ length: 7 }, (_, i) => ({ date: `2031-0${i + 1}-10`, time: '10:00', opponent: `קיפול ${i + 1}`, home: true, round: 30 + i }));
+  await put({ ...cur.season, fixtures: [...(cur.season.fixtures || []), ...extra] }, cur.version);
+  await parent.reload();
+  await parent.locator('#stats-schedule .fixture, #stats-schedule [data-fold] > *').first().waitFor();
+  await parent.locator('#stats-matches .match').first().waitFor();
+  const lists = () => parent.evaluate(() => [...document.querySelectorAll('#view [data-fold], #board')].map((l) => {
+    const rows = [...l.children].filter((r) => !r.matches('[data-fold-btn]'));
+    return { id: l.dataset.fold || l.id, total: rows.length, shown: rows.filter((r) => !r.hidden).length, btn: !!l.querySelector('[data-fold-btn]') };
+  }));
+  const folded = await lists();
+  expect(folded.some((l) => l.total > 5), 'no list long enough to fold: ' + JSON.stringify(folded));
+  expect(folded.every((l) => l.total > 5 ? l.shown === 5 && l.btn : l.shown === l.total && !l.btn), 'a list is not folded to five: ' + JSON.stringify(folded));
+  const long = folded.find((l) => l.total > 5);
+  await parent.click(`[data-fold-btn="${long.id}"]`);
+  const opened = (await lists()).find((l) => l.id === long.id);
+  expect(opened.shown === opened.total, 'the toggle did not show the whole list: ' + JSON.stringify(opened));
+  await parent.click(`[data-fold-btn="${long.id}"]`);
+  const back = JSON.parse(bridge.driveFile('season.json'));
+  await put({ ...back.season, fixtures: back.season.fixtures.filter((f) => !f.opponent.startsWith('קיפול')) }, back.version);
+  await parent.reload();
   await parent.locator('button.match', { hasText: 'מכבי נחלים' }).first().click();
   await parent.locator('.sheet .ev-list', { hasText: 'גיא פרץ' }).waitFor();
   await parent.locator('.sheet-x').click();

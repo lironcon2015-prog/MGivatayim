@@ -1,0 +1,644 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#0A1321">
+<title>מדריך התקנה</title>
+<meta name="description" content="מכבי גבעתיים · העונה — איך מתקינים את האפליקציה באייפון ובאנדרואיד, שלב אחר שלב.">
+<meta property="og:type" content="article">
+<meta property="og:locale" content="he_IL">
+<meta property="og:site_name" content="מכבי גבעתיים · העונה">
+<meta property="og:title" content="מדריך התקנה">
+<meta property="og:description" content="איך מתקינים את האפליקציה של הקבוצה באייפון ובאנדרואיד, שלב אחר שלב.">
+<meta property="og:url" content="https://lironcon2015-prog.github.io/MGivatayim/docs/install.html">
+<meta property="og:image" content="https://lironcon2015-prog.github.io/MGivatayim/docs/og-parent.jpg?v=3">
+<meta property="og:image:secure_url" content="https://lironcon2015-prog.github.io/MGivatayim/docs/og-parent.jpg?v=3">
+<meta property="og:image:type" content="image/jpeg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="סמל מכבי גבעתיים">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="../icons/favicon-32.png?v=3" sizes="32x32">
+<link rel="apple-touch-icon" href="../icons/apple-touch-icon.png?v=3">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700;800&family=Rubik:wght@500;700&display=swap">
+
+<style>
+/* Layout: a column of steps per phone system; each step = number + one-line action, a drawn phone with the one thing to tap ringed in gold, and one sentence under it. Steps wrap side by side on wide screens. */
+:root {
+  color-scheme: dark;
+  --bg: #0A1321;
+  --card: rgba(20, 34, 56, .72);
+  --line: rgba(255, 255, 255, .09);
+  --fg: #EEF2F8;
+  --muted: #8B98AC;
+  --faint: #7A889D;
+  --gold: #E8B931;
+  --gold-hi: #F2CB55;
+  --gold-soft: rgba(232, 185, 49, .12);
+  --gold-line: rgba(232, 185, 49, .34);
+  --on-gold: #1A1204;
+  --blue: #6DB3F5;
+  /* system UI drawn inside the phones (light mode, as most phones are) */
+  --sys-bg: #F2F2F7;
+  --sys-card: #FFFFFF;
+  --sys-fg: #111114;
+  --sys-sub: #6C6C72;
+  --sys-sep: #D8D8DE;
+  --ios-blue: #0A7AFF;
+  --ios-green: #34C759;
+  --and-blue: #0B57D0;
+  --dim: rgba(0, 0, 0, .42);
+  --f-text: 'Assistant', 'Segoe UI', Arial, sans-serif;
+  --f-num: 'Rubik', 'Assistant', Arial, sans-serif;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--fg);
+  font: 16px/1.55 var(--f-text);
+}
+body::before {
+  content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background:
+    radial-gradient(60% 40% at 80% 0%, rgba(74, 143, 232, .22), transparent 70%),
+    radial-gradient(50% 40% at 0% 55%, rgba(60, 160, 120, .10), transparent 70%),
+    radial-gradient(60% 40% at 50% 100%, rgba(74, 143, 232, .14), transparent 70%);
+}
+.wrap { max-width: 1180px; margin: 0 auto; padding-inline: 16px; padding-block: 28px 64px; }
+
+/* page head */
+.head { display: flex; gap: 14px; align-items: center; }
+.crest { width: 56px; height: 56px; border-radius: 50%; padding: 3px;
+  background: linear-gradient(145deg, var(--gold-hi), #4A8FE8); flex: none; }
+.crest i { width: 100%; height: 100%; border-radius: 50%; background-color: #10203a; display: block; }
+h1 { font-size: 26px; line-height: 1.2; margin: 0; font-weight: 800; text-wrap: balance; }
+.lead { color: var(--muted); margin: 4px 0 0; }
+.mock-note { margin-top: 18px; padding: 10px 14px; border: 1px dashed var(--gold-line);
+  border-radius: 12px; color: var(--muted); font-size: 14px; max-width: 70ch; }
+.mock-note b { color: var(--fg); }
+
+/* OS switch */
+.seg { display: inline-flex; gap: 4px; padding: 4px; margin-top: 22px;
+  background: rgba(0, 0, 0, .35); border: 1px solid var(--line); border-radius: 14px; }
+.seg a { color: var(--muted); text-decoration: none; font-weight: 700; padding: 8px 18px;
+  border-radius: 10px; border: 1px solid transparent; }
+.seg a:hover, .seg a:focus-visible { color: var(--fg); outline: none; border-color: var(--gold-line); }
+
+section.os { margin-top: 34px; scroll-margin-top: 16px; }
+.os-head { display: flex; align-items: center; gap: 10px; }
+.os-head svg { width: 26px; height: 26px; color: var(--gold); flex: none; }
+h2 { font-size: 22px; margin: 0; font-weight: 800; }
+.os-sub { color: var(--muted); margin: 4px 0 0; max-width: 70ch; }
+
+.warn { display: flex; gap: 10px; margin-top: 14px; padding: 12px 14px; max-width: 70ch;
+  background: var(--gold-soft); border: 1px solid var(--gold-line); border-radius: 14px; }
+.warn svg { width: 22px; height: 22px; color: var(--gold); flex: none; margin-top: 2px; }
+.warn p { margin: 0; }
+
+.steps { list-style: none; padding: 0; margin: 20px 0 0;
+  display: grid; gap: 28px 22px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+.step { display: flex; flex-direction: column; align-items: center; gap: 12px; min-width: 0; }
+.step-cap { display: flex; align-items: center; gap: 10px; width: 100%; max-width: 280px; }
+.n { font: 700 17px/1 var(--f-num); width: 34px; height: 34px; border-radius: 50%; flex: none;
+  display: grid; place-items: center; background: var(--gold); color: var(--on-gold); }
+.n.alt { background: transparent; color: var(--gold); border: 1.5px solid var(--gold); font-size: 14px; }
+h3 { font-size: 18px; margin: 0; line-height: 1.25; font-weight: 800; text-wrap: balance; }
+.step p.say { margin: 0; width: 100%; max-width: 280px; color: var(--muted); font-size: 15px; }
+.step p.say b { color: var(--fg); }
+.or { font-size: 13px; color: var(--faint); margin-top: 4px !important; }
+.done-tag { display: inline-block; margin-top: 6px; color: var(--gold); font-weight: 700; }
+
+/* ---------- the phone ---------- */
+.phone { width: 248px; max-width: 100%; aspect-ratio: 248 / 510; border-radius: 36px; padding: 8px;
+  background: #04070C; box-shadow: 0 0 0 1px #2A3446, 0 24px 50px -24px rgba(0, 0, 0, .8); position: relative; }
+.scr { position: relative; width: 100%; height: 100%; border-radius: 29px; overflow: hidden;
+  background: var(--sys-bg); color: var(--sys-fg); font-size: 11px; line-height: 1.35;
+  display: flex; flex-direction: column; }
+.scr.dark { background: var(--bg); color: var(--fg); }
+.status { height: 30px; flex: none; display: flex; align-items: center; justify-content: space-between;
+  padding: 0 20px; font: 600 11px var(--f-num); direction: ltr; }
+.status .icons { display: flex; gap: 4px; align-items: center; }
+.status .icons i { display: block; background: currentColor; border-radius: 1px; }
+.island { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); width: 70px; height: 18px;
+  border-radius: 10px; background: #000; }
+.and .island { width: 10px; height: 10px; border-radius: 50%; top: 10px; }
+.and .scr { border-radius: 26px; }
+
+/* tap target ring */
+.hit { position: relative; outline: 2.5px solid var(--gold); outline-offset: 2px; border-radius: 9px;
+  box-shadow: 0 0 0 7px rgba(232, 185, 49, .22), 0 0 22px 4px rgba(232, 185, 49, .55); z-index: 2; }
+.hit::after { content: ""; position: absolute; inset: -9px; border-radius: 14px; border: 2px solid var(--gold);
+  animation: ping 1.6s ease-out infinite; pointer-events: none; }
+@keyframes ping { from { opacity: .9; transform: scale(.92); } to { opacity: 0; transform: scale(1.18); } }
+@media (prefers-reduced-motion: reduce) { .hit::after { animation: none; opacity: 0; } }
+.tip { position: absolute; z-index: 3; background: var(--gold); color: var(--on-gold); font: 800 11px/1 var(--f-text);
+  padding: 6px 9px; border-radius: 8px; white-space: nowrap; box-shadow: 0 6px 16px -6px rgba(0, 0, 0, .6); }
+.tip::after { content: ""; position: absolute; width: 9px; height: 9px; background: var(--gold); transform: rotate(45deg); }
+.tip.down::after { bottom: -4px; left: calc(50% - 4.5px); }
+.tip.up::after { top: -4px; left: calc(50% - 4.5px); }
+
+/* mini app page (the site itself, as it looks inside a browser) */
+.app { flex: 1; min-height: 0; overflow: hidden; padding: 10px 10px 0; display: flex; flex-direction: column; gap: 8px;
+  background: var(--bg); color: var(--fg); direction: rtl; }
+.app-top { display: flex; align-items: center; gap: 7px; }
+.app-top .c { width: 26px; height: 26px; border-radius: 50%; padding: 2px; background: linear-gradient(145deg, var(--gold-hi), #4A8FE8); }
+.app-top .c i { width: 100%; height: 100%; border-radius: 50%; display: block; background-color: #10203a; }
+.app-top b { font-size: 12px; font-weight: 800; }
+.app-top small { display: block; font-size: 9px; color: var(--muted); }
+.mcard { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 9px; display: flex; flex-direction: column; gap: 6px; }
+.mcard h4 { margin: 0; font-size: 11.5px; font-weight: 800; display: flex; align-items: center; gap: 5px; }
+.mcard h4::before { content: ""; width: 7px; height: 7px; border-radius: 2px; background: var(--gold); }
+.mcard p { margin: 0; font-size: 9.5px; color: var(--muted); }
+.mcard p b { color: var(--fg); }
+.mbtn { background: linear-gradient(180deg, var(--gold-hi), #DDAA22); color: var(--on-gold); font-weight: 800; font-size: 11px;
+  border-radius: 9px; text-align: center; padding: 7px 6px; }
+.mfold { font-size: 10px; border-top: 1px solid var(--line); padding-top: 5px; color: var(--fg); display: flex; justify-content: space-between; }
+.mfold::after { content: "⌄"; color: var(--muted); }
+.mfield { display: flex; flex-direction: column; gap: 3px; font-size: 9.5px; color: var(--muted); }
+.mfield span.in { background: rgba(0, 0, 0, .35); border: 1px solid var(--line); border-radius: 8px; padding: 7px 8px; color: var(--fg); font-size: 11px; }
+.mfield span.in.typing::after { content: ""; display: inline-block; width: 1.5px; height: 12px; background: var(--gold); margin-inline-start: 2px; vertical-align: -2px; animation: blink 1s steps(1) infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+.mnav { margin-top: auto; flex: none; display: flex; justify-content: space-around; padding: 7px 4px 10px; margin-inline: -10px;
+  background: rgba(10, 19, 33, .9); border-top: 1px solid var(--line); }
+.mnav i { width: 16px; height: 16px; border-radius: 5px; background: rgba(255, 255, 255, .14); }
+.mnav i:first-child { background: var(--gold); }
+
+/* browser chrome */
+.urlbar { flex: none; background: var(--sys-card); border-bottom: 1px solid var(--sys-sep); padding: 6px 10px;
+  display: flex; align-items: center; gap: 8px; direction: ltr; color: var(--sys-fg); }
+.urlbar .x { font-size: 14px; color: var(--sys-sub); width: 18px; text-align: center; }
+.urlbar .u { flex: 1; min-width: 0; text-align: center; font-size: 10px; }
+.urlbar .u small { display: block; color: var(--sys-sub); font-size: 8.5px; }
+.urlbar .dots { font-size: 15px; width: 22px; text-align: center; color: var(--sys-sub); letter-spacing: -1px; }
+.tool { flex: none; background: rgba(248, 248, 250, .96); border-top: 1px solid var(--sys-sep); padding: 7px 14px 14px;
+  display: flex; justify-content: space-between; align-items: center; direction: ltr; color: var(--ios-blue); }
+.tool svg { width: 20px; height: 20px; display: block; }
+.tool .off { color: #B9B9BF; }
+.pill { flex: none; margin: 6px 10px 0; background: var(--sys-card); border-radius: 12px; padding: 7px 10px;
+  text-align: center; font-size: 10.5px; box-shadow: 0 1px 4px rgba(0, 0, 0, .12); direction: ltr; color: var(--sys-fg); }
+.ios-safari { background: rgba(248, 248, 250, .96); flex: none; }
+
+/* iOS share sheet */
+.overlay { position: absolute; inset: 30px 0 0; background: var(--dim); display: flex; flex-direction: column; justify-content: flex-end; z-index: 4; }
+.sheet { background: var(--sys-bg); border-radius: 16px 16px 0 0; padding: 10px 10px 16px; display: flex; flex-direction: column; gap: 9px; direction: rtl; color: var(--sys-fg); }
+.sheet-top { display: flex; align-items: center; gap: 8px; }
+.sheet-top .ic { width: 30px; height: 30px; border-radius: 7px; overflow: hidden; flex: none; }
+.sheet-top b { display: block; font-size: 11px; }
+.sheet-top small { color: var(--sys-sub); font-size: 9px; direction: ltr; display: block; text-align: right; }
+.sheet-top .close { margin-inline-start: auto; width: 20px; height: 20px; border-radius: 50%; background: #E3E3E8; color: var(--sys-sub); display: grid; place-items: center; font-size: 10px; }
+.apps { display: flex; gap: 10px; justify-content: space-between; padding: 2px 2px 0; }
+.apps span { display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 8.5px; color: var(--sys-sub); }
+.apps span i { width: 36px; height: 36px; border-radius: 50%; background: #D5D5DB; }
+.apps span:nth-child(2) i { background: #47C85C; }
+.apps span:nth-child(3) i { background: #3BA1F5; }
+.apps span:nth-child(4) i { background: #25D366; }
+.group { background: var(--sys-card); border-radius: 10px; }
+.row { display: flex; align-items: center; justify-content: space-between; padding: 8px 10px; font-size: 11px; border-bottom: 1px solid var(--sys-sep); gap: 8px; }
+.row:last-child { border-bottom: 0; }
+.row svg { width: 16px; height: 16px; flex: none; color: var(--sys-fg); }
+.row.hit { background: #FFF8DF; font-weight: 700; border-bottom: 0; }
+
+/* iOS add-to-home screen */
+.navbar { flex: none; display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; font-size: 11.5px; direction: rtl; background: var(--sys-bg); }
+.navbar b { font-size: 11.5px; }
+.navbar .act { color: var(--ios-blue); }
+.navbar .act.strong { font-weight: 800; padding: 3px 8px; }
+.addcard { margin: 8px 12px 0; background: var(--sys-card); border-radius: 10px; padding: 10px; display: flex; gap: 10px; align-items: center; direction: rtl; }
+.addcard .ic { width: 46px; height: 46px; border-radius: 11px; overflow: hidden; flex: none; }
+.addcard .nm { flex: 1; min-width: 0; }
+.addcard .nm div { border-bottom: 1px solid var(--sys-sep); padding-bottom: 5px; font-size: 12px; }
+.addcard .nm small { display: block; color: var(--sys-sub); font-size: 8.5px; padding-top: 5px; direction: ltr; text-align: right; }
+.toggle-row { margin: 10px 12px 0; background: var(--sys-card); border-radius: 10px; padding: 9px 10px; display: flex; justify-content: space-between; align-items: center; font-size: 10.5px; direction: rtl; }
+.sw { width: 32px; height: 19px; border-radius: 10px; background: var(--ios-green); position: relative; flex: none; }
+.sw::after { content: ""; position: absolute; top: 2px; left: 2px; width: 15px; height: 15px; border-radius: 50%; background: #fff; }
+.small-note { margin: 6px 16px 0; color: var(--sys-sub); font-size: 9px; direction: rtl; }
+.kbd { margin-top: auto; background: #D1D3D9; padding: 8px 4px 16px; display: grid; grid-template-columns: repeat(10, 1fr); gap: 4px; }
+.kbd i { height: 22px; background: #fff; border-radius: 4px; box-shadow: 0 1px 0 #9A9AA0; }
+
+/* home screen */
+.home { flex: 1; padding: 14px 14px 0; display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px 8px; align-content: start; direction: rtl;
+  background: linear-gradient(170deg, #4A6FA5 0%, #2B3F66 45%, #1C2740 100%); color: #fff; }
+.and .home { background: linear-gradient(170deg, #3D5A4F 0%, #273B44 50%, #18222E 100%); }
+.home span { display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 8.5px; text-align: center; }
+.home span > i { width: 42px; height: 42px; border-radius: 11px; background: rgba(255, 255, 255, .22); display: block; }
+.and .home span > i { border-radius: 50%; }
+.home span .ic { width: 42px; height: 42px; border-radius: 11px; overflow: hidden; }
+.and .home span .ic { border-radius: 50%; }
+.home span.hit { outline-offset: 4px; border-radius: 12px; }
+.home span.hit em { font-style: normal; font-weight: 800; }
+.dock { flex: none; margin: 10px 10px 12px; padding: 8px; border-radius: 22px; background: rgba(255, 255, 255, .22); display: flex; justify-content: space-around; }
+.dock i { width: 38px; height: 38px; border-radius: 10px; background: rgba(255, 255, 255, .35); }
+.and .dock { background: transparent; }
+.and .dock i { border-radius: 50%; }
+.gbar { flex: none; height: 26px; margin: 0 12px 12px; background: rgba(255, 255, 255, .9); border-radius: 13px; }
+
+/* Android chrome */
+.chrome-bar { flex: none; background: var(--sys-card); display: flex; align-items: center; gap: 8px; padding: 6px 8px; direction: ltr; border-bottom: 1px solid var(--sys-sep); color: var(--sys-fg); }
+.chrome-bar .home-ic { width: 16px; height: 16px; color: var(--sys-sub); }
+.chrome-bar .omni { flex: 1; min-width: 0; background: #EDF0F5; border-radius: 14px; padding: 6px 10px; font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chrome-bar .tabs { width: 16px; height: 16px; border: 1.6px solid var(--sys-fg); border-radius: 4px; font: 700 8px/12px var(--f-num); text-align: center; }
+.chrome-bar .kebab { width: 22px; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 3px 0; }
+.chrome-bar .kebab i { width: 3.5px; height: 3.5px; border-radius: 50%; background: var(--sys-fg); display: block; }
+.menu { position: absolute; z-index: 4; top: 64px; right: 8px; width: 160px; background: var(--sys-card); border-radius: 12px; padding: 6px 0;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .35); direction: rtl; color: var(--sys-fg); }
+.menu div { padding: 7px 12px; font-size: 10.5px; display: flex; align-items: center; gap: 8px; }
+.menu div svg { width: 14px; height: 14px; color: var(--sys-sub); flex: none; }
+.menu .sep { border-top: 1px solid var(--sys-sep); padding: 0; margin: 4px 0; }
+.menu div.hit { background: #FFF8DF; font-weight: 800; border-radius: 6px; margin: 0 6px; padding-inline: 6px; }
+.dialog { position: absolute; z-index: 4; left: 14px; right: 14px; top: 50%; transform: translateY(-50%); background: #F3F5FB; border-radius: 22px; padding: 16px;
+  direction: rtl; color: var(--sys-fg); display: flex; flex-direction: column; gap: 10px; }
+.dialog h5 { margin: 0; font-size: 14px; font-weight: 700; }
+.dialog .who { display: flex; gap: 10px; align-items: center; }
+.dialog .who .ic { width: 34px; height: 34px; border-radius: 50%; overflow: hidden; flex: none; }
+.dialog .who b { display: block; font-size: 11.5px; }
+.dialog .who small { color: var(--sys-sub); font-size: 9px; direction: ltr; display: block; text-align: right; }
+.dialog .btns { display: flex; justify-content: flex-start; gap: 14px; font-weight: 700; font-size: 11.5px; color: var(--and-blue); }
+.dialog .btns span { padding: 5px 8px; }
+.wa-bar { flex: none; background: #F7F8FA; display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-bottom: 1px solid var(--sys-sep); direction: ltr; color: var(--sys-fg); }
+.wa-bar .u { flex: 1; min-width: 0; font-size: 10px; }
+.wa-bar .u small { display: block; color: var(--sys-sub); font-size: 8.5px; }
+
+.ok { width: 44px; height: 44px; border-radius: 50%; background: var(--gold-soft); border: 1.5px solid var(--gold); display: grid; place-items: center; margin: 4px auto 0; color: var(--gold); }
+.ok svg { width: 22px; height: 22px; }
+
+.foot { margin-top: 44px; color: var(--faint); font-size: 14px; max-width: 70ch; }
+.foot h2 { font-size: 18px; color: var(--fg); margin-bottom: 6px; }
+.foot ul { margin: 0; padding-inline-start: 20px; }
+.foot li + li { margin-top: 4px; }
+
+.ver { font: 700 12px/1 var(--f-num); color: var(--blue); border: 1px solid rgba(109,179,245,.4); border-radius: 999px; padding: 4px 10px; margin-top: -4px; }
+.glassbar { position: absolute; z-index: 5; left: 0; right: 0; bottom: 0; padding: 0 10px 14px; display: flex; gap: 6px; align-items: center; direction: ltr; }
+.gbtn { width: 34px; height: 34px; border-radius: 50%; flex: none; display: grid; place-items: center; color: var(--sys-fg); font-size: 16px; font-weight: 700;
+  background: rgba(250, 250, 252, .82); box-shadow: 0 2px 10px rgba(0,0,0,.25), inset 0 0 0 .5px rgba(255,255,255,.7); }
+.gbtn svg { width: 17px; height: 17px; }
+.gaddr { flex: 1; min-width: 0; height: 34px; border-radius: 17px; display: grid; place-items: center; font-size: 10px; color: var(--sys-fg);
+  background: rgba(250, 250, 252, .82); box-shadow: 0 2px 10px rgba(0,0,0,.25), inset 0 0 0 .5px rgba(255,255,255,.7); white-space: nowrap; overflow: hidden; }
+.gbtn.sm { width: auto; min-width: 28px; height: 28px; font-size: 11px; padding: 0 8px; border-radius: 14px; box-shadow: 0 1px 4px rgba(0,0,0,.15); }
+.gbtn.blue { background: var(--ios-blue); color: #fff; font-weight: 800; }
+.navbar { padding: 8px 10px; }
+.gmenu { position: absolute; z-index: 5; bottom: 56px; left: 10px; right: 50px; background: rgba(248, 248, 250, .94); border-radius: 20px; padding: 6px; direction: rtl; color: var(--sys-fg);
+  box-shadow: 0 12px 30px rgba(0,0,0,.35); }
+.gmenu div { display: flex; align-items: center; gap: 9px; padding: 8px 10px; font-size: 11px; border-radius: 12px; }
+.gmenu div svg { width: 15px; height: 15px; flex: none; }
+.gmenu div.hit { background: #FFF8DF; font-weight: 800; }
+.choice { border: 1px solid var(--sys-sep); border-radius: 12px; padding: 8px 10px; background: #fff; }
+.choice b { display: block; font-size: 11.5px; }
+.choice small { color: var(--sys-sub); font-size: 9px; }
+.choice.hit { border-color: transparent; background: #FFF8DF; }
+.drawer { flex: 1; display: flex; flex-direction: column; background: linear-gradient(170deg, #273B44, #18222E); }
+.drawer .home { background: none; flex: none; }
+.dsearch { margin: 10px 14px 4px; padding: 8px 12px; border-radius: 16px; background: rgba(255,255,255,.14); color: rgba(255,255,255,.75); font-size: 10px; direction: rtl; }
+
+.step.dual { grid-column: 1 / -1; }
+.variants { display: flex; flex-wrap: wrap; justify-content: center; gap: 18px 28px; width: 100%; }
+.variant { display: flex; flex-direction: column; align-items: center; gap: 10px; width: 248px; max-width: calc(50% - 14px); min-width: 0; }
+.variant .phone { width: 100%; }
+.say.wide { max-width: 560px; text-align: center; }
+.glassbar.dark .gbtn, .glassbar.dark .gaddr { background: rgba(70, 76, 90, .82); color: #EDEFF3; box-shadow: 0 2px 10px rgba(0,0,0,.35), inset 0 0 0 .5px rgba(255,255,255,.18); }
+.pillrow { display: flex; align-items: center; gap: 6px; padding: 0 6px 0 10px; }
+.pillrow .u { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.pillrow .rl { width: 13px; height: 13px; flex: none; }
+.pgm { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 8px; flex: none; }
+.pgm svg { width: 15px; height: 15px; }
+.gmenu.dark { background: rgba(44, 48, 58, .95); color: #EDEFF3; }
+.gmenu.dark div.hit { background: rgba(232, 185, 49, .2); color: #fff; }
+.scr:has(.app) > .status { background: #0B1220; color: #fff; }
+.imC{background:center/cover no-repeat url('../assets/crest.png')}
+.imI{background:center/cover no-repeat url('../icons/icon-192.png')}
+
+.seg button { font: inherit; font-weight: 700; color: var(--muted); background: none; padding: 8px 18px; border-radius: 10px; border: 1px solid transparent; cursor: pointer; }
+.seg button[aria-pressed="true"] { color: var(--gold); background: var(--gold-soft); border-color: var(--gold-line); }
+.seg button:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.to-app { display: inline-flex; margin-top: 14px; font-weight: 800; color: var(--on-gold); text-decoration: none; padding: 10px 18px; border-radius: 12px; background: linear-gradient(180deg, var(--gold-hi), #DDAA22); }
+footer { margin-top: 48px; text-align: center; color: var(--faint); font-size: 13px; }
+.variants.one .variant { max-width: 100%; }
+[hidden] { display: none !important; }
+</style>
+</head>
+<body>
+
+<div class="wrap" dir="rtl" lang="he">
+  <header class="head">
+    <div class="crest"><i class="imC"></i></div>
+    <div>
+      <h1>מתקינים את האפליקציה של הקבוצה</h1>
+      <p class="lead">שתי דקות, פעם אחת. אחרי זה היא נפתחת מהמסך הראשי כמו כל אפליקציה.</p>
+    </div>
+  </header>
+
+  <p><a class="to-app" href="../">פתיחת האפליקציה ←</a></p>
+  <nav class="seg" aria-label="בחירת מכשיר">
+    <button type="button" data-os="ios" aria-pressed="true">אייפון</button>
+    <button type="button" data-os="android" aria-pressed="false">אנדרואיד</button>
+  </nav>
+
+  <!-- ================= iPhone ================= -->
+  <section class="os" id="ios">
+    <div class="os-head">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="2" width="12" height="20" rx="3"/><path d="M11 18h2"/></svg>
+      <h2>אייפון</h2>
+    </div>
+    <p class="os-sub">בספארי, הדפדפן של אייפון (סמל המצפן הכחול). שלבים 1–4 נעשים בספארי, ומשלב 5 עוברים לאייקון.</p>
+    <div class="warn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
+      <p><b>קודם מתקינים, ורק אחר כך מבקשים גישה</b> מתוך האייקון. בקשה שנשלחה מספארי לא עוברת לאפליקציה, וצריך לשלוח אותה שוב.</p>
+    </div>
+
+    <ol class="steps">
+      <!-- 1: differs by version -->
+      <li class="step dual">
+        <div class="step-cap"><span class="n">1</span><h3>פותחים את התפריט</h3></div>
+        <div class="variants">
+          <div class="variant" data-v="27">
+            <span class="ver">iOS 27</span>
+            <div class="phone"><div class="island"></div><div class="scr">
+              <div class="status"><span>9:41</span><span class="icons"><i style="width:14px;height:7px"></i><i style="width:18px;height:8px;border-radius:2px"></i></span></div>
+              <div class="app"><div class="app-top"><span class="c"><i class="imC"></i></span><div><b>מכבי גבעתיים</b><small>העונה של הקבוצה</small></div></div><div class="mcard"><h4>התקנה במסך הבית</h4><p>כך האפליקציה נפתחת כמו כל אפליקציה, במסך מלא ובלחיצה אחת.</p><div class="mfold">אייפון</div><div class="mfold">אנדרואיד</div></div><div class="mcard"><h4>בקשת גישה — אחרי התקנה במסך הבית</h4><p>את הבקשה שולחים <b>מהאפליקציה שבמסך הבית</b>: מתקינים, פותחים מהאייקון, והטופס יחכה שם.</p></div></div>
+              <div class="glassbar dark">
+                <span class="gbtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></span>
+                <span class="gaddr pillrow"><svg class="rl" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v5h-5"/></svg><span class="u">roncon2015-prog.github.io</span><span class="hit pgm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h8v6H5z"/><path d="M5 14h14M5 18h14M15 7h4"/></svg></span></span>
+                <span class="gbtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="3" y="7" width="13" height="13" rx="2.5"/><path d="M8 7V6a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2"/></svg></span>
+              </div>
+              <span class="tip down" style="bottom:58px;right:26px">סמל הדף</span>
+            </div></div>
+            <p class="say">בתוך שורת הכתובת, <b>בקצה הימני</b>, יש סמל קטן של <b>דף עם קווים</b>. לוחצים עליו.</p>
+          </div>
+          <div class="variant" data-v="26">
+            <span class="ver">iOS 26</span>
+            <div class="phone"><div class="island"></div><div class="scr">
+              <div class="status"><span>9:41</span><span class="icons"><i style="width:14px;height:7px"></i><i style="width:18px;height:8px;border-radius:2px"></i></span></div>
+              <div class="app"><div class="app-top"><span class="c"><i class="imC"></i></span><div><b>מכבי גבעתיים</b><small>העונה של הקבוצה</small></div></div><div class="mcard"><h4>התקנה במסך הבית</h4><p>כך האפליקציה נפתחת כמו כל אפליקציה, במסך מלא ובלחיצה אחת.</p><div class="mfold">אייפון</div><div class="mfold">אנדרואיד</div></div><div class="mcard"><h4>בקשת גישה — אחרי התקנה במסך הבית</h4><p>את הבקשה שולחים <b>מהאפליקציה שבמסך הבית</b>: מתקינים, פותחים מהאייקון, והטופס יחכה שם.</p></div></div>
+              <div class="glassbar dark">
+                <span class="gbtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></span>
+                <span class="gaddr">lironcon2015-prog.github.io</span>
+                <span class="gbtn hit">⋯</span>
+              </div>
+              <span class="tip down" style="bottom:58px;right:2px">⋯</span>
+            </div></div>
+            <p class="say">בתחתית, <b>בצד ימין</b>, יש כפתור עגול עם <b>שלוש נקודות ⋯</b>. לוחצים עליו.</p>
+          </div>
+          <div class="variant" data-v="old">
+            <span class="ver">iOS 18 ומטה</span>
+            <div class="phone"><div class="island"></div><div class="scr">
+              <div class="status"><span>9:41</span><span class="icons"><i style="width:14px;height:7px"></i><i style="width:18px;height:8px;border-radius:2px"></i></span></div>
+              <div class="app"><div class="app-top"><span class="c"><i class="imC"></i></span><div><b>מכבי גבעתיים</b><small>העונה של הקבוצה</small></div></div><div class="mcard"><h4>התקנה במסך הבית</h4><p>כך האפליקציה נפתחת כמו כל אפליקציה, במסך מלא ובלחיצה אחת.</p><div class="mfold">אייפון</div><div class="mfold">אנדרואיד</div></div><div class="mcard"><h4>בקשת גישה — אחרי התקנה במסך הבית</h4><p>את הבקשה שולחים <b>מהאפליקציה שבמסך הבית</b>: מתקינים, פותחים מהאייקון, והטופס יחכה שם.</p></div></div>
+              <div class="ios-safari">
+                <div class="pill">lironcon2015-prog.github.io</div>
+                <div class="tool" style="border-top:0">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+                  <svg class="off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+                  <span class="hit" style="padding:3px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M8 7l4-4 4 4"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg></span>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5a2 2 0 0 1 2-2h5v16H6a2 2 0 0 0-2 2z"/><path d="M20 5a2 2 0 0 0-2-2h-5v16h5a2 2 0 0 1 2 2z"/></svg>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="14" height="14" rx="2"/><path d="M7 3h12a2 2 0 0 1 2 2v12"/></svg>
+                </div>
+              </div>
+              <span class="tip down" style="bottom:56px;left:50%;transform:translateX(-50%)">שיתוף</span>
+            </div></div>
+            <p class="say">בתחתית יש <b>ריבוע עם חץ למעלה</b>. לוחצים עליו, <b>ומדלגים לשלב 3</b>.</p>
+          </div>
+        </div>
+        <p class="say wide or" data-unknown>לא בטוחים איזו גרסה יש לכם? מחפשים בתחתית המסך את הכפתור שנראה כמו אחד מאלה.</p>
+      </li>
+
+      <!-- 2: differs by version -->
+      <li class="step dual" data-step2>
+        <div class="step-cap"><span class="n">2</span><h3>בוחרים "שיתוף"</h3></div>
+        <div class="variants">
+          <div class="variant" data-v="27">
+            <span class="ver">iOS 27</span>
+            <div class="phone"><div class="island"></div><div class="scr">
+              <div class="status"><span>9:41</span><span class="icons"><i style="width:14px;height:7px"></i><i style="width:18px;height:8px;border-radius:2px"></i></span></div>
+              <div class="app"><div class="app-top"><span class="c"><i class="imC"></i></span><div><b>מכבי גבעתיים</b><small>העונה של הקבוצה</small></div></div><div class="mcard"><h4>התקנה במסך הבית</h4><p>כך האפליקציה נפתחת כמו כל אפליקציה, במסך מלא ובלחיצה אחת.</p><div class="mfold">אייפון</div><div class="mfold">אנדרואיד</div></div><div class="mcard"><h4>בקשת גישה — אחרי התקנה במסך הבית</h4><p>את הבקשה שולחים <b>מהאפליקציה שבמסך הבית</b>: מתקינים, פותחים מהאייקון, והטופס יחכה שם.</p></div></div>
+              <div class="overlay" style="background:rgba(0,0,0,.3)"></div>
+              <div class="gmenu dark" style="left:10%;right:10%">
+                <div class="hit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M8 7l4-4 4 4"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg>שיתוף</div>
+                <div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5a2 2 0 0 1 2-2h5v16H6a2 2 0 0 0-2 2z"/><path d="M20 5a2 2 0 0 0-2-2h-5v16h5a2 2 0 0 1 2 2z"/></svg>הוספה לסימניות</div>
+                <div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 3l2.8 5.7 6.2.9-4.5 4.4 1 6.2L12 17.3 6.5 20.2l1-6.2L3 9.6l6.2-.9z"/></svg>הוספה למועדפים</div>
+                <div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h10"/></svg>תצוגת קורא</div>
+              </div>
+              <div class="glassbar dark"><span class="gbtn"></span><span class="gaddr">lironcon2015-prog.github.io</span><span class="gbtn"></span></div>
+            </div></div>
+            <p class="say">נפתח תפריט מעל שורת הכתובת. לוחצים <b>"שיתוף"</b>.</p>
+          </div>
+          <div class="variant" data-v="26">
+            <span class="ver">iOS 26</span>
+            <div class="phone"><div class="island"></div><div class="scr">
+              <div class="status"><span>9:41</span><span class="icons"><i style="width:14px;height:7px"></i><i style="width:18px;height:8px;border-radius:2px"></i></span></div>
+              <div class="app"><div class="app-top"><span class="c"><i class="imC"></i></span><div><b>מכבי גבעתיים</b><small>העונה של הקבוצה</small></div></div><div class="mcard"><h4>התקנה במסך הבית</h4><p>כך האפליקציה נפתחת כמו כל אפליקציה, במסך מלא ובלחיצה אחת.</p><div class="mfold">אייפון</div><div class="mfold">אנדרואיד</div></div><div class="mcard"><h4>בקשת גישה — אחרי התקנה במסך הבית</h4><p>את הבקשה שולחים <b>מהאפליקציה שבמסך הבית</b>: מתקינים, פותחים מהאייקון, והטופס יחכה שם.</p></div></div>
+              <div class="overlay" style="background:rgba(0,0,0,.3)"></div>
+              <div class="gmenu dark" style="left:20%;right:4%">
+                <div class="hit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M8 7l4-4 4 4"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg>שיתוף</div>
+                <div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5a2 2 0 0 1 2-2h5v16H6a2 2 0 0 0-2 2z"/><path d="M20 5a2 2 0 0 0-2-2h-5v16h5a2 2 0 0 1 2 2z"/></svg>הוספה לסימניות</div>
+                <div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 3l2.8 5.7 6.2.9-4.5 4.4 1 6.2L12 17.3 6.5 20.2l1-6.2L3 9.6l6.2-.9z"/></svg>הוספה למועדפים</div>
+                <div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>כרטיסייה חדשה</div>
+              </div>
+              <div class="glassbar dark"><span class="gbtn"></span><span class="gaddr">lironcon2015-prog.github.io</span><span class="gbtn"></span></div>
+            </div></div>
+            <p class="say">נפתח תפריט מעל הכפתור. לוחצים <b>"שיתוף"</b> (ריבוע עם חץ למעלה).</p>
+          </div>
+        </div>
+      </li>
+
+      <!-- 3 -->
+      <li class="step">
+        <div class="step-cap"><span class="n">3</span><h3>"הוספה למסך הבית"</h3></div>
+        <span class="ver">iOS 26 ו-27: אותו מסך</span>
+        <div class="phone"><div class="island"></div><div class="scr">
+          <div class="status"><span>9:41</span><span class="icons"><i style="width:14px;height:7px"></i><i style="width:18px;height:8px;border-radius:2px"></i></span></div>
+          <div class="app"><div class="app-top"><span class="c"><i class="imC"></i></span><div><b>מכבי גבעתיים</b><small>העונה של הקבוצה</small></div></div><div class="mcard"><h4>התקנה במסך הבית</h4><p>כך האפליקציה נפתחת כמו כל אפליקציה, במסך מלא ובלחיצה אחת.</p><div class="mfold">אייפון</div><div class="mfold">אנדרואיד</div></div><div class="mcard"><h4>בקשת גישה — אחרי התקנה במסך הבית</h4><p>את הבקשה שולחים <b>מהאפליקציה שבמסך הבית</b>: מתקינים, פותחים מהאייקון, והטופס יחכה שם.</p></div></div>
+          <div class="overlay"><div class="sheet">
+            <div class="sheet-top"><span class="ic"><i class="imI" style="width:100%;height:100%;display:block"></i></span><div><b>מכבי גבעתיים · העונה</b><small>lironcon2015-prog.github.io</small></div><span class="close">✕</span></div>
+            <div class="apps"><span><i></i>AirDrop</span><span><i></i>הודעות</span><span><i></i>דואר</span><span><i></i>WhatsApp</span></div>
+            <div class="group">
+              <div class="row">העתקה<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="8" width="13" height="13" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/></svg></div>
+              <div class="row">הוספה לרשימת הקריאה<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="7" cy="12" r="3"/><circle cx="17" cy="12" r="3"/><path d="M10 12h4"/></svg></div>
+              <div class="row hit">הוספה למסך הבית<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="M12 8v8M8 12h8"/></svg></div>
+              <div class="row" style="color:var(--ios-blue)">הצגת עוד<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg></div>
+            </div>
+          </div></div>
+        </div></div>
+        <p class="say">גוללים ברשימה למטה עד <b>"הוספה למסך הבית"</b> (ריבוע עם פלוס), ולוחצים.</p>
+        <p class="say or">לא מופיע? לוחצים "הצגת עוד" בתחתית הרשימה, והוא שם.</p>
+      </li>
+
+      <!-- 4 -->
+      <li class="step">
+        <div class="step-cap"><span class="n">4</span><h3>לוחצים "הוספה"</h3></div>
+        <span class="ver">iOS 26 ו-27: אותו מסך</span>
+        <div class="phone"><div class="island"></div><div class="scr">
+          <div class="status"><span>9:41</span><span class="icons"><i style="width:14px;height:7px"></i><i style="width:18px;height:8px;border-radius:2px"></i></span></div>
+          <div class="navbar"><span class="gbtn sm">✕</span><b>הוספה למסך הבית</b><span class="gbtn sm blue hit">הוספה</span></div>
+          <div class="addcard"><span class="ic"><i class="imI" style="width:100%;height:100%;display:block"></i></span><div class="nm"><div>מכבי גבעתיים</div><small>lironcon2015-prog.github.io</small></div></div>
+          <div class="toggle-row"><span>פתיחה כאפליקציית רשת</span><span class="sw"></span></div>
+          <span class="tip up" style="top:74px;left:6px">הוספה</span>
+          <div class="kbd"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+        </div></div>
+        <p class="say">לא משנים כלום. המתג <b>"פתיחה כאפליקציית רשת"</b> כבר דלוק, ומשאירים אותו כך. לוחצים <b>"הוספה"</b> למעלה.</p>
+      </li>
+
+      <!-- 5 -->
+      <li class="step">
+        <div class="step-cap"><span class="n">5</span><h3>פותחים מהאייקון</h3></div>
+        <div class="phone"><div class="island"></div><div class="scr">
+          <div class="status" style="background:#4A6FA5;color:#fff"><span>9:41</span><span class="icons"><i style="width:14px;height:7px"></i><i style="width:18px;height:8px;border-radius:2px"></i></span></div>
+          <div class="home">
+            <span><i></i>שעון</span><span><i></i>מצלמה</span><span><i></i>תמונות</span><span><i></i>הגדרות</span>
+            <span><i></i>מפות</span><span><i></i>יומן</span><span><i></i>Waze</span><span><i></i>WhatsApp</span>
+            <span class="hit"><span class="ic"><i class="imI" style="width:100%;height:100%;display:block"></i></span><em>מכבי גבעתיים</em></span>
+          </div>
+          <div class="dock"><i></i><i></i><i></i><i></i></div>
+        </div></div>
+        <p class="say">סוגרים את ספארי. במסך הבית מחכה <b>אייקון זהב עם כדור</b>. מעכשיו פותחים רק ממנו.</p>
+      </li>
+
+      <!-- 6 -->
+      <li class="step">
+        <div class="step-cap"><span class="n">6</span><h3>שולחים בקשת גישה</h3></div>
+        <div class="phone"><div class="island"></div><div class="scr dark">
+          <div class="status"><span>9:41</span><span class="icons"><i style="width:14px;height:7px"></i><i style="width:18px;height:8px;border-radius:2px"></i></span></div>
+          <div class="app"><div class="app-top"><span class="c"><i class="imC"></i></span><div><b>מכבי גבעתיים</b><small>העונה של הקבוצה</small></div></div><div class="mcard"><h4>בקשת גישה</h4><p>הנתונים של הקבוצה פתוחים להורים ולשחקנים באישור המנהל. שלחו בקשה פעם אחת מהמכשיר הזה.</p><label class="mfield">איך המנהל יזהה אתכם?<span class="in typing">אבא של איתי</span></label><div class="mbtn hit">שליחת בקשה</div></div></div>
+        </div></div>
+        <p class="say">כותבים שם שהמנהל יזהה, למשל <b>"אבא של איתי"</b>, ולוחצים <b>"שליחת בקשה"</b>.</p>
+      </li>
+
+      <!-- 7 -->
+      <li class="step">
+        <div class="step-cap"><span class="n">7</span><h3>מחכים לאישור</h3></div>
+        <div class="phone"><div class="island"></div><div class="scr dark">
+          <div class="status"><span>9:41</span><span class="icons"><i style="width:14px;height:7px"></i><i style="width:18px;height:8px;border-radius:2px"></i></span></div>
+          <div class="app"><div class="app-top"><span class="c"><i class="imC"></i></span><div><b>מכבי גבעתיים</b><small>העונה של הקבוצה</small></div></div><div class="mcard"><span class="ok"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5 9-10"/></svg></span><h4>הבקשה נשלחה</h4><p><b>אבא של איתי</b>, הבקשה ממתינה לאישור המנהל. אחרי האישור האפליקציה תיפתח מהמכשיר הזה.</p><div class="mbtn" style="background:transparent;color:var(--gold);border:1px solid var(--gold-line)">בדיקה חוזרת</div></div></div>
+        </div></div>
+        <p class="say">אפשר לסגור. כשהמנהל מאשר, פותחים שוב מהאייקון והכל שם.</p>
+        <span class="done-tag">סיימתם ✓</span>
+      </li>
+    </ol>
+
+  </section>
+
+  <!-- ================= Android ================= -->
+  <section class="os" id="android">
+    <div class="os-head">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="2" width="12" height="20" rx="2"/><path d="M12 5h.01"/></svg>
+      <h2>אנדרואיד</h2>
+    </div>
+    <p class="os-sub">בכרום, הדפדפן של אנדרואיד (העיגול הצבעוני). שיטה אחת, שעובדת בכל הטלפונים.</p>
+
+    <ol class="steps">
+      <!-- 1 -->
+      <li class="step">
+        <div class="step-cap"><span class="n">1</span><h3>⋮ ← "הוספה למסך הבית"</h3></div>
+        <div class="phone and"><div class="island"></div><div class="scr">
+          <div class="status"><span>9:41</span><span class="icons"><i style="width:14px;height:7px"></i><i style="width:16px;height:8px;border-radius:2px"></i></span></div>
+          <div class="chrome-bar"><svg class="home-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 11l9-8 9 8v10H3z"/></svg><span class="omni">lironcon2015-prog.github.io/MGivatayim</span><span class="tabs">1</span><span class="kebab hit"><i></i><i></i><i></i></span></div>
+          <div class="app"><div class="app-top"><span class="c"><i class="imC"></i></span><div><b>מכבי גבעתיים</b><small>העונה של הקבוצה</small></div></div><div class="mcard"><h4>התקנה במסך הבית</h4><p>כך האפליקציה נפתחת כמו כל אפליקציה, במסך מלא ובלחיצה אחת.</p><div class="mfold">אייפון</div><div class="mfold">אנדרואיד</div></div><div class="mcard"><h4>בקשת גישה — אחרי התקנה במסך הבית</h4><p>את הבקשה שולחים <b>מהאפליקציה שבמסך הבית</b>: מתקינים, פותחים מהאייקון, והטופס יחכה שם.</p></div></div>
+          <div class="menu">
+            <div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>כרטיסייה חדשה</div>
+            <div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>היסטוריה</div>
+            <div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>הורדות</div>
+            <div class="sep"></div>
+            <div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7M12 3v12M8 7l4-4 4 4"/></svg>שיתוף…</div>
+            <div class="hit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="6" y="2" width="12" height="20" rx="2"/><path d="M12 8v6M9 11l3 3 3-3"/></svg>הוספה למסך הבית</div>
+            <div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>הגדרות</div>
+          </div>
+          <div class="gbar" style="height:4px;width:90px;margin:8px auto;background:#999"></div>
+        </div></div>
+        <p class="say">בכרום, לוחצים על <b>שלוש הנקודות ⋮</b> בפינה העליונה, ובוחרים <b>"הוספה למסך הבית"</b>.</p>
+        <p class="say or">בחלק מהטלפונים כתוב "התקנת אפליקציה". זה אותו דבר.</p>
+      </li>
+
+      <!-- 2 -->
+      <li class="step">
+        <div class="step-cap"><span class="n">2</span><h3>בוחרים "התקנה"</h3></div>
+        <div class="phone and"><div class="island"></div><div class="scr">
+          <div class="status"><span>9:41</span><span class="icons"><i style="width:14px;height:7px"></i><i style="width:16px;height:8px;border-radius:2px"></i></span></div>
+          <div class="chrome-bar"><svg class="home-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 11l9-8 9 8v10H3z"/></svg><span class="omni">lironcon2015-prog.github.io/MGivatayim</span><span class="tabs">1</span><span class="kebab"><i></i><i></i><i></i></span></div>
+          <div class="app"><div class="app-top"><span class="c"><i class="imC"></i></span><div><b>מכבי גבעתיים</b><small>העונה של הקבוצה</small></div></div><div class="mcard"><h4>התקנה במסך הבית</h4><p>כך האפליקציה נפתחת כמו כל אפליקציה, במסך מלא ובלחיצה אחת.</p><div class="mfold">אייפון</div><div class="mfold">אנדרואיד</div></div><div class="mcard"><h4>בקשת גישה — אחרי התקנה במסך הבית</h4><p>את הבקשה שולחים <b>מהאפליקציה שבמסך הבית</b>: מתקינים, פותחים מהאייקון, והטופס יחכה שם.</p></div></div>
+          <div class="overlay"></div>
+          <div class="dialog">
+            <h5>הוספה למסך הבית</h5>
+            <div class="who"><span class="ic"><i class="imI" style="width:100%;height:100%;display:block"></i></span><div><b>מכבי גבעתיים</b><small>lironcon2015-prog.github.io</small></div></div>
+            <div class="choice hit"><b>התקנה</b><small>נפתחת כמו אפליקציה, במסך מלא</small></div>
+            <div class="choice"><b>יצירת קיצור דרך</b><small>נפתחת בכרום</small></div>
+          </div>
+        </div></div>
+        <p class="say">לוחצים <b>"התקנה"</b>. אם מופיעה רק שאלה "להתקין?", גם שם לוחצים "התקנה".</p>
+        <p class="say or">לא בוחרים "קיצור דרך": הוא פותח את הדף בכרום ולא כאפליקציה.</p>
+      </li>
+
+      <!-- 3 -->
+      <li class="step">
+        <div class="step-cap"><span class="n">3</span><h3>מוצאים את האייקון</h3></div>
+        <div class="phone and"><div class="island"></div><div class="scr">
+          <div class="status" style="background:#273B44;color:#fff"><span>9:41</span><span class="icons"><i style="width:14px;height:7px"></i><i style="width:16px;height:8px;border-radius:2px"></i></span></div>
+          <div class="drawer">
+            <div class="dsearch">חיפוש אפליקציות</div>
+            <div class="home">
+              <span><i></i>אנשי קשר</span><span><i></i>גלריה</span><span><i></i>הגדרות</span><span><i></i>יומן</span>
+              <span><i></i>Chrome</span><span><i></i>Gmail</span><span><i></i>Waze</span><span><i></i>WhatsApp</span>
+              <span class="hit"><span class="ic"><i class="imI" style="width:100%;height:100%;display:block"></i></span><em>מכבי גבעתיים</em></span><span><i></i>מחשבון</span><span><i></i>מצלמה</span><span><i></i>מפות</span>
+            </div>
+          </div>
+          <span class="tip up" style="top:224px;right:2px">לחיצה ארוכה וגרירה</span>
+          <div class="gbar" style="height:4px;width:90px;margin:8px auto;background:#999"></div>
+        </div></div>
+        <p class="say">יוצאים למסך הבית. <b>האייקון שם?</b> מצוין, ממשיכים.</p>
+        <p class="say"><b>לא שם?</b> מחליקים מלמטה למעלה לרשימת כל האפליקציות, <b>לוחצים לחיצה ארוכה</b> על "מכבי גבעתיים" וגוררים אותו למסך הבית.</p>
+      </li>
+
+      <!-- 4 -->
+      <li class="step">
+        <div class="step-cap"><span class="n">4</span><h3>שולחים בקשת גישה</h3></div>
+        <div class="phone and"><div class="island"></div><div class="scr dark">
+          <div class="status"><span>9:41</span><span class="icons"><i style="width:14px;height:7px"></i><i style="width:16px;height:8px;border-radius:2px"></i></span></div>
+          <div class="app"><div class="app-top"><span class="c"><i class="imC"></i></span><div><b>מכבי גבעתיים</b><small>העונה של הקבוצה</small></div></div><div class="mcard"><h4>בקשת גישה</h4><p>הנתונים של הקבוצה פתוחים להורים ולשחקנים באישור המנהל. שלחו בקשה פעם אחת מהמכשיר הזה.</p><label class="mfield">איך המנהל יזהה אתכם?<span class="in typing">אבא של איתי</span></label><div class="mbtn hit">שליחת בקשה</div></div></div>
+        </div></div>
+        <p class="say">פותחים <b>מהאייקון</b>, כותבים שם שהמנהל יזהה, למשל <b>"אמא של נועם"</b>, ולוחצים <b>"שליחת בקשה"</b>.</p>
+      </li>
+
+      <!-- 5 -->
+      <li class="step">
+        <div class="step-cap"><span class="n">5</span><h3>מחכים לאישור</h3></div>
+        <div class="phone and"><div class="island"></div><div class="scr dark">
+          <div class="status"><span>9:41</span><span class="icons"><i style="width:14px;height:7px"></i><i style="width:16px;height:8px;border-radius:2px"></i></span></div>
+          <div class="app"><div class="app-top"><span class="c"><i class="imC"></i></span><div><b>מכבי גבעתיים</b><small>העונה של הקבוצה</small></div></div><div class="mcard"><span class="ok"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5 9-10"/></svg></span><h4>הבקשה נשלחה</h4><p><b>אבא של איתי</b>, הבקשה ממתינה לאישור המנהל. אחרי האישור האפליקציה תיפתח מהמכשיר הזה.</p><div class="mbtn" style="background:transparent;color:var(--gold);border:1px solid var(--gold-line)">בדיקה חוזרת</div></div></div>
+        </div></div>
+        <p class="say">אפשר לסגור. כשהמנהל מאשר, פותחים שוב מהאייקון והכל שם.</p>
+        <span class="done-tag">סיימתם ✓</span>
+      </li>
+    </ol>
+
+  </section>
+  <footer>מכבי גבעתיים · העונה · גרסה <span class="num" id="app-version"></span></footer>
+</div>
+<script>
+  // One system at a time, the phone's own first; on iPhone the steps that
+  // differ by Safari version show only this phone's version when it is known.
+  (function () {
+    var ua = navigator.userAgent || '';
+    var ios = /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+    var android = /Android/.test(ua);
+    var m = ua.match(/Version\/(\d+)/);
+    var v = ios && m ? +m[1] : 0;
+    var mine = v >= 27 ? '27' : v === 26 ? '26' : v ? 'old' : '';
+    function show(os) {
+      document.querySelectorAll('section.os').forEach(function (s) { s.hidden = s.id !== os; });
+      document.querySelectorAll('[data-os]').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.os === os)); });
+    }
+    document.querySelectorAll('[data-os]').forEach(function (b) { b.addEventListener('click', function () { show(b.dataset.os); }); });
+    var start = location.hash === '#android' || location.hash === '#ios' ? location.hash.slice(1) : android ? 'android' : 'ios';
+    show(start);
+    if (mine) {
+      document.querySelectorAll('.variant[data-v]').forEach(function (el) { el.hidden = el.dataset.v !== mine; });
+      document.querySelectorAll('.variants').forEach(function (el) { el.classList.add('one'); });
+      document.querySelectorAll('[data-unknown]').forEach(function (el) { el.hidden = true; });
+      // An older Safari has Share in the toolbar: no menu step.
+      if (mine === 'old') document.querySelectorAll('[data-step2]').forEach(function (el) { el.hidden = true; });
+    }
+    fetch('../version.json', { cache: 'no-store' }).then(function (r) { return r.json(); })
+      .then(function (j) { document.getElementById('app-version').textContent = j.version; }).catch(function () {});
+  })();
+</script>
+</body>
+</html>

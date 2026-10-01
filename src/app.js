@@ -13,7 +13,6 @@ import * as gate from './views/gate.js';
 import { mountAdmin, hasUnsavedWork } from './views/admin.js';
 import { startUpdater, appVersion } from './updater.js';
 import { hydratePosters, preparePosters } from './posters.js';
-import { wireInstall } from './install.js';
 import { LiveSession } from './live/sync.js';
 import * as LM from './live/model.js';
 import { mountLive, openMatchSheet, showMinutesTab } from './views/live.js';
@@ -367,7 +366,6 @@ function draw() {
       return;
     case 'none':
       view.innerHTML = gate.requestScreen(state.name, state.formError, { skipInstall: state.skipInstall });
-      teardown = wireInstall(view);
       view.querySelector('[data-skip-install]')?.addEventListener('click', () => { state.skipInstall = true; render(); });
       view.querySelector('#request-form')?.addEventListener('submit', (e) => {
         e.preventDefault();
@@ -392,8 +390,7 @@ function draw() {
       };
       document.addEventListener('visibilitychange', quiet);
       const every = setInterval(quiet, 20000);
-      const unInstall = wireInstall(view);
-      teardown = () => { document.removeEventListener('visibilitychange', quiet); clearInterval(every); unInstall?.(); };
+      teardown = () => { document.removeEventListener('visibilitychange', quiet); clearInterval(every); };
       view.querySelector('#recheck').addEventListener('click', async (e) => {
         e.target.disabled = true;
         view.querySelector('#recheck-msg').textContent = 'בודק…';

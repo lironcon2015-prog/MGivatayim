@@ -137,7 +137,8 @@ await step('the first screen explains installing on iPhone and Android', async (
   await waitText(parent, 'התקנה במסך הבית');
   const t = await text(parent);
   expect(t.includes('אייפון') && t.includes('אנדרואיד'), 'both systems should be explained');
-  expect(await parent.locator('[data-install-now]').isHidden(), 'the install button shows only when Chrome offers it');
+  expect(await parent.locator('[data-install-now]').count() === 0, 'no in-app install button: the guide teaches the ⋮ menu');
+  expect(await parent.locator('a[data-install-guide][href^="docs/install.html"]').count() === 1, 'the install card links to the illustrated guide');
   expect(await parent.locator('details.install-os[open]').count() === 0, 'both systems start folded');
   await parent.locator('.gate h2', { hasText: 'בקשת גישה — אחרי התקנה במסך הבית' }).waitFor();
 });

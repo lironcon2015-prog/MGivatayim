@@ -313,6 +313,7 @@ h3 { font-size: 18px; margin: 0; line-height: 1.25; font-weight: 800; text-wrap:
 .seg button:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 .to-app { display: inline-flex; margin-top: 14px; font-weight: 800; color: var(--on-gold); text-decoration: none; padding: 10px 18px; border-radius: 12px; background: linear-gradient(180deg, var(--gold-hi), #DDAA22); }
 footer { margin-top: 48px; text-align: center; color: var(--faint); font-size: 13px; }
+.variants.one .variant { max-width: 100%; }
 [hidden] { display: none !important; }
 </style>
 </head>
@@ -378,12 +379,31 @@ footer { margin-top: 48px; text-align: center; color: var(--faint); font-size: 1
             </div></div>
             <p class="say">בתחתית, <b>בצד ימין</b>, יש כפתור עגול עם <b>שלוש נקודות ⋯</b>. לוחצים עליו.</p>
           </div>
+          <div class="variant" data-v="old">
+            <span class="ver">iOS 18 ומטה</span>
+            <div class="phone"><div class="island"></div><div class="scr">
+              <div class="status"><span>9:41</span><span class="icons"><i style="width:14px;height:7px"></i><i style="width:18px;height:8px;border-radius:2px"></i></span></div>
+              <div class="app"><div class="app-top"><span class="c"><i class="imC"></i></span><div><b>מכבי גבעתיים</b><small>העונה של הקבוצה</small></div></div><div class="mcard"><h4>התקנה במסך הבית</h4><p>כך האפליקציה נפתחת כמו כל אפליקציה, במסך מלא ובלחיצה אחת.</p><div class="mfold">אייפון</div><div class="mfold">אנדרואיד</div></div><div class="mcard"><h4>בקשת גישה — אחרי התקנה במסך הבית</h4><p>את הבקשה שולחים <b>מהאפליקציה שבמסך הבית</b>: מתקינים, פותחים מהאייקון, והטופס יחכה שם.</p></div></div>
+              <div class="ios-safari">
+                <div class="pill">lironcon2015-prog.github.io</div>
+                <div class="tool" style="border-top:0">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+                  <svg class="off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+                  <span class="hit" style="padding:3px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M8 7l4-4 4 4"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg></span>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5a2 2 0 0 1 2-2h5v16H6a2 2 0 0 0-2 2z"/><path d="M20 5a2 2 0 0 0-2-2h-5v16h5a2 2 0 0 1 2 2z"/></svg>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="14" height="14" rx="2"/><path d="M7 3h12a2 2 0 0 1 2 2v12"/></svg>
+                </div>
+              </div>
+              <span class="tip down" style="bottom:56px;left:50%;transform:translateX(-50%)">שיתוף</span>
+            </div></div>
+            <p class="say">בתחתית יש <b>ריבוע עם חץ למעלה</b>. לוחצים עליו, <b>ומדלגים לשלב 3</b>.</p>
+          </div>
         </div>
-        <p class="say wide or">לא בטוחים איזו גרסה יש לכם? מחפשים בתחתית המסך איזה משני הכפתורים יש אצלכם.</p>
+        <p class="say wide or" data-unknown>לא בטוחים איזו גרסה יש לכם? מחפשים בתחתית המסך את הכפתור שנראה כמו אחד מאלה.</p>
       </li>
 
       <!-- 2: differs by version -->
-      <li class="step dual">
+      <li class="step dual" data-step2>
         <div class="step-cap"><span class="n">2</span><h3>בוחרים "שיתוף"</h3></div>
         <div class="variants">
           <div class="variant" data-v="27">
@@ -593,12 +613,15 @@ footer { margin-top: 48px; text-align: center; color: var(--faint); font-size: 1
   <footer>מכבי גבעתיים · העונה · גרסה <span class="num" id="app-version"></span></footer>
 </div>
 <script>
-  // One system at a time, the phone's own first. On iPhone the steps that
-  // differ by Safari version always show both, side by side (the owner's call).
+  // One system at a time, the phone's own first; on iPhone the steps that
+  // differ by Safari version show only this phone's version when it is known.
   (function () {
     var ua = navigator.userAgent || '';
     var ios = /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
     var android = /Android/.test(ua);
+    var m = ua.match(/Version\/(\d+)/);
+    var v = ios && m ? +m[1] : 0;
+    var mine = v >= 27 ? '27' : v === 26 ? '26' : v ? 'old' : '';
     function show(os) {
       document.querySelectorAll('section.os').forEach(function (s) { s.hidden = s.id !== os; });
       document.querySelectorAll('[data-os]').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.os === os)); });
@@ -606,6 +629,13 @@ footer { margin-top: 48px; text-align: center; color: var(--faint); font-size: 1
     document.querySelectorAll('[data-os]').forEach(function (b) { b.addEventListener('click', function () { show(b.dataset.os); }); });
     var start = location.hash === '#android' || location.hash === '#ios' ? location.hash.slice(1) : android ? 'android' : 'ios';
     show(start);
+    if (mine) {
+      document.querySelectorAll('.variant[data-v]').forEach(function (el) { el.hidden = el.dataset.v !== mine; });
+      document.querySelectorAll('.variants').forEach(function (el) { el.classList.add('one'); });
+      document.querySelectorAll('[data-unknown]').forEach(function (el) { el.hidden = true; });
+      // An older Safari has Share in the toolbar: no menu step.
+      if (mine === 'old') document.querySelectorAll('[data-step2]').forEach(function (el) { el.hidden = true; });
+    }
     fetch('../version.json', { cache: 'no-store' }).then(function (r) { return r.json(); })
       .then(function (j) { document.getElementById('app-version').textContent = j.version; }).catch(function () {});
   })();

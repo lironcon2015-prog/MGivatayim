@@ -341,6 +341,13 @@ await test('trainings: the week is the routine plus this week\'s changes, and th
   assert.ok(!buildSeason(base, tuesday).offersNextWeek, 'only from Saturday');
   assert.equal(buildSeason(base, new Date('2026-10-04T08:00:00Z')).week.start, '2026-10-04', 'Sunday starts the next week');
   assert.equal(buildSeason({ ...base, trainings: [], trainingChanges: [] }, tuesday).week.trainings, 0, 'no trainings, no strip');
+  // A game played this week stays in its day, past and with its score —
+  // a friendly too — beside the game still ahead.
+  const played = buildSeason({ ...base, matches: [{ date: '2026-09-28', opponent: 'אימון', home: true, round: null, friendly: true, gf: 3, ga: 1 }] }, tuesday).week;
+  assert.deepEqual(played.items.filter((i) => i.kind === 'game').map((i) => [i.date, i.past, i.gf, i.ga]),
+    [['2026-09-28', true, 3, 1], ['2026-10-03', false, undefined, undefined]]);
+  const today = buildSeason({ ...base, matches: [{ date: '2026-09-29', opponent: 'היום', home: true, gf: 0, ga: 0 }] }, tuesday).week;
+  assert.ok(today.items.find((i) => i.opponent === 'היום').past, 'a game that ended today is a game that took place');
 });
 
 await test('trainings: a training moved to another day leaves its day and lands on the other', async () => {

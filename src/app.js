@@ -1,5 +1,5 @@
 import { buildSeason, opponentLogo } from './season.js';
-import { esc, seasonLabel } from './format.js';
+import { esc, seasonLabel, byNumber } from './format.js';
 import { crestImg, keepImages, keepFocus } from './components.js';
 import { icon } from './icons.js';
 import { DEFAULT_CREST } from './config.js';
@@ -18,7 +18,7 @@ import * as LM from './live/model.js';
 import { mountLive, openMatchSheet, showMinutesTab } from './views/live.js';
 import { cleanCoach, coachFor, shortfall, alertKey } from './minutes.js';
 import { homeAlertHtml } from './views/minutes.js';
-import { toast, buzz } from './ui/sheet.js';
+import { toast, buzz, openSheet } from './ui/sheet.js';
 import { todayInIsrael } from './fixtures.js';
 
 const ROUTES = [
@@ -293,13 +293,17 @@ function chrome(team) {
     : '';
   document.body.classList.toggle('with-nav', !!nav);
   const crestTeam = { name, crestUrl: team?.crestUrl || new URL(DEFAULT_CREST, ROOT).href };
-  return `<header class="topbar">
-      <div class="topbar-inner">
-        <span class="crest has-img">${crestImg(crestTeam)}</span>
+  // The roster, once the manager turns it on: the whole title (crest, name,
+  // league line) opens the team card, and one word in the league line says so.
+  const roster = rosterShown();
+  const brand = `<span class="crest has-img">${crestImg(crestTeam)}</span>
         <span class="topbar-text">
           <h1>${esc(name)}</h1>
-          <p>${esc(team?.league || 'העונה של הקבוצה')}</p>
-        </span>
+          <p>${esc(team?.league || 'העונה של הקבוצה')}${roster ? ' · <span class="roster-hint">הסגל ‹</span>' : ''}</p>
+        </span>`;
+  return `<header class="topbar">
+      <div class="topbar-inner">
+        ${roster ? `<button type="button" class="topbar-btn" data-roster aria-label="כרטיס הקבוצה: הסגל">${brand}</button>` : brand}
         ${team ? `<span class="season-tag num">עונת ${esc(seasonLabel(team))}</span>` : ''}
       </div>
     </header>
@@ -319,6 +323,30 @@ function markNav(hash) {
 
 // A field being typed in keeps its caret and text across a redraw (a
 // season re-read landing on the manager's screen, say).
+// Off until the manager turns it on (settings.showRoster): early in a season
+// some of the children are still trying out.
+function rosterShown() {
+  const s = state.season;
+  return state.access === 'approved' && s?.settings?.showRoster === true && s.players.some((p) => p.name);
+}
+
+function openRoster() {
+  const s = state.season;
+  if (!s) return;
+  const team = s.team;
+  const players = s.players.filter((p) => p.name).sort(byNumber);
+  const crestTeam = { name: team.name, crestUrl: team.crestUrl || new URL(DEFAULT_CREST, ROOT).href };
+  openSheet({
+    label: 'סגל הקבוצה',
+    body: `<div class="team-card">
+        <span class="crest has-img">${crestImg(crestTeam)}</span>
+        <div><b>${esc(team.name)}</b><p>${[team.league, 'עונת ' + seasonLabel(team)].filter(Boolean).map(esc).join(' · ')}</p></div>
+      </div>
+      <div class="roster-head">${icon('shirt')}<h3>הסגל</h3><span class="num">${players.length} שחקנים</span></div>
+      <ul class="roster">${players.map((p) => `<li><span class="num">${esc(p.number ?? '')}</span><span>${esc(p.name)}</span></li>`).join('')}</ul>`,
+  });
+}
+
 function render() {
   const restoreFocus = keepFocus(document.getElementById('app'));
   draw();
@@ -331,6 +359,7 @@ function draw() {
   const app = document.getElementById('app');
   const restoreImages = keepImages(app);
   app.innerHTML = chrome(state.season?.team);
+  app.querySelector('[data-roster]')?.addEventListener('click', openRoster);
   const view = app.querySelector('#view');
 
   // The manager area is reachable from every state: a manager whose own

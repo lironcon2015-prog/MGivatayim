@@ -1762,6 +1762,37 @@ await step('a sample schedule: one switch puts a note by the schedule and the re
   expect(!off.home.length && !off.stats.length, 'notes left after the switch went off: ' + JSON.stringify(off));
 });
 
+await step('the roster: off until the manager turns it on, then the title opens it, by shirt number', async () => {
+  const setRoster = async (on) => {
+    await admin.goto(APP + '#/admin');
+    await adminTab(admin, 'team');
+    await admin.locator('#f-settings-showRoster').setChecked(on);
+    await admin.click('#save');
+    await waitSaved(admin);
+    expect(JSON.parse(bridge.driveFile('season.json')).season.settings?.showRoster === on, 'showRoster saved as ' + on);
+    await parent.goto(APP + '#/');
+    await parent.reload();
+    await parent.locator('#view section').first().waitFor();
+  };
+  await parent.goto(APP + '#/');
+  await parent.locator('#view section').first().waitFor();
+  expect(await parent.locator('[data-roster]').count() === 0 && !(await parent.locator('.topbar').innerText()).includes('הסגל'), 'the roster shows before it is turned on');
+  await setRoster(true);
+  await parent.waitForSelector('[data-roster]', { timeout: 8000 });
+  expect((await parent.locator('.topbar p').innerText()).includes('הסגל'), 'the league line says what the title opens');
+  await parent.click('[data-roster]');
+  await parent.locator('.sheet .roster li').first().waitFor();
+  const rows = await parent.locator('.sheet .roster li').evaluateAll((els) => els.map((li) => [li.children[0].textContent, li.children[1].textContent]));
+  const nums = rows.map(([n]) => n === '' ? 999 : Number(n));
+  expect(rows.length > 1 && nums.every((n, i) => i === 0 || nums[i - 1] <= n), 'roster by shirt number: ' + JSON.stringify(rows));
+  expect(!(await parent.locator('.sheet').innerText()).match(/שוער|בלם|מגן|קשר|חלוץ|כנף/), 'the roster shows no positions');
+  await parent.locator('.sheet-x').click();
+  await parent.locator('.sheet').waitFor({ state: 'detached' });
+  await parent.waitForFunction(() => !history.state?.mgLayer);
+  await setRoster(false);
+  expect(await parent.locator('[data-roster]').count() === 0, 'the roster stays after it was turned off');
+});
+
 await step('revoking locks the parent out and drops their cached copy', async () => {
   await admin.goto(APP + '#/admin');
   await admin.click('[data-tab="access"]');

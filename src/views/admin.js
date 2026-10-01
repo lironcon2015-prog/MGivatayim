@@ -74,6 +74,7 @@ const TEAM_FIELDS = [
 const SETTINGS_FIELDS = [
   { key: 'veo', label: 'יש לקבוצה מצלמת Veo', type: 'check' },
   { key: 'sampleSchedule', label: 'הלוח עוד לא רשמי', type: 'check' },
+  { key: 'showRoster', label: 'סגל הקבוצה', type: 'check' },
 ];
 const HOME_VENUE_FIELDS = [
   { key: 'name', label: 'שם המגרש', wide: true },
@@ -1125,6 +1126,8 @@ export function mountAdmin(view, ctx) {
           <div class="card">
             <div class="opt">${fieldHtml(SETTINGS_FIELDS[1], 'settings.sampleSchedule', draft.settings?.sampleSchedule === true)}
               <p class="note">ליד לוח המשחקים והתוצאות, בבית ובנתונים: "לוח לדוגמה. הלוח יתעדכן כשההתאחדות תפרסם את הלוח הרשמי". כשהלוח הרשמי נכנס מבטלים את הסימון, וההערה יורדת מכל המקומות.</p></div>
+            <div class="opt">${fieldHtml(SETTINGS_FIELDS[2], 'settings.showRoster', draft.settings?.showRoster === true)}
+              <p class="note">לחיצה על הסמל ושם הקבוצה בראש המסך פותחת את רשימת השחקנים עם מספרי החולצה, בלי עמדות, ובשורה שמתחת לשם מופיע "הסגל ‹". כל עוד לא מסומן, אין רשימה ואין רמז.</p></div>
             <div class="opt">${fieldHtml(SETTINGS_FIELDS[0], 'settings.veo', draft.settings?.veo === true)}
               <p class="note">במשחק החי אפשר להוסיף קישור לשידור, ומי שצופה רואה כפתור "צפייה בשידור חי". בסוף המשחק — "הוספת המשחק המצולם" מכניס את הסרטון לסרטונים. כל עוד לא מסומן, שום דבר מזה לא מופיע.</p></div>
           </div>

@@ -1392,7 +1392,7 @@ await step('before kick-off the coach sets the minimum and who came; a parent se
   await until(() => liveFile().opponent === 'הפועל מבחן', 'the opponent to be saved');
   const id = liveFile().id;
   await coach.goto(APP + '#/live');
-  await coach.locator('[data-tab="minutes"] .coach-only').waitFor({ timeout: 8000 });
+  await coach.locator('[data-tab="minutes"]', { hasText: 'איזור המאמן' }).waitFor({ timeout: 8000 });
   await coach.locator('[data-tab="minutes"]').click({ timeout: 8000 });
   await coach.locator('[data-mn-step="5"]').click();
   await until(() => coachFile().matches?.[id]?.min === 25, 'the minimum to reach Drive');
@@ -1435,12 +1435,21 @@ await step('a match opened ahead is hidden from parents until the manager publis
   await parent.goto(APP + '#/live');
   await waitText(parent, 'אין משחק חי כרגע');
   expect(await parent.locator('.score-card').count() === 0, 'a parent sees a match that was not published');
+  // Nothing live for the parent: the last results, each opening its events.
+  const recent = parent.locator('.live-recent button[data-match]');
+  expect(await recent.count() > 0, 'no recent matches under "nothing live"');
+  await recent.first().click();
+  await parent.locator('.sheet .ms-score').waitFor({ timeout: 8000 });
+  await parent.locator('.sheet-x').click();
+  await parent.locator('.sheet').waitFor({ state: 'detached' });
+  await parent.waitForFunction(() => !history.state?.mgLayer);
   await coach.locator('.hidden-live').waitFor();
   expect(await coach.locator('.hidden-live [data-act="publish"]').count() === 0, 'the coach can publish');
   await admin.click('.hidden-live [data-act="publish"]');
   await admin.locator('.hidden-live').waitFor({ state: 'detached', timeout: 8000 });
   await parent.locator('.score-card').waitFor({ timeout: 8000 });
   expect(await parent.locator('[data-tab="minutes"]').count() === 0, 'a parent sees the minutes tab');
+  expect(await parent.locator('.live-recent').count() === 0, 'the recent matches stay while a match is live');
 });
 
 await step('at the break before the last period the coach is alerted once, wherever they are', async () => {

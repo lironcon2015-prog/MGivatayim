@@ -2,7 +2,7 @@ import * as M from '../live/model.js';
 import { serverNow } from '../live/sync.js';
 import { esc, splitKickoff, shortName, shortDate, byNumber } from '../format.js';
 import { icon } from '../icons.js';
-import { crestImg, keepImages, keepFocus, oppLogo, roundText, COACH_ONLY } from '../components.js';
+import { crestImg, keepImages, keepFocus, oppLogo, roundText, matchRow, sectionHead } from '../components.js';
 import { hydratePosters } from '../posters.js';
 import { posLabel, isKeeper, layout, subGroups, formationsFor, freeSlots, fitFormation, refit } from '../positions.js';
 import { openSheet, confirmSheet, toast, buzz } from '../ui/sheet.js';
@@ -184,6 +184,9 @@ export function openMatchSheet(match, coach = null, us = '') {
     },
   });
 }
+
+// Results listed on the live screen while nothing is live.
+const RECENT_SHOWN = 5;
 
 /* ── The screen ────────────────────────────────────────────────────────── */
 
@@ -573,6 +576,18 @@ export function mountLive(view, ctx) {
     return ctx.schedule().find((f) => f.date === day && f.opponent === nm.opponent) || null;
   }
 
+  // While nothing is live: the last results, each opening its events (the
+  // same sheet as a history row — app.js handles [data-match]).
+  function recentHtml() {
+    const all = ctx.matches();
+    if (!all.length) return '';
+    const shown = all.slice(0, RECENT_SHOWN);
+    return `<section class="live-recent">
+      ${sectionHead('המשחקים האחרונים', all.length > shown.length ? '<a href="#/stats" data-jump="stats-matches">לכל המשחקים</a>' : '', 'trophy')}
+      <div class="card rows">${shown.map(matchRow).join('')}</div>
+    </section>`;
+  }
+
   function noLive() {
     const nm = ctx.nextMatch;
     const next = nm?.opponent ? `<p class="gate-lead">המשחק הבא: <b>${esc(nm.opponent)}</b>${nm.kickoff ? ` · <span class="num">${esc(shortDate(splitKickoff(nm.kickoff).date))}</span>` : ''}</p>` : '';
@@ -583,11 +598,11 @@ export function mountLive(view, ctx) {
         <p class="note">אפשר לפתוח מתי שרוצים ולהכין הרכב. עד שתפרסמו (או עד שריקת הפתיחה) רק את/ה והמאמן רואים אותו. התאריך נקבע בשריקת הפתיחה — גם אם המשחק הוקדם או נדחה.</p>
         <button type="button" class="btn" data-act="new">${icon('play')} ${nm?.opponent ? `פתיחת משחק חי מול ${esc(nm.opponent)}` : 'פתיחת משחק חי'}</button>
         ${others || nm?.opponent ? `<button type="button" class="btn secondary" data-act="pick">${icon('calendar')} משחק אחר מהלוח…</button>` : ''}
-      </div></section>`;
+      </div></section>${recentHtml()}`;
     }
     return `<section><div class="card gate"><h2>אין משחק חי כרגע</h2>${next}
       <p class="note">כשהמשחק יתחיל, הוא יופיע כאן בזמן אמת.</p></div></section>
-      <p class="gate-foot"><button type="button" class="linkish" data-act="claim">יש לי קוד שליטה במשחק</button></p>`;
+      <p class="gate-foot"><button type="button" class="linkish" data-act="claim">יש לי קוד שליטה במשחק</button></p>${recentHtml()}`;
   }
 
   // Any fixture in the schedule can go live now, whatever its date — games
@@ -637,7 +652,7 @@ export function mountLive(view, ctx) {
     // The match screen and the coach's minutes: two screens, as before.
     const tabs = coach ? `<div class="seg live-tabs" role="tablist">
         <button role="tab" type="button" data-tab="match" aria-selected="${tab === 'match'}">משחק</button>
-        <button role="tab" type="button" data-tab="minutes" aria-selected="${tab === 'minutes'}">דקות${COACH_ONLY}${hasShortfall(st, cfg) ? '<i class="live-dot" aria-label="יש התראה"></i>' : ''}</button>
+        <button role="tab" type="button" data-tab="minutes" aria-selected="${tab === 'minutes'}">איזור המאמן${hasShortfall(st, cfg) ? '<i class="live-dot" aria-label="יש התראה"></i>' : ''}</button>
       </div>` : '';
     // Inside the match screen: the pitch or the events — a lighter tab strip,
     // so it reads as part of this screen and not as another screen switch.

@@ -719,22 +719,24 @@ export function mountAdmin(view, ctx) {
   // The invitation parents get in WhatsApp: the app's address and what to do
   // with it. Only the address — nothing in a link can grant access; that is
   // the manager's approval, here on this tab.
-  // Three things the manager sends: the app itself (short), or one of the
-  // two guides. The toggle picks which; copy and WhatsApp send that one.
+  // Four things the manager sends: the app itself (short), or one of the
+  // three guides. The toggle picks which; copy and WhatsApp send that one.
   function inviteText(kind = inviteKind) {
     const base = new URL('./', location.href).href;
     const team = draft?.team?.name || 'מכבי גבעתיים';
     if (kind === 'parent') return `מדריך להורים לאפליקציית העונה של ${team} — מה יש בה, איך מתקינים, ואיך צופים במשחק חי:\n${base}docs/parent.html`;
+    if (kind === 'install') return `מדריך התקנה לאפליקציית העונה של ${team} — אייפון ואנדרואיד, שלב אחר שלב עם תמונות:\n${base}docs/install.html`;
     if (kind === 'coach') return `מדריך למאמן לאפליקציית העונה של ${team} — דקות משחק, נוכחות והתראת הדקות:\n${base}docs/coach.html`;
     return `הצטרפות לאפליקציית העונה של ${team}:\n${base}\n\nפותחים את הקישור, מתקינים במסך הבית (ההסבר מופיע בפתיחה), ושולחים בקשת גישה. אחרי שאאשר — הכל שם: המשחק הבא, תוצאות, משחק חי וסרטונים.`;
   }
 
   function inviteHtml() {
-    const kinds = [['app', 'מקוצר'], ['parent', 'מדריך הורה'], ['coach', 'מדריך מאמן']];
+    const kinds = [['app', 'מקוצר'], ['install', 'התקנה'], ['parent', 'הורה'], ['coach', 'מאמן']];
     const lead = {
       app: 'הודעה עם הקישור לאפליקציה והסבר קצר, לקבוצת הוואטסאפ.',
       parent: 'קישור למדריך להורים: מה יש באפליקציה, התקנה, ומשחק חי.',
       coach: 'קישור למדריך למאמן: דקות משחק, נוכחות והתראה.',
+      install: 'קישור למדריך ההתקנה בלבד: אייפון ואנדרואיד, שלב אחר שלב עם תמונות.',
     }[inviteKind];
     return `<section>
       <div class="sec-head">${icon('link')}<h2>הזמנה ומדריכים</h2></div>

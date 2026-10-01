@@ -799,6 +799,8 @@ body.with-nav .savebar { bottom: calc(var(--nav-space) + .5rem); }
 /* Nothing to save: a quiet line, not two dead buttons over the form. */
 .savebar.idle { border-color: var(--line); box-shadow: none; padding-block: .55rem; }
 .savebar.idle .row-btns { display: none; }
+/* The device's copy, shown while the newest version is read: looked at, not edited. */
+.admin-body[inert] { opacity: .6; transition: opacity .2s; }
 .save-msg { flex: 1; min-width: 0; margin: 0; line-height: 1.35; font-size: .84rem; color: var(--muted); display: flex; align-items: center; gap: .45rem; }
 .save-msg::before { content: ""; width: 7px; height: 7px; flex: none; border-radius: 50%; background: var(--faint); }
 .save-msg.ok { color: var(--win); }

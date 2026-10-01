@@ -1814,6 +1814,87 @@ await step('revoking locks the parent out and drops their cached copy', async ()
   expect(cached === null, 'season still cached on a revoked device');
 });
 
+// One quiet retry, for reads only. A phone back from the background, or
+// Google failing an execution before the script ran, used to show "no
+// connection" on one failed request. A write is never sent twice: its answer
+// may be what was lost, after the bridge already did it.
+const bridgeCall = (page, action, params = {}, opts = {}) => page.evaluate(([url, a, p, o]) =>
+  import(url).then((m) => m.call(a, p, o)).then((result) => ({ result }), (e) => ({ code: e.code })),
+[APP + 'src/bridge.js', action, params, opts]);
+const actionOf = (r) => { try { return JSON.parse(r.request().postData() || '{}').action; } catch { return ''; } };
+
+await step('a read that fails once on the way is sent again quietly; a write is sent once', async () => {
+  const seen = [];
+  let failed = 0;
+  const flaky = async (r) => {
+    const a = actionOf(r);
+    seen.push(a);
+    if (a === 'getSeason' && !failed++) return r.abort();
+    // The bridge does the write, and the answer is lost on the way back.
+    if (a === 'setRole') { await r.fetch().catch(() => {}); return r.abort(); }
+    return r.continue().catch(() => {});
+  };
+  await admin.route(BRIDGE, flaky);
+  try {
+    const read = await bridgeCall(admin, 'getSeason', {}, { asAdmin: true });
+    expect(read.result?.season, 'a read failing once reached the screen as an error: ' + read.code);
+    expect(seen.filter((a) => a === 'getSeason').length === 2, 'the read was not sent again: ' + seen.join());
+    const users = (await bridgeCall(admin, 'listUsers', {}, { asAdmin: true })).result;
+    // Its own role again: the write changes nothing a later step reads.
+    const u = users[0];
+    const write = await bridgeCall(admin, 'setRole', { id: u.id, role: u.role === 'coach' ? 'coach' : 'parent' }, { asAdmin: true });
+    expect(write.code === 'network', 'a write whose answer was lost did not say so: ' + JSON.stringify(write));
+    await new Promise((ok) => setTimeout(ok, 1500));
+    expect(seen.filter((a) => a === 'setRole').length === 1, 'a write was sent twice: ' + seen.join());
+  } finally {
+    await admin.unroute(BRIDGE, flaky);
+  }
+});
+
+await step('the manager screen shows the device copy at once, and edits only the newest version', async () => {
+  await admin.goto(APP + '#/');
+  await admin.locator('#nav').waitFor();
+  const slow = async (r) => {
+    if (actionOf(r) === 'getSeason') await new Promise((ok) => setTimeout(ok, 1500));
+    await r.continue().catch(() => {});
+  };
+  await admin.route(BRIDGE, slow);
+  try {
+    await admin.goto(APP + '#/admin');
+    await admin.click('[data-tab="games"]');
+    await admin.locator('.admin-body[inert]').waitFor({ timeout: 1000 });
+    expect(await admin.locator('.empty', { hasText: 'טוען' }).count() === 0, 'the copy on the device was not drawn while the season loads');
+    expect(/מעדכן/.test(await admin.locator('.save-msg').innerText()), 'the wait is not said');
+    await admin.locator('.admin-body:not([inert])').waitFor({ timeout: 5000 });
+  } finally {
+    await admin.unroute(BRIDGE, slow);
+  }
+});
+
+await step("a parent's copy of the season is never put up for the manager to edit", async () => {
+  // A phone that is also a parent's keeps the parents' season — no minutes,
+  // no past lineups. Shown to edit when the read failed, and saved, it
+  // erased them from Drive.
+  const down = (r) => (actionOf(r) === 'getSeason' ? r.abort() : r.continue().catch(() => {}));
+  await admin.route(BRIDGE, down);
+  try {
+    await admin.evaluate(() => {
+      const s = JSON.parse(localStorage.getItem('mg:season'));
+      localStorage.setItem('mg:season', JSON.stringify({ ...s, role: 'parent' }));
+    });
+    await admin.goto(APP + '#/admin');
+    await admin.reload();
+    await admin.locator('#resync').waitFor({ timeout: 10000 });
+    const editable = await admin.evaluate(() => [...document.querySelectorAll('[data-path]')].filter((e) => !e.closest('[inert]')).length);
+    expect(!editable, `the parent's copy was put up to edit (${editable} fields)`);
+    expect(await admin.locator('#save:not([disabled])').count() === 0, 'saving is possible with no fresh season');
+  } finally {
+    await admin.unroute(BRIDGE, down);
+  }
+  await admin.click('#resync');
+  await admin.locator('.admin-body:not([inert])').waitFor({ timeout: 8000 });
+});
+
 await step('no page errors and no CORS preflight on any device', async () => {
   const errs = [...parent.errors, ...admin.errors, ...(coach?.errors || []), ...(other?.errors || [])];
   expect(!errs.length, errs.join(' | '));

@@ -363,6 +363,12 @@ async function resolveMapLinks(d) {
 let draft = null;
 let baseVersion = 0;
 let dirty = false;
+// The draft was read from the bridge as the manager, this session — not the
+// device's copy shown while that read is on its way. Only such a draft is
+// edited: the copy may be older than what is saved, and a phone that is also
+// a parent's holds the parents' season, without minutes or past lineups —
+// saved back, it would erase them from Drive.
+let draftFresh = false;
 let tab = 'games';
 // Long lists open on their first rows; these are the ones the manager asked
 // to see whole, and the lists whose import tools are showing.
@@ -481,6 +487,8 @@ window.addEventListener('beforeunload', (e) => {
 
 export function mountAdmin(view, ctx) {
   let alive = true;
+  let synced = false;        // the draft on screen is the newest version: editing allowed
+  let syncError = '';
   let users = null;
   let usersError = '';
   let message = '';
@@ -515,7 +523,7 @@ export function mountAdmin(view, ctx) {
           ${TABS.map(([id, label]) => `<button type="button" role="tab" data-tab="${id}" aria-selected="${tab === id}">${tabLabel(id, label)}</button>`).join('')}
         </div>
       </section>
-      ${tab === 'access' ? accessHtml() : draft ? seasonHtml() : '<section><div class="card"><div class="empty">טוען…</div></div></section>'}`;
+      ${tab === 'access' ? accessHtml() : (syncError ? syncErrorHtml() : '') + (draft ? seasonHtml() : syncError ? '' : '<section><div class="card"><div class="empty">טוען…</div></div></section>')}`;
     restoreFocus();
     window.scrollTo(0, scroll);
     const fmt = view.querySelector('[data-format-editor]');
@@ -1141,12 +1149,16 @@ export function mountAdmin(view, ctx) {
         </section>`,
     }[tab]();
     const idle = !dirty && !saving && !message;
-    return `${body}
-      <div class="savebar${idle ? ' idle' : ''}" role="region" aria-label="שמירה">
-        <p class="save-msg ${messageKind}" role="status">${esc(message || (dirty ? 'יש שינויים שלא נשמרו.' : `הכל שמור · גרסה ${baseVersion}`))}</p>
+    // Until the newest version is in, the device's copy is shown, not edited.
+    const locked = !synced;
+    const status = locked ? (syncError ? 'אין חיבור — מוצג העותק מהמכשיר' : 'מעדכן לגרסה האחרונה…')
+      : message || (dirty ? 'יש שינויים שלא נשמרו.' : `הכל שמור · גרסה ${baseVersion}`);
+    return `<div class="admin-body"${locked ? ' inert aria-busy="true"' : ''}>${body}</div>
+      <div class="savebar${idle || locked ? ' idle' : ''}" role="region" aria-label="שמירה">
+        <p class="save-msg ${locked ? '' : messageKind}" role="status">${esc(status)}</p>
         <div class="row-btns">
-          <button type="button" class="btn secondary small" id="discard"${!dirty || saving ? ' disabled' : ''}>ביטול</button>
-          <button type="button" class="btn small" id="save"${!dirty || saving ? ' disabled' : ''}>${saving ? 'שומר…' : 'שמירה'}</button>
+          <button type="button" class="btn secondary small" id="discard"${!dirty || saving || locked ? ' disabled' : ''}>ביטול</button>
+          <button type="button" class="btn small" id="save"${!dirty || saving || locked ? ' disabled' : ''}>${saving ? 'שומר…' : 'שמירה'}</button>
         </div>
       </div>`;
   }
@@ -1162,6 +1174,7 @@ export function mountAdmin(view, ctx) {
   }
 
   async function save() {
+    if (!synced) return;   // never over the device's copy (see draftFresh)
     saving = true; paint();
     schemeLinks(draft);
     const mapErrs = await resolveMapLinks(draft);
@@ -1351,7 +1364,7 @@ export function mountAdmin(view, ctx) {
     }
     if (t.id === 'logout') {
       if (dirty && !confirm('יש שינויים שלא נשמרו. לצאת בכל זאת?')) return;
-      dirty = false; draft = null;
+      dirty = false; draft = null; draftFresh = false;
       ctx.logout();
       return;
     }
@@ -1416,10 +1429,15 @@ export function mountAdmin(view, ctx) {
       view.querySelector('[data-path="matches.0.gf"]')?.focus();
       return;
     }
+    if (t.id === 'resync') { t.disabled = true; resync(); return; }
     if (t.id === 'save') { save(); return; }
     if (t.id === 'discard') {
       if (!confirm('לבטל את כל השינויים מאז השמירה האחרונה?')) return;
-      take(await fresh());
+      let p;
+      // A failed read keeps the draft and its changes: nothing to go back to.
+      try { p = await fresh(); } catch (e) { message = e.message; messageKind = 'err'; paint(); return; }
+      take(p);
+      draftFresh = true;
       // The conflict message that sent the manager here is answered now;
       // leaving it up would read as if the reload had failed too.
       message = ''; messageKind = '';
@@ -1430,25 +1448,51 @@ export function mountAdmin(view, ctx) {
   // Always edit on top of the newest saved version, not the device's cache:
   // saving over an old base is exactly what the bridge's conflict check
   // rejects, and it would reject it only after the manager had typed.
-  async function fresh() {
-    try { return await call('getSeason', {}, { asAdmin: true }); }
-    catch (e) { message = e.message; messageKind = 'err'; return ctx.payload; }
+  const fresh = () => call('getSeason', {}, { asAdmin: true });
+
+  // The newest version, read before anything is edited. Meanwhile the screen
+  // shows the device's copy (when it is the manager's) without letting it be
+  // edited, so the wait is spent looking at the season and not at "loading".
+  // A read that fails leaves it that way, with a way to try again.
+  async function resync() {
+    syncError = '';
+    if (alive) paint();
+    let p;
+    try { p = await fresh(); }
+    catch (e) { syncError = e.message || 'אין חיבור לשרת.'; if (alive) paint(); return; }
+    // Left meanwhile: the next visit reads again. Taking it here could land
+    // under that visit's hands, after it was unlocked and typed in.
+    if (!alive) return;
+    // Locked until now, so nothing was typed: only a merge on load (a stored
+    // next match folded in) can have made it dirty, and taking again redoes it.
+    // The same version already fresh keeps what the manager had open.
+    if (!draftFresh || p?.version !== baseVersion) take(p);
+    draftFresh = true;
+    synced = true;
+    if (alive) paint();
   }
+
+  const syncErrorHtml = () => `
+    <section><div class="card">
+      <p class="note">${esc(syncError)} — עריכה תתאפשר כשהגרסה העדכנית תגיע.</p>
+      <div class="row-btns"><button type="button" class="btn secondary small" id="resync">נסו שוב</button></div>
+    </div></section>`;
 
   view.addEventListener('input', onInput);
   view.addEventListener('change', onInput);
   view.addEventListener('click', onClick);
   view.addEventListener('toggle', onToggle, true);
 
-  if (!draft) {
-    view.innerHTML = '<section><div class="card"><div class="empty">טוען…</div></div></section>';
-    fresh().then((p) => { if (!draft) take(p); paint(); });
-  } else {
-    paint();
-    // Nothing unsaved: the season may have moved since (a training changed
-    // from the home screen, a live match finished), and saving over the old
-    // copy would only be refused. A keystroke meanwhile makes it dirty and wins.
-    if (!dirty) fresh().then((p) => { if (alive && !dirty && p?.version !== baseVersion) { take(p); paint(); } });
+  // Unsaved changes from an earlier visit stay as they are, editable: they
+  // were made on a fresh read. Anything else is read again first — the season
+  // may have moved since (a training changed from home, a live match
+  // finished), and saving over the old copy would only be refused.
+  if (draft && draftFresh && dirty) synced = true;
+  else {
+    // The device's copy only when it is the manager's: a parent's copy lacks
+    // the minutes and past lineups (see draftFresh).
+    if (!draftFresh && ctx.payload?.role === 'admin') { take(ctx.payload); draftFresh = false; }
+    resync();
   }
   loadUsers();
   loadGallery();

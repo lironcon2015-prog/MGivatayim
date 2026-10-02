@@ -354,6 +354,10 @@ await test('trainings: the week is the routine plus this week\'s changes, and th
   const movedThu = { ...base, trainingChanges: [...base.trainingChanges.filter((c) => c.date !== '2026-10-01'), { date: '2026-10-01', movedTo: '2026-10-05' }] };
   assert.ok(buildSeason(movedThu, new Date('2026-09-30T17:01:00Z')).offersNextWeek, 'a training moved out of the week holds nothing back');
   assert.ok(buildSeason({ ...base, trainings: [], trainingChanges: [] }, tuesday).offersNextWeek, 'no training left: offered at once');
+  // No end time: half an hour after its start (the owner's call). Thursday's starts at 16:30.
+  const noEnd = { ...base, trainings: base.trainings.map((t) => ({ ...t, end: '' })) };
+  assert.ok(!buildSeason(noEnd, new Date('2026-10-01T13:59:00Z')).offersNextWeek, 'within half an hour of the start');
+  assert.ok(buildSeason(noEnd, new Date('2026-10-01T14:01:00Z')).offersNextWeek, 'half an hour after the start');
   assert.equal(buildSeason(base, new Date('2026-10-04T08:00:00Z')).week.start, '2026-10-04', 'Sunday starts the next week');
   assert.equal(buildSeason({ ...base, trainings: [], trainingChanges: [] }, tuesday).week.trainings, 0, 'no trainings, no strip');
   // A game played this week stays in its day, past and with its score —

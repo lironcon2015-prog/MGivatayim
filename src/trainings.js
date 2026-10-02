@@ -35,8 +35,8 @@ function venueOf(v, home) {
 
 // Sunday to Saturday around today (Israel), the week a parent plans by;
 // `ahead` = 1 is the week after (the owner's "next week" button, offered
-// once the week's last training is over — nextWeekFrom). The week's games sit in their days, a played one with
-// its score.
+// once the week's last training is over — nextWeekFrom). The week's games
+// sit in their days, a played one with its score.
 export function trainingWeek(season, games, now = new Date(), ahead = 0) {
   const today = todayInIsrael(now);
   const start = addDays(today, 7 * ahead - weekday(today));
@@ -115,15 +115,19 @@ export function trainingWeek(season, games, now = new Date(), ahead = 0) {
 
 // When the "next week" button shows (the owner's ask; it was Saturday): once
 // the week's last training is over, nothing in this week is left to plan for.
-// A cancelled training, or one moved out of the week, does not count; one
-// with no end time is over when its day is. A week with no training left
-// offers it at once. A moment (ms), so a screen drawn before it can tell that
-// it passed (refresh in app.js).
+// A cancelled training, or one moved out of the week, does not count. One
+// with no end time counts half an hour after its start (the owner's call),
+// and one with no hours at all at the end of its day. A week with no
+// training left offers it at once. A moment (ms), so a screen drawn before it
+// can tell that it passed (refresh in app.js).
+const START_GRACE_MS = 30 * 60 * 1000;
 export function nextWeekFrom(week) {
   let last = 0;
   for (const i of week?.items || []) {
     if (i.kind !== 'training' || i.change === 'cancelled' || i.change === 'away') continue;
-    const at = Date.parse(israelIso(i.date, i.end || '23:59'));
+    const at = i.end ? Date.parse(israelIso(i.date, i.end))
+      : i.start ? Date.parse(israelIso(i.date, i.start)) + START_GRACE_MS
+      : Date.parse(israelIso(i.date, '23:59'));
     if (at > last) last = at;
   }
   return last;

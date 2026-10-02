@@ -1458,6 +1458,10 @@ await step('a device the manager marks as coach sees playing time; a parent does
   await coach.click('#recheck');
   await coach.goto(APP + '#/stats');
   await coach.locator('#minutes .mn-table').waitFor({ timeout: 8000 });
+  // Who the phone is, in the title on every screen; a parent's says nothing.
+  expect((await coach.locator('.topbar .role-mark').innerText()).trim() === 'מאמן', 'the coach is not named in the title');
+  expect((await admin.locator('.topbar .role-mark').innerText()).trim() === 'מנהל', 'the manager is not named in the title');
+  expect(await parent.locator('.topbar .role-mark').count() === 0, 'a parent\'s title names a role');
   // What parents never see says so, to the coach and to the manager.
   expect(await coach.locator('#minutes .sec-head .coach-only').innerText() === '(רק למאמן)', 'the coach\'s minutes carry no "only the coach" note');
   await admin.goto(APP + '#/stats');

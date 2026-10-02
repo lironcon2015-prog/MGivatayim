@@ -192,6 +192,9 @@ h1, h2, h3 { margin: 0; font-weight: 800; letter-spacing: -.015em; line-height: 
 .topbar-btn:active { background: var(--surface-2); }
 .topbar-btn:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 .roster-hint { color: var(--text); border-bottom: 1px dotted var(--faint); white-space: nowrap; }
+/* Manager or coach: a word in the league line, its icon in gold. */
+.role-mark { display: inline-flex; align-items: center; gap: .2rem; color: var(--text); font-weight: 700; white-space: nowrap; vertical-align: bottom; }
+.role-mark svg { width: 13px; height: 13px; color: var(--gold); stroke-width: 1.8; }
 
 /* The team card the title opens: who we are, then the squad, quietly —
    numbers in grey, names in body text, no gold, nothing to tap. */

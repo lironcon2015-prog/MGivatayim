@@ -298,6 +298,13 @@ function checkMinutesAlert() {
 
 let teardown = () => {};
 
+// Who this phone is, on every screen (the owner's pick from a mockup): one
+// word closing the league line, with the icon of the role. A parent sees none.
+function roleMark() {
+  const [glyph, word] = isAdmin() ? ['shield', 'מנהל'] : canMinutes() ? ['whistle', 'מאמן'] : [];
+  return word ? ` · <span class="role-mark">${icon(glyph)}${word}</span>` : '';
+}
+
 function chrome(team) {
   const name = team?.name || 'מכבי גבעתיים';
   // A floating bar at the bottom, in reach of the thumb. body.with-nav
@@ -318,7 +325,7 @@ function chrome(team) {
   const brand = `<span class="crest has-img">${crestImg(crestTeam)}</span>
         <span class="topbar-text">
           <h1>${esc(name)}</h1>
-          <p>${esc(team?.league || 'העונה של הקבוצה')}${roster ? ' · <span class="roster-hint">הסגל ‹</span>' : ''}</p>
+          <p>${esc(team?.league || 'העונה של הקבוצה')}${roster ? ' · <span class="roster-hint">הסגל ‹</span>' : ''}${roleMark()}</p>
         </span>`;
   return `<header class="topbar">
       <div class="topbar-inner">

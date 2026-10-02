@@ -4,7 +4,7 @@ import { esc, splitKickoff, shortName, shortDate, byNumber } from '../format.js'
 import { icon } from '../icons.js';
 import { crestImg, keepImages, keepFocus, oppLogo, roundText, matchRow, sectionHead, COACH_ONLY } from '../components.js';
 import { hydratePosters } from '../posters.js';
-import { posLabel, isKeeper, layout, subGroups, formationsFor, freeSlots, fitFormation, refit } from '../positions.js';
+import { posLabel, isKeeper, layout, subGroups, formationsFor, freeSlots, fitFormation, refit, pairWave } from '../positions.js';
 import { openSheet, confirmSheet, toast, buzz } from '../ui/sheet.js';
 import { liveMinutesHtml, hasShortfall, coachFormEvent, coachSheet, matchMinutesHtml } from './minutes.js';
 import { alertKey } from '../minutes.js';
@@ -1057,6 +1057,130 @@ export function mountLive(view, ctx) {
     });
   }
 
+  // The substitutions mode (the owner's pick, for a parent recording from
+  // the touchline): shirt numbers, not names; mark who goes off and who comes
+  // on, in any order and as many as the wave has, and record them at once.
+  // Who replaced whom is not asked: pairWave fits each player coming on into
+  // a slot that came free. The minute is the first mark's, not the moment
+  // the last one is found — and in a period's first two minutes it is the
+  // whistle (WAVE_GRACE_MS) if nothing was recorded since it: changes made at
+  // kick-off reach the phone late.
+  // The sheet stays open for the next wave; each recorded wave is one line
+  // with an undo for all of it.
+  const WAVE_GRACE_MS = 2 * 60000;
+  function waveSheet() {
+    if (!state() || !['running', 'break'].includes(state().status)) return;
+    const outs = new Set();
+    const ins = new Set();
+    let timing = null;      // fixed at the first mark of a wave
+    const waves = [];       // recorded here: { label, ids }
+
+    const lastPos = (st, pid) => {
+      const subs = st.events.filter((e) => e.type === 'sub' && e.out === pid);
+      return subs.length ? subs[subs.length - 1].pos || '' : st.lineup?.find((l) => l.pid === pid)?.pos || '';
+    };
+    // The whistle by default only while nothing has been recorded since it:
+    // a wave put before a change made after kick-off would be applied before
+    // it, and could bring on a player who was still on the field then.
+    const fixTiming = (st) => {
+      timing = timingState(st);
+      const start = timing.options.find((o) => o.key === 'start');
+      const since = st.events.some((e) => (e.type === 'sub' || e.type === 'shape') && e.period === st.period && e.atMs > 0);
+      if (start && !since && timing.stamp.atMs < WAVE_GRACE_MS) timing.stamp = start.stamp;
+    };
+    const tile = (p, kind, on) => `<button type="button" class="wave-tile" data-${kind}="${esc(p.id)}" aria-pressed="${on}"
+      aria-label="${esc(`${p.number ?? ''} ${p.name}`.trim())}"><b class="num">${p.number ?? '·'}</b><span>${esc(shortName(p.name))}</span></button>`;
+
+    const html = () => {
+      const st = state();
+      const field = M.onField(st).map((f) => M.playerById(st, f.pid)).filter(Boolean).sort(byNumber);
+      const benchP = [...M.bench(st)].sort(byNumber);
+      // Marks that a change from another phone made stale are dropped.
+      for (const pid of outs) if (!field.some((p) => p.id === pid)) outs.delete(pid);
+      for (const pid of ins) if (!benchP.some((p) => p.id === pid)) ins.delete(pid);
+      if (!outs.size && !ins.size) timing = null;
+      const n = outs.size, m = ins.size;
+      const when = !timing ? '<p class="timing-fixed">' + icon('clock') + ' הדקה תילקח מהלחיצה הראשונה</p>'
+        : timing.options.length < 2 ? timingHtml(st, timing)
+          : `<div class="seg timing" role="radiogroup" aria-label="מתי">${timing.options.map((o, i) => {
+            const on = o.stamp === timing.stamp;
+            return `<button type="button" role="radio" data-timing="${i}" aria-checked="${on}" aria-selected="${on}">${esc(o.label)}</button>`;
+          }).join('')}</div>`;
+      const status = !n && !m ? 'מסמנים מי יוצא ומי נכנס, בכל סדר'
+        : `נכנסים <b class="num">${m}</b> · יוצאים <b class="num">${n}</b>`;
+      const ready = n > 0 && n === m;
+      const go = ready ? (n === 1 ? 'רישום החילוף' : `רישום ${n} חילופים`) : m > n ? `חסר ${m - n === 1 ? 'יוצא אחד' : `${m - n} יוצאים`}` : n > m ? `חסר ${n - m === 1 ? 'נכנס אחד' : `${n - m} נכנסים`}` : 'רישום';
+      return `${when}
+        <p class="wave-lbl">על המגרש · לחיצה = יוצא</p>
+        <div class="wave-grid">${field.map((p) => tile(p, 'out', outs.has(p.id))).join('')}</div>
+        <p class="wave-lbl">ספסל · לחיצה = נכנס</p>
+        <div class="wave-grid">${benchP.map((p) => tile(p, 'in', ins.has(p.id))).join('') || '<p class="sheet-text">אין שחקנים על הספסל.</p>'}</div>
+        <div class="wave-bar"><span>${status}</span><button type="button" class="btn small" data-wave-go${ready ? '' : ' disabled'}>${go}</button></div>
+        ${waves.length ? `<div class="wave-log">${waves.map((w, i) => `<div class="wave-row"><span>${w.label}</span>
+          <button type="button" class="btn secondary small" data-wave-undo="${i}" aria-label="ביטול הגל">${icon('undo')}</button></div>`).join('')}</div>` : ''}`;
+    };
+
+    const record = () => {
+      const st = state();
+      const field = M.onField(st);
+      const pairs = pairWave(
+        [...outs].map((pid) => ({ pid, pos: field.find((f) => f.pid === pid)?.pos || '' })),
+        [...ins].map((pid) => ({ pid, was: lastPos(st, pid) })),
+        st.players);
+      const stamp = timing.stamp;
+      const ids = [];
+      try {
+        for (const p of pairs) {
+          const id = uid();
+          if (S.dispatch({ t: 'sub', id, out: p.out, in: p.in, pos: p.pos, ...stamp })) ids.push(id);
+        }
+      } catch (e) { toast(esc(e.message), { kind: 'err' }); }
+      if (!ids.length) return;
+      buzz();
+      const nums = (list) => list.map((pid) => who(st, pid).number ?? '·').join(', ');
+      waves.unshift({
+        ids,
+        label: `${stampLine(st, stamp)} · ${ids.length === 1 ? 'חילוף' : `${ids.length} חילופים`}
+          <small>נכנסו <span class="num">${nums(pairs.map((p) => p.in))}</span> · יצאו <span class="num">${nums(pairs.map((p) => p.out))}</span></small>`,
+      });
+      outs.clear(); ins.clear(); timing = null;
+    };
+
+    const sh = openSheet({
+      title: 'חילופים',
+      subtitle: 'לפי מספרי החולצות',
+      tall: true,
+      body: html(),
+      onMount: ({ body }) => {
+        const paint = () => { body.innerHTML = html(); };
+        // One handler, assigned: the body is redrawn on every mark.
+        body.onclick = (e) => {
+          const st = state();
+          if (!st || !['running', 'break'].includes(st.status)) { sh.close('done'); return; }
+          const b = e.target.closest('button');
+          if (!b) return;
+          if (b.dataset.timing != null && timing) { timing.stamp = timing.options[Number(b.dataset.timing)].stamp; paint(); return; }
+          if (b.dataset.waveUndo != null) {
+            const w = waves[Number(b.dataset.waveUndo)];
+            if (!w) return;
+            for (const id of w.ids) S.dispatch({ t: 'del', id });
+            waves.splice(waves.indexOf(w), 1);
+            toast('הגל בוטל');
+            paint();
+            return;
+          }
+          if (b.hasAttribute('data-wave-go')) { if (outs.size && outs.size === ins.size) { record(); paint(); } return; }
+          const pid = b.dataset.out || b.dataset.in;
+          if (!pid) return;
+          const set = b.dataset.out ? outs : ins;
+          if (set.has(pid)) set.delete(pid); else set.add(pid);
+          if (!timing && (outs.size || ins.size)) fixTiming(st);
+          paint();
+        };
+      },
+    });
+  }
+
   function chooseOutFor(inPid) {
     const st = state();
     const p = M.playerById(st, inPid);
@@ -1494,7 +1618,7 @@ export function mountLive(view, ctx) {
       act({ t: 'goal', id: uid(), side: 'them', ...stamp }, `שער ל${esc(st.opponent || 'יריבה')} · <span class="num">${sc.us}:${sc.them + 1}</span>`);
       return;
     }
-    if (a === 'sub') { subSheet(); return; }
+    if (a === 'sub') { waveSheet(); return; }
     if (a === 'more') { moreSheet(); return; }
     if (a === 'finish') { finish(); return; }
     if (a === 'format') { formatSheet(); return; }

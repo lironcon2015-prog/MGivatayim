@@ -195,6 +195,35 @@ export function fitFormation(slots, entries, players) {
   return list.filter((e) => placed.has(e.pid)).map((e) => ({ pid: e.pid, pos: placed.get(e.pid) }));
 }
 
+// A wave of substitutions as a parent on the touchline sees it: who went off
+// and who came on, not who replaced whom (the owner's call: in a wave it does
+// not matter). Each player coming on takes a slot that came free, the way a
+// pasted lineup is fitted, the slot he last played this match (`was`) first:
+// a winger coming back goes to the wing he left, whatever his listed
+// position — then his position, his second, a neighbouring one, his line.
+// (Tried on the friendly of 1.10: with `was` after the listed positions two
+// wingers coming back at a kick-off were swapped.) Minutes depend only on who was on
+// the field and when, so a wrong pairing moves a label, never a minute.
+// `outs` [{ pid, pos }], `ins` [{ pid, was }] → [{ out, in, pos }], one per
+// player coming on, in the order they were picked.
+export function pairWave(outs, ins, players) {
+  const fitted = fitFormation(outs.map((o) => o.pos || ''), ins.map((i) => ({ pid: i.pid, want: i.was || '' })), players);
+  const left = [...outs];
+  const pairs = [];
+  for (const { pid, pos } of fitted) {
+    const k = left.findIndex((o) => (o.pos || '') === pos);
+    const [o] = left.splice(k, 1);
+    pairs.push({ out: o.pid, in: pid, pos: o.pos || '' });
+  }
+  // A player the squad no longer lists still comes on, into what is left.
+  for (const i of ins) {
+    if (pairs.some((p) => p.in === i.pid) || !left.length) continue;
+    const o = left.shift();
+    pairs.push({ out: o.pid, in: i.pid, pos: o.pos || '' });
+  }
+  return pairs;
+}
+
 // A lineup moved to another formation (or size): the same players, in the
 // order they were picked, each with the position he held.
 export const refit = (slots, lineup, players) => fitFormation(slots, lineup.map((l) => ({ pid: l.pid, was: l.pos })), players);

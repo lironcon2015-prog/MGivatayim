@@ -532,6 +532,35 @@ await test('a lineup pasted from WhatsApp: first names, numbering, positions, be
   assert.equal(matchLineup('שוער - שוער', keeper, 9).rows[0]?.pid, 'k', 'a player named "שוער" dropped');
 });
 
+await test('a wave of substitutions pairs each player coming on with a slot that came free', async () => {
+  const P = await import('../src/positions.js');
+  // The squad and two waves of the friendly against Shikun HaMizrah (1.10).
+  const squad = [
+    ['n6', 'CB', 'RB'], ['n7', 'LW', 'CM'], ['n8', 'DM', 'CM'], ['n9', 'RB', 'RW'], ['n11', 'LW', 'RW'], ['n16', 'LB', 'RW'],
+    ['n17', 'LB', 'RB'], ['n19', 'LW', 'RW'], ['n20', 'LW', 'RW'], ['n23', 'ST', 'LW'], ['n33', 'DM', 'CM'], ['n44', 'CB', ''], ['n1', 'GK', ''],
+  ].map(([id, pos, pos2]) => ({ id, pos, pos2 }));
+  const byIn = (pairs) => Object.fromEntries(pairs.map((p) => [p.in, `${p.out}@${p.pos}`]));
+  // 75': 16, 20, 33 and 6 off; 17, 11, 8 and 44 on — as it really went.
+  const w75 = P.pairWave(
+    [{ pid: 'n16', pos: 'LB' }, { pid: 'n20', pos: 'RW' }, { pid: 'n33', pos: 'CM' }, { pid: 'n6', pos: 'CB' }],
+    [{ pid: 'n17', was: 'LB' }, { pid: 'n11', was: 'ST' }, { pid: 'n8', was: 'CM' }, { pid: 'n44', was: 'CB' }], squad);
+  assert.deepEqual(byIn(w75), { n17: 'n16@LB', n11: 'n20@RW', n8: 'n33@CM', n44: 'n6@CB' });
+  // The third period's kick-off: five changes, picked in any order.
+  const k3 = P.pairWave(
+    [{ pid: 'n11', pos: 'ST' }, { pid: 'n44', pos: 'CB' }, { pid: 'n9', pos: 'LW' }, { pid: 'n8', pos: 'CM' }, { pid: 'n19', pos: 'RW' }],
+    [{ pid: 'n33' }, { pid: 'n20', was: 'RW' }, { pid: 'n6' }, { pid: 'n7', was: 'LW' }, { pid: 'n23', was: 'ST' }], squad);
+  assert.deepEqual(byIn(k3), { n33: 'n8@CM', n20: 'n19@RW', n6: 'n44@CB', n7: 'n9@LW', n23: 'n11@ST' });
+  // Two slots of one position go to the two coming on; the goal only to a keeper, or last.
+  const twoCb = P.pairWave([{ pid: 'a', pos: 'CB' }, { pid: 'b', pos: 'CB' }], [{ pid: 'n44' }, { pid: 'n6' }], squad);
+  assert.deepEqual(twoCb.map((p) => p.pos).sort(), ['CB', 'CB']);
+  assert.deepEqual(new Set(twoCb.map((p) => p.out)), new Set(['a', 'b']));
+  const gk = P.pairWave([{ pid: 'g', pos: 'GK' }, { pid: 's', pos: 'ST' }], [{ pid: 'n23' }, { pid: 'n17' }], squad);
+  assert.deepEqual(byIn(gk), { n23: 's@ST', n17: 'g@GK' }, 'a field player went in goal while a field slot was free');
+  // Every player coming on gets a slot, even one the squad no longer lists.
+  const gone = P.pairWave([{ pid: 'x', pos: 'LB' }, { pid: 'y', pos: '' }], [{ pid: 'n17' }, { pid: 'ghost' }], squad);
+  assert.deepEqual(byIn(gone), { n17: 'x@LB', ghost: 'y@' });
+});
+
 await test('the formation is the base: players go into its slots', async () => {
   const P = await import('../src/positions.js');
   const pl = (id, pos, pos2 = '') => ({ id, name: id, pos, pos2 });

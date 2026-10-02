@@ -622,6 +622,68 @@ await step('a sub entered with the wrong player is corrected from the timeline, 
   await admin.click('.pane-tabs [data-pane="pitch"]');
 });
 
+await step('the substitutions mode: numbers marked off and on in any order, recorded as one wave, undone as one', async () => {
+  const subs = () => liveFile().events.filter((e) => e.type === 'sub');
+  const poll = async (fn, what) => {
+    for (let t = 0; t < 80 && !fn(); t++) await new Promise((r) => setTimeout(r, 100));
+    expect(fn(), 'timed out waiting for ' + what);
+  };
+  const before = subs().length;
+  await admin.click('[data-act="sub"]');
+  const sheet = admin.locator('.sheet');
+  try {
+  await sheet.locator('.wave-grid').first().waitFor();
+  const offs = sheet.locator('.wave-tile[data-out]');
+  const ons = sheet.locator('.wave-tile[data-in]');
+  // As big a wave as the test squad allows (two when the bench has two).
+  const k = Math.min(2, await ons.count());
+  expect(k >= 1, 'no one on the bench to bring on');
+  const outIds = [], inIds = [];
+  for (let i = 0; i < k; i++) {
+    outIds.push(await offs.nth(i + 1).getAttribute('data-out'));
+    inIds.push(await ons.nth(i).getAttribute('data-in'));
+  }
+  // Coming on first, then going off: any order.
+  for (const id of inIds) await sheet.locator(`[data-in="${id}"]`).click();
+  expect(await sheet.locator('[data-wave-go]').isDisabled(), 'recordable with more on than off');
+  // A second tap unmarks.
+  await sheet.locator(`[data-out="${outIds[0]}"]`).click();
+  await sheet.locator(`[data-out="${outIds[0]}"]`).click();
+  expect(await sheet.locator(`[data-out="${outIds[0]}"]`).getAttribute('aria-pressed') === 'false', 'a second tap did not unmark');
+  for (const id of outIds) await sheet.locator(`[data-out="${id}"]`).click();
+  const atStart = /תחילת/.test(await sheet.locator('[data-timing][aria-checked="true"], .timing-fixed').first().innerText());
+  // A sub already recorded after this period's whistle: the wave cannot go
+  // before it, so the default is now. (Put first, it brought on a player who
+  // was still on the field then — the pitch lost him.)
+  const live = liveFile();
+  if (live.events.some((e) => (e.type === 'sub' || e.type === 'shape') && e.period === live.period && e.atMs > 0)) {
+    expect(!atStart, 'the wave defaulted to the whistle, before a sub made after it');
+  }
+  await sheet.locator('[data-wave-go]').click();
+  await poll(() => subs().length === before + k, 'the wave to reach the bridge');
+  const wave = subs().slice(-k);
+  expect(wave.every((e) => outIds.includes(e.out)) && new Set(wave.map((e) => e.out)).size === k, 'the wrong players went off: ' + JSON.stringify(wave));
+  expect(wave.every((e) => inIds.includes(e.in)), 'the wrong players came on: ' + JSON.stringify(wave));
+  expect(wave.every((e) => e.period === wave[0].period && e.atMs === wave[0].atMs), 'a wave at two minutes: ' + JSON.stringify(wave));
+  expect(!!wave[0].atStart === atStart, 'the minute shown is not the one recorded: ' + JSON.stringify(wave[0]));
+  // The sheet stays open for the next wave, the players moved sides.
+  await sheet.locator(`.wave-tile[data-out="${inIds[0]}"]`).waitFor();
+  await sheet.locator(`.wave-tile[data-in="${outIds[0]}"]`).waitFor();
+  // One undo for the whole wave.
+  await sheet.locator('[data-wave-undo="0"]').click();
+  await poll(() => subs().length === before, 'the wave to be undone');
+  await sheet.locator(`.wave-tile[data-out="${outIds[0]}"]`).waitFor();
+  } catch (e) {
+    console.log('     sheet:', (await sheet.count()) ? (await sheet.innerText()).replace(/\s+/g, ' ') : '(closed)');
+    console.log('     subs on the bridge:', JSON.stringify(subs().slice(-3)));
+    throw e;
+  } finally {
+    if (await sheet.count()) await admin.locator('.sheet-x').click();
+  }
+  await sheet.waitFor({ state: 'detached' });
+  await admin.waitForFunction(() => !history.state?.mgLayer);
+});
+
 await step('a wrong live code is refused; the right one hands the parent control', async () => {
   await admin.click('[data-act="more"]');
   await admin.fill('[data-code-form] input', '4821');

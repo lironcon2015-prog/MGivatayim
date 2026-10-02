@@ -891,6 +891,32 @@ body.with-nav .toast { bottom: calc(var(--nav-space) + 10px); }
   padding-inline-start: 2.5rem;
 }
 .pick-search input:focus-visible { outline: none; border-color: rgba(232, 185, 49, .7); box-shadow: 0 0 0 3px rgba(232, 185, 49, .16); }
+/* The substitutions mode (waveSheet in live.js): shirt numbers as large tiles,
+   the field above and the bench below. A tile going off is solid gold, one
+   coming on gold-outlined — the two sides read apart at a glance. */
+.wave-lbl { margin: .7rem .2rem .35rem; font-size: .74rem; font-weight: 800; color: var(--faint); }
+.wave-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.wave-tile {
+  display: grid; justify-items: center; gap: 1px; min-height: 56px; padding: .45rem .2rem .35rem;
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: 14px; color: var(--text);
+  font: inherit; cursor: pointer; touch-action: manipulation;
+}
+.wave-tile b { font-size: 1.35rem; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.wave-tile span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .7rem; color: var(--faint); }
+.wave-tile:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.wave-tile[data-out][aria-pressed="true"] { background: var(--gold-fill); border-color: var(--gold); color: var(--on-gold); }
+.wave-tile[data-out][aria-pressed="true"] span { color: var(--on-gold); }
+.wave-tile[data-in][aria-pressed="true"] { background: var(--gold-soft); border-color: var(--gold); box-shadow: inset 0 0 0 1px var(--gold); }
+.wave-tile[data-in][aria-pressed="true"] b { color: var(--gold); }
+.wave-bar {
+  position: sticky; bottom: 0; display: flex; align-items: center; justify-content: space-between; gap: .6rem;
+  margin-top: .8rem; padding: .6rem 0; background: var(--surface-solid); font-size: .86rem; color: var(--muted);
+}
+.wave-bar .btn { flex: none; }
+.wave-log { display: grid; gap: .4rem; margin-top: .4rem; border-top: 1px solid var(--line); padding-top: .6rem; }
+.wave-row { display: flex; align-items: center; justify-content: space-between; gap: .6rem; font-size: .88rem; }
+.wave-row small { display: block; color: var(--faint); }
+.wave-row .btn { flex: none; }
 .pick-group { font-size: .74rem; font-weight: 800; color: var(--faint); padding: .9rem .3rem .35rem; }
 .pick {
   display: flex; align-items: center; gap: .75rem; width: 100%; min-height: 58px; padding: .45rem .5rem;

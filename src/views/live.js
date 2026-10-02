@@ -160,19 +160,30 @@ function pitchHtml(state, slots, { interactive, edit = false, swap = false, sele
 
 /* ── Match sheet (history rows) ─────────────────────────────────────────── */
 
+// The scorers of a result entered by hand: one row per goal of ours, in the
+// order entered, no minutes. Unnamed goals are left out.
+function goalsHtml(state) {
+  const rows = (state.goals || []).filter((g) => g.og || g.scorer).map((g) => `<li><div class="ev us">
+    <span class="ev-ico goal">${icon('ball')}</span>
+    <span class="ev-txt"><b>${esc(g.og ? 'גול עצמי' : whoText(state, g.scorer))}</b>${
+      !g.og && g.assist ? `<small>בישול: ${esc(whoText(state, g.assist))}</small>` : ''}</span></div></li>`);
+  return rows.length ? `<ol class="ev-list">${rows.join('')}</ol>` : '';
+}
+
 // `coach` — the coach's view of a live match's minutes, or null: its
 // minimum and attendance (coachCfg) and how to change them (saveCoach).
 export function openMatchSheet(match, coach = null, us = '') {
   const state = { ...match, format: match.format || M.DEFAULT_FORMAT, events: match.events || [], players: match.players || [], lineup: match.lineup || [] };
   const hasEvents = state.events.some((e) => M.EDITABLE.includes(e.type));
+  const hasGoals = (state.goals || []).some((g) => g.og || g.scorer);
   const minutes = coach && state.lineup.length;
   const minutesHtml = () => (minutes ? matchMinutesHtml(state, coach.coachCfg()) : '');
   openSheet({
     title: `${match.home ? 'בית' : 'חוץ'} · מול ${match.opponent}`,
     subtitle: `<span class="num">${esc(shortDate(match.date))}</span>${roundText(match.round, match.friendly) ? ` · ${esc(roundText(match.round, match.friendly))}` : ''}`,
-    tall: hasEvents || minutes,
+    tall: hasEvents || hasGoals || minutes,
     body: `<div class="ms-score num"><span class="ours">${match.gf}</span><span class="sep">:</span><span>${match.ga}</span></div>
-      ${hasEvents ? timelineHtml(state, { us }) : '<p class="sheet-text">למשחק הזה לא תועדו אירועים — רק התוצאה.</p>'}
+      ${hasEvents ? timelineHtml(state, { us }) : goalsHtml(state) || '<p class="sheet-text">למשחק הזה לא תועדו אירועים — רק התוצאה.</p>'}
       <div data-ms-minutes>${minutesHtml()}</div>`,
     onMount: ({ el }) => {
       if (!minutes) return;

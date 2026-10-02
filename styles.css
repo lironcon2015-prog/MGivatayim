@@ -759,6 +759,8 @@ input[type="checkbox"]:focus-visible { outline: 2px solid var(--gold); outline-o
   font-size: .64rem; font-weight: 800; color: var(--gold); background: var(--gold-soft); border: 1px solid var(--gold-line);
 }
 .ei-body [data-logo-host] + .btn { margin-top: 1rem; }
+.goals-edit { margin-top: 1rem; display: grid; gap: .6rem; }
+.goals-edit .note { margin: 0; }
 .crest-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px 8px; padding: 16px 10px; }
 .crest-tile { display: grid; justify-items: center; gap: 4px; text-align: center; cursor: pointer; min-width: 0; }
 .crest-tile .sc-disc { width: 48px; height: 48px; font-size: .9rem; }

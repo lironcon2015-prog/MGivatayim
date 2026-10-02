@@ -201,6 +201,11 @@ await step('manager fills a season and saves it', async () => {
   await admin.fill('[data-path="players.0.goals"]', '2');
   await adminTab(admin, 'games');
   expect(await admin.inputValue('[data-path="matches.0.opponent"]') === 'בני לוד', 'switching tabs lost an edit');
+  // A hand-entered result names its scorers: one row per goal of ours.
+  expect(await admin.locator('[data-goals-host="0"] select[data-gk="scorer"]').count() === 2, 'no scorer row per goal of ours');
+  await admin.selectOption('[data-goal="0.0"][data-gk="scorer"]', { label: 'איתי' });
+  await admin.selectOption('[data-goal="0.1"][data-gk="scorer"]', 'og');
+  expect(await admin.locator('[data-goal="0.1"][data-gk="assist"]').isDisabled(), 'an own goal takes an assist');
   // The next match is the schedule's nearest row, with everything the old
   // separate record held: gathering time, kit, the crest.
   const fx = await newRow(admin, 'fixtures');
@@ -241,6 +246,8 @@ await step('manager fills a season and saves it', async () => {
   const f0 = saved.season.fixtures[0];
   expect(f0.date === '2030-10-05' && f0.time === '10:30' && f0.arrival === '09:45' && f0.kit === 'כחול / לבן', 'next match row stored as ' + JSON.stringify(f0));
   expect(saved.season.matches[0].gf === 2 && typeof saved.season.matches[0].gf === 'number', 'score not stored as a number');
+  const goals = saved.season.matches[0].goals;
+  expect(goals?.length === 2 && goals[0].scorer === saved.season.players[0].id && goals[1].og === true, 'scorers not saved: ' + JSON.stringify(goals));
   expect(saved.season.team.homeVenue?.address === 'רחוב המעיין 4, גבעתיים', 'home ground not saved: ' + JSON.stringify(saved.season.team));
   expect(!JSON.stringify(saved).includes('__open'), 'UI state leaked into the saved data');
   expect(/^[\w-]{10,}$/.test(saved.season.opponentLogos?.['הפועל כוכבים'] || ''), 'crest not stored by name: ' + JSON.stringify(saved.season.opponentLogos));
@@ -326,6 +333,15 @@ await step('after approval the parent sees the season on returning to the app, w
   expect(hero.includes('09:45') && hero.includes('כחול / לבן'), 'gathering or kit missing from the next match: ' + hero);
   const t = await text(parent);
   expect(t.includes('איתי'), 'player missing');
+  // The scorers the manager named open with the result.
+  await parent.locator('.form-pill[aria-label*="בני לוד"]').click();
+  const sheet = parent.locator('.sheet', { hasText: 'מול בני לוד' });
+  await sheet.waitFor();
+  const st = await sheet.innerText();
+  expect(st.includes('איתי') && st.includes('גול עצמי'), 'hand-entered scorers missing from the match sheet: ' + st);
+  await parent.locator('.sheet-x').click();
+  await parent.locator('.sheet').waitFor({ state: 'detached' });
+  await parent.waitForFunction(() => !history.state?.mgLayer);
 });
 
 await step('the Waze link is built from the address', async () => {
@@ -1383,6 +1399,15 @@ await step('a later fixture can go live now; finishing dates it today and takes 
   await parent.reload();
   await parent.locator('.fixture-row', { hasText: 'הפועל לוח' }).waitFor();
   expect(await parent.locator('.fixture-row', { hasText: 'בני לוח' }).count() === 0, 'the played fixture is still on the schedule');
+  // The manager's schedule loses the row too: it stayed there after the match.
+  await admin.goto(APP + '#/admin');
+  await adminTab(admin, 'games');
+  await waitText(admin, 'ירד מהלוח');
+  expect(await admin.locator('details[data-item^="fixtures."]', { hasText: 'בני לוח' }).count() === 0, 'the played fixture is still on the manager\'s schedule');
+  await admin.click('#save');
+  await waitSaved(admin);
+  expect(!seasonFile().fixtures.some((f) => f.opponent === 'בני לוח'), 'the played fixture was saved back');
+  await admin.goto(APP + '#/live');
 });
 
 await step('cancelling a live match saves nothing and returns the fixture to the schedule', async () => {

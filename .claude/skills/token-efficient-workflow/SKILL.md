@@ -86,3 +86,5 @@ Deliver accurate code using the minimum tokens possible. Silence is preferred ov
   ל-`document.querySelectorAll('.sheet').length === 1` לפני לחיצה בסלקטור משותף.
 - **במוקאפ, סקריפט גלובלי לא משתמש בשמות של `window`** (`top`, `name`, `status`,
   `parent`…): `const top` נכשל ב"already declared" והעמוד יוצא ריק. שמות כמו `bar`.
+- **לולאת המתנה `while pgrep -f "<מחרוזת>"` מוצאת את עצמה** (המחרוזת בשורת הפקודה שלה) ולא נגמרת
+  עד פסק הזמן. ממתינים להרצת רקע בהודעת הסיום שלה, לא בלולאה.

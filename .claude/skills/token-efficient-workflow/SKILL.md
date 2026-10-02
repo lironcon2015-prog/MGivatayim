@@ -88,3 +88,6 @@ Deliver accurate code using the minimum tokens possible. Silence is preferred ov
   `parent`…): `const top` נכשל ב"already declared" והעמוד יוצא ריק. שמות כמו `bar`.
 - **לולאת המתנה `while pgrep -f "<מחרוזת>"` מוצאת את עצמה** (המחרוזת בשורת הפקודה שלה) ולא נגמרת
   עד פסק הזמן. ממתינים להרצת רקע בהודעת הסיום שלה, לא בלולאה.
+- **כישלון לסירוגין: קודם להשוות מול קומיט ישן** (`git worktree add` + קישור ל-`node_modules`),
+  באותו עומס. כך התברר שכישלון ב-pwa קדם לשינוי שנחשד. עומס מלאכותי — לכל היותר 3 תהליכונים:
+  6 הפילו את הסשן.

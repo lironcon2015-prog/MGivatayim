@@ -580,7 +580,8 @@ document.addEventListener('click', (e) => {
   const row = e.target.closest('[data-match]');
   if (!row || !state.season) return;
   const m = state.season.recent[Number(row.dataset.match)];
-  if (m) openMatchSheet(m, canMinutes() && m.liveId ? { coachCfg: () => coachCfg(m.liveId), saveCoach: (patch) => saveCoach(m.liveId, patch) } : null, state.season.team?.name);
+  // A result entered by hand has no squad of its own: its scorers are named from the season's.
+  if (m) openMatchSheet(m.players ? m : { ...m, players: state.season.players }, canMinutes() && m.liveId ? { coachCfg: () => coachCfg(m.liveId), saveCoach: (patch) => saveCoach(m.liveId, patch) } : null, state.season.team?.name);
 });
 
 /* ---------- start ---------- */

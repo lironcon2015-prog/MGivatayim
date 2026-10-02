@@ -873,6 +873,23 @@ await test('the opponent\'s own goal is the team\'s, and no player\'s: the score
   assert.equal(s.squadGoalsMatch, true, 'an own goal read as a scorer missing from the squad');
 });
 
+await test('a result entered by hand credits its scorers and assists; a friendly\'s do not count', async () => {
+  const { buildSeason } = await import('../src/season.js');
+  const s = buildSeason({
+    players: [{ id: 'p1', name: 'אורי', goals: 1 }, { id: 'p2', name: 'דני' }],
+    matches: [
+      { date: '2026-09-19', opponent: 'א', home: true, gf: 3, ga: 0, goals: [{ scorer: 'p1', assist: 'p2' }, { og: true, scorer: 'p2', assist: 'p1' }, { scorer: 'p2', assist: '' }] },
+      { date: '2026-09-20', opponent: 'ב', home: true, gf: 1, ga: 0, friendly: true, goals: [{ scorer: 'p1' }] },
+    ],
+  });
+  const by = Object.fromEntries(s.players.map((p) => [p.id, p]));
+  assert.equal(by.p1.goals, 2, 'baseline plus the hand-entered goal');
+  assert.equal(by.p1.assists, 0, 'an own goal credits no assist');
+  assert.equal(by.p2.goals, 1);
+  assert.equal(by.p2.assists, 1);
+  assert.deepEqual(s.recent.find((m) => m.opponent === 'א').goals[1], { og: true, scorer: null, assist: null });
+});
+
   console.log(`\nunits: ${passed} passed, ${failures.length} failed`);
   process.exit(failures.length ? 1 : 0);
 }

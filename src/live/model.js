@@ -204,9 +204,16 @@ export function cleanLive(s) {
 // A played match in the season: a live one carries the same parts, written
 // by the bridge from what the controlling device sent. Hand-entered fields
 // pass through; only what a controller could have written is retyped.
+// Scorers of a result entered by hand (no live events): who scored each of
+// our goals and who set it up, no minutes. Ids land in HTML attributes.
+const cleanGoals = (list) => (Array.isArray(list) ? list : []).slice(0, 40).filter((g) => g && typeof g === 'object')
+  .map((g) => (g.og === true ? { og: true, scorer: null, assist: null }
+    : { scorer: g.scorer == null || g.scorer === '' ? null : str(g.scorer), assist: g.assist == null || g.assist === '' ? null : str(g.assist) }));
+
 export function cleanPlayedMatch(m) {
   const out = { ...m, date: str(m.date), opponent: str(m.opponent), round: num(m.round), friendly: m.friendly === true };
   if ('events' in m) out.events = cleanEvents(m.events);
+  if ('goals' in m) out.goals = cleanGoals(m.goals);
   if ('lineup' in m) out.lineup = cleanLineup(m.lineup);
   if ('players' in m) out.players = cleanPlayers(m.players);
   if ('format' in m) out.format = cleanFormat(m.format);

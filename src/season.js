@@ -125,6 +125,14 @@ export function buildSeason(input, now = new Date()) {
       bump(fromLive.assists, e.assist);
     }
   }
+  // A result entered by hand may name its scorers and assists (no minutes).
+  for (const m of league) {
+    for (const g of m.goals || []) {
+      if (g.og) { ownGoals++; continue; }
+      bump(fromLive.goals, g.scorer);
+      bump(fromLive.assists, g.assist);
+    }
+  }
   const players = [...raw.players].map((p) => {
     const key = p.id || 'n:' + String(p.name || '').trim();
     const goals = (Number(p.goals) || 0) + (fromLive.goals[key] || 0);
@@ -138,7 +146,8 @@ export function buildSeason(input, now = new Date()) {
   });
   const squadGoals = players.reduce((sum, p) => sum + p.goals, 0);
   const friendlyGoals = chronological.filter((m) => m.friendly)
-    .reduce((n, m) => n + (m.events || []).filter((e) => e.type === 'goal' && e.side !== 'them' && e.scorer).length, 0);
+    .reduce((n, m) => n + (m.events || []).filter((e) => e.type === 'goal' && e.side !== 'them' && e.scorer).length
+      + (m.goals || []).filter((g) => g.scorer).length, 0);
 
   // The next match: the one the manager set by hand (with its gathering time
   // and kit), else the first fixture still ahead in the schedule. Derived on

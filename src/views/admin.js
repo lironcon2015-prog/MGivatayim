@@ -437,6 +437,17 @@ const blankSeason = () => ({
 // jumps away from under the finger is worse than one out of place. Lists
 // without one (links, insights) keep the order they were entered in, which
 // is the order parents see.
+// A hand-entered result names at most as many scorers as our goals; rows
+// past the score, or left blank at the end, are not kept.
+function trimGoals(d) {
+  for (const m of d.matches || []) {
+    if (!Array.isArray(m.goals)) continue;
+    const g = m.goals.slice(0, Math.max(0, Number(m.gf) || 0));
+    while (g.length && !g.at(-1)?.og && !g.at(-1)?.scorer && !g.at(-1)?.assist) g.pop();
+    if (g.length) m.goals = g; else delete m.goals;
+  }
+}
+
 function sortLists(d) {
   for (const list of LISTS) {
     const arr = getPath(d, list.path);
@@ -1042,7 +1053,7 @@ export function mountAdmin(view, ctx) {
       ${items.length ? `<div class="card edit-list">${shown.map(([item, i]) => `<details class="edit-item"${item.__open ? ' open' : ''} data-item="${list.path}.${i}">
           <summary>${summaryHtml(list, item)}</summary>
           <div class="ei-body">${grid(list.fields, `${list.path}.${i}.`, item)}
-          ${list.path === 'fixtures' ? fixtureExtra(item, i) : ''}
+          ${list.path === 'fixtures' ? fixtureExtra(item, i) : list.path === 'matches' ? matchExtra(item, i) : ''}
           <button type="button" class="btn small danger" data-remove="${list.path}.${i}">${icon('trash')} מחיקה</button></div>
         </details>`).join('')}
         ${hidden ? `<button type="button" class="more-row" data-more="${list.path}">הצגת כל ה-${items.length} <span>(עוד ${hidden})</span></button>`
@@ -1074,6 +1085,29 @@ export function mountAdmin(view, ctx) {
     const due = fixtureKey(item) === nextKey() || (item.date && item.date <= today());
     return `<div data-logo-host="fixtures.${i}">${logoHtml(item.opponent)}</div>
       ${due ? `<button type="button" class="btn small" data-played="${i}">המשחק התקיים — הזנת תוצאה</button>` : ''}`;
+  }
+
+  // Who scored each of our goals in a result entered by hand, and who set it
+  // up: one row per goal, following "שערים שלנו". A live match has its events.
+  const OWN_GOAL = 'og';
+  function matchExtra(item, i) {
+    return item.liveId ? '' : `<div data-goals-host="${i}">${goalsEditHtml(item, i)}</div>`;
+  }
+  function goalsEditHtml(item, i) {
+    const n = Math.min(40, Math.max(0, Number(item.gf) || 0));
+    if (!n) return '';
+    const squad = [...(draft.players || [])].filter((p) => String(p.name || '').trim()).sort(byNumber)
+      .map((p) => [p.id || 'n:' + String(p.name).trim(), p.number != null && p.number !== '' ? `${p.name} (${p.number})` : p.name]);
+    const opts = (list, cur) => list.map(([v, l]) => `<option value="${esc(v)}"${cur === v ? ' selected' : ''}>${esc(l)}</option>`).join('');
+    const rows = Array.from({ length: n }, (_, k) => {
+      const g = item.goals?.[k] || {};
+      const scorer = g.og ? OWN_GOAL : g.scorer || '';
+      return `<div class="grid-2 goal-row">
+        <label class="field"><span>שער ${k + 1} · כובש</span><select data-goal="${i}.${k}" data-gk="scorer">${opts([['', 'לא ידוע'], [OWN_GOAL, 'גול עצמי של היריבה'], ...squad], scorer)}</select></label>
+        <label class="field"><span>מבשל</span><select data-goal="${i}.${k}" data-gk="assist"${g.og ? ' disabled' : ''}>${opts([['', '—'], ...squad], g.og ? '' : g.assist || '')}</select></label>
+      </div>`;
+    }).join('');
+    return `<div class="goals-edit"><p class="note">כובשים ומבשלים — נספרים בטבלת השחקנים.</p>${rows}</div>`;
   }
 
   // Every opponent on the schedule and in the results, for the start of a
@@ -1196,6 +1230,7 @@ export function mountAdmin(view, ctx) {
       const msg = view.querySelector('.save-msg');
       if (msg) msg.textContent = `מכין תמונה לסרטון ${i} מתוך ${n}…`;
     });
+    trimGoals(draft);
     sortLists(draft);
     const clean = JSON.parse(JSON.stringify(draft, (k, v) => (k === '__open' ? undefined : v)));
     try {
@@ -1243,6 +1278,24 @@ export function mountAdmin(view, ctx) {
       if (e.type === 'change' && el.value !== '') galleryAct('setGallery', { [el.dataset.gLimit]: Number(el.value) }, 'המגבלה עודכנה');
       return;
     }
+    if (el.dataset.goal) {
+      const [i, k] = el.dataset.goal.split('.').map(Number);
+      const game = draft.matches[i];
+      game.goals = Array.isArray(game.goals) ? game.goals : [];
+      while (game.goals.length <= k) game.goals.push({ scorer: null, assist: null });
+      const g = game.goals[k];
+      const v = el.value || null;
+      if (el.dataset.gk === 'assist') g.assist = v;
+      else if (v === OWN_GOAL) game.goals[k] = { og: true, scorer: null, assist: null };
+      else { delete g.og; g.scorer = v; }
+      // Own goal clears and locks the assist; anything else unlocks it.
+      if (el.dataset.gk === 'scorer') {
+        const host = view.querySelector(`[data-goals-host="${i}"]`);
+        if (host) host.innerHTML = goalsEditHtml(game, i);
+      }
+      touch();
+      return;
+    }
     const path = el.dataset.path;
     if (!path) return;
     if (el.dataset.kick) {
@@ -1280,6 +1333,12 @@ export function mountAdmin(view, ctx) {
         const sum = el.closest('details')?.querySelector('summary');
         if (sum) sum.innerHTML = summaryHtml(list, getPath(draft, list.path)[idx]);
       }
+    }
+    // The scorer rows follow our goals as they are typed.
+    const gf = path.match(/^matches\.(\d+)\.gf$/);
+    if (gf) {
+      const host = view.querySelector(`[data-goals-host="${gf[1]}"]`);
+      if (host) host.innerHTML = goalsEditHtml(draft.matches[Number(gf[1])], Number(gf[1]));
     }
     // The crest row follows the opponent's name as it is typed.
     const opp = path.match(/^fixtures\.(\d+)\.opponent$/);

@@ -2041,25 +2041,29 @@ await step('a player sees his own card and no leaderboard; the coach\'s message 
   await kid.locator('#view .card').first().waitFor({ timeout: 8000 });
   expect(await kid.locator('[data-act="claim"]').count() === 0, 'the player is offered a control code');
 
-  // The message: written by the coach on his home screen, read by all.
-  await coach.goto(APP + '#/');
-  await coach.reload();
-  await coach.locator('[data-msg]').first().click();
-  await coach.fill('#msg-text', 'מחר   חולצה לבנה');
-  await coach.locator('[data-msg-save]').click();
-  await coach.locator('.msg-card', { hasText: 'מחר חולצה לבנה' }).waitFor({ timeout: 8000 });
-  for (const pg of [kid, parent]) {
-    await pg.goto(APP + '#/');
-    await pg.reload();
-    await pg.locator('.msg-card', { hasText: 'מחר חולצה לבנה' }).waitFor({ timeout: 8000 });
-    expect(await pg.locator('[data-msg]').count() === 0, 'a parent or a player can edit the message');
+  // The message: written on the home screen (the coach's device is revoked by
+  // now; the manager writes it the same way), read by all.
+  try {
+    await admin.goto(APP + '#/');
+    await admin.reload();
+    await admin.locator('[data-msg]').first().click();
+    await admin.fill('#msg-text', 'מחר   חולצה לבנה');
+    await admin.locator('[data-msg-save]').click();
+    await admin.locator('.msg-card', { hasText: 'מחר חולצה לבנה' }).waitFor({ timeout: 8000 });
+    for (const pg of [kid, parent]) {
+      await pg.goto(APP + '#/');
+      await pg.reload();
+      await pg.locator('.msg-card', { hasText: 'מחר חולצה לבנה' }).waitFor({ timeout: 8000 });
+      expect(await pg.locator('[data-msg]').count() === 0, 'a parent or a player can edit the message');
+    }
+    await admin.locator('.msg-edit').click();
+    await admin.locator('[data-msg-clear]').click();
+    await admin.locator('.msg-add').waitFor({ timeout: 8000 });
+    expect(!kid.errors.length, kid.errors.join(' | '));
+  } finally {
+    const u = (await asAdmin('listUsers')).find((x) => x.name === 'הילד');
+    await asAdmin('setStatus', { id: u.id, status: 'revoked' });
   }
-  await coach.locator('.msg-edit').click();
-  await coach.locator('[data-msg-clear]').click();
-  await coach.locator('.msg-add').waitFor({ timeout: 8000 });
-  expect(!kid.errors.length, kid.errors.join(' | '));
-  const u = (await asAdmin('listUsers')).find((x) => x.name === 'הילד');
-  await asAdmin('setStatus', { id: u.id, status: 'revoked' });
   await kid.context().close();
 });
 

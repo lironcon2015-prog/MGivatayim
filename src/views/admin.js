@@ -11,7 +11,7 @@ import { roundText, oppLogo, keepFocus } from '../components.js';
 import { preparePosters, uploadLogo, hydratePosters } from '../posters.js';
 import { logoKey } from '../season.js';
 import { thumbUrl } from '../gallery.js';
-import { detectFixtureColumns, rowsToFixtures, applyFixtureImport, upcomingFixtures, fixtureKey, mergeNextMatch, FIXTURE_FIELDS, todayInIsrael } from '../fixtures.js';
+import { detectFixtureColumns, rowsToFixtures, applyFixtureImport, upcomingFixtures, fixtureKey, mergeNextMatch, playedTest, FIXTURE_FIELDS, todayInIsrael } from '../fixtures.js';
 import { DAYS, weekday } from '../trainings.js';
 
 /* ── What the manager edits ───────────────────────────────────────────────
@@ -461,16 +461,25 @@ let added = 0;
 const setNew = (item, on) => Object.defineProperty(item, '__new', { value: on ? ++added : 0, writable: true, configurable: true, enumerable: false });
 const setOpen = (item, open) => Object.defineProperty(item, '__open', { value: open, writable: true, configurable: true, enumerable: false });
 
-// True when a stored next match was folded into the schedule (mergeNextMatch):
-// the draft then differs from what is saved, and says so.
+// A message when the draft differs from what is saved: a stored next match
+// folded into the schedule (mergeNextMatch), or schedule rows whose result is
+// in — a finished live match leaves its row in the stored schedule (parents
+// never see it: it is past and has a result), and the manager saw it stay.
 function adopt(payload) {
   draft = clone(payload?.season) || blankSeason();
-  let merged = false;
+  let merged = '';
   if (draft && 'nextMatch' in draft) {
     const r = mergeNextMatch(draft);
     draft.fixtures = r.fixtures;
-    merged = r.merged;
+    if (r.merged) merged = 'המשחק הבא עבר ללוח המשחקים, עם ההתכנסות והתלבושת.';
     delete draft.nextMatch;
+  }
+  const played = playedTest(draft.matches);
+  const left = (draft.fixtures || []).filter((f) => !f || !played(f));
+  if (draft.fixtures && left.length < draft.fixtures.length) {
+    const n = draft.fixtures.length - left.length;
+    draft.fixtures = left;
+    merged = [merged, n === 1 ? 'משחק שכבר יש לו תוצאה ירד מהלוח.' : `${n} משחקים שכבר יש להם תוצאה ירדו מהלוח.`].filter(Boolean).join(' ');
   }
   draft.analysis ??= { items: [], note: '' };
   draft.analysis.items ??= [];
@@ -484,7 +493,7 @@ function adopt(payload) {
     if (!p.pos && p.position) p.pos = primaryPos(p);
   }
   baseVersion = payload?.version || 0;
-  dirty = merged;
+  dirty = !!merged;
   return merged;
 }
 
@@ -507,7 +516,8 @@ export function mountAdmin(view, ctx) {
   // A stored next match folded into the schedule on load: said, and saved
   // with the next save.
   const take = (p) => {
-    if (adopt(p)) { message = 'המשחק הבא עבר ללוח המשחקים, עם ההתכנסות והתלבושת. שמרו כדי לסיים.'; messageKind = ''; }
+    const said = adopt(p);
+    if (said) { message = `${said} שמרו כדי לסיים.`; messageKind = ''; }
   };
   let saving = false;
   let logoBusy = false;

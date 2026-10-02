@@ -1399,6 +1399,15 @@ await step('a later fixture can go live now; finishing dates it today and takes 
   await parent.reload();
   await parent.locator('.fixture-row', { hasText: 'הפועל לוח' }).waitFor();
   expect(await parent.locator('.fixture-row', { hasText: 'בני לוח' }).count() === 0, 'the played fixture is still on the schedule');
+  // The manager's schedule loses the row too: it stayed there after the match.
+  await admin.goto(APP + '#/admin');
+  await adminTab(admin, 'games');
+  await waitText(admin, 'ירד מהלוח');
+  expect(await admin.locator('details[data-item^="fixtures."]', { hasText: 'בני לוח' }).count() === 0, 'the played fixture is still on the manager\'s schedule');
+  await admin.click('#save');
+  await waitSaved(admin);
+  expect(!seasonFile().fixtures.some((f) => f.opponent === 'בני לוח'), 'the played fixture was saved back');
+  await admin.goto(APP + '#/live');
 });
 
 await step('cancelling a live match saves nothing and returns the fixture to the schedule', async () => {

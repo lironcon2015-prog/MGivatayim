@@ -84,3 +84,5 @@ Deliver accurate code using the minimum tokens possible. Silence is preferred ov
   במפורש את מה שהוא מניח — אחרת הוא נכשל על הנחה, ועולה עוד הרצה מלאה.
 - **גיליון שנסגר נשאר ב-DOM כ-220ms** (אנימציה). גיליון שנפתח מתוך גיליון — מחכים
   ל-`document.querySelectorAll('.sheet').length === 1` לפני לחיצה בסלקטור משותף.
+- **במוקאפ, סקריפט גלובלי לא משתמש בשמות של `window`** (`top`, `name`, `status`,
+  `parent`…): `const top` נכשל ב"already declared" והעמוד יוצא ריק. שמות כמו `bar`.

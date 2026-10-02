@@ -538,7 +538,9 @@ await step('the manager opens a live match and picks a lineup', async () => {
   for (const y of ['0', 'document.body.scrollHeight']) {
     await admin.evaluate((to) => window.scrollTo(0, eval(to)), y);
     await admin.waitForTimeout(300);
-    const box = await admin.locator('.live-dock [data-act="goal-us"]').boundingBox();
+    // The bar is redrawn with every send; a box read mid-redraw is null.
+    let box = null;
+    for (let k = 0; k < 20 && !box; k++) box = await admin.locator('.live-dock [data-act="goal-us"]').boundingBox().catch(() => null) || (await admin.waitForTimeout(100), null);
     const nav = await admin.locator('.nav').boundingBox();
     expect(box && box.y >= 0 && box.y + box.height <= nav.y, `the goal button left the screen or sits under the nav (scrolled to ${y}): ` + JSON.stringify(box));
   }
@@ -827,6 +829,8 @@ await step('Veo is hidden until the manager turns it on; then the stream link re
   await admin.click('[data-act="more"]');
   await admin.click('.sheet [data-m="stream"]');
   await admin.locator('.sheet [data-stream]').waitFor();
+  // "More" slides out for a moment: its row would take the next click.
+  await admin.waitForFunction(() => document.querySelectorAll('.sheet').length === 1);
   await admin.fill('.sheet [data-stream]', 'javascript:alert(1)');
   await admin.click('.sheet [data-m="stream"]');
   await admin.locator('.toast', { hasText: 'לא נראה כמו קישור' }).waitFor();
@@ -1594,6 +1598,24 @@ await step('a match opened ahead is hidden from parents until the manager publis
   expect(await parent.locator('.live-recent').count() === 0, 'the recent matches stay while a match is live');
 });
 
+await step('the coach gets the squad buttons; all of them by choice, and back', async () => {
+  // Before kick-off: the lineup on the pitch, no whistle, no match details.
+  await coach.goto(APP + '#/live');
+  await coach.locator('.live-dock [data-act="full"]').waitFor({ timeout: 8000 });
+  await coach.click('[data-tab="match"]');
+  await coach.locator('.formation-seg').waitFor();
+  expect(await coach.locator('.live-dock [data-act="start"], [data-act="details"]').count() === 0, 'the coach has the whistle or the details by default');
+  expect(await coach.locator('.formation-seg').count() === 1, 'the coach cannot arrange the lineup');
+  await coach.click('.live-dock [data-act="full"]');
+  await coach.locator('.live-dock [data-act="start"]').waitFor();
+  expect(await coach.locator('[data-act="details"]').count() === 1, 'all the buttons, without the match details');
+  // Kept on the phone, and closed the same way it opened.
+  await coach.reload();
+  await coach.locator('.live-dock [data-act="squad"]').click({ timeout: 8000 });
+  await coach.locator('.live-dock [data-act="full"]').waitFor();
+  expect(await coach.locator('.live-dock [data-act="start"]').count() === 0, 'back to the squad, the whistle stayed');
+});
+
 await step('at the break before the last period the coach is alerted once, wherever they are', async () => {
   await coach.goto(APP + '#/');
   const st = () => liveFile();
@@ -1629,6 +1651,12 @@ await step('at the break before the last period the coach is alerted once, where
   await parent.locator('.score-card').waitFor();
   await new Promise((r) => setTimeout(r, 1500));
   expect(await parent.locator('.mn-alert, .toast:has-text("בספסל")').count() === 0, 'a parent got the coach\'s alert');
+  // At the break the coach's bar is the squad's: a substitution and the shape,
+  // and the timeline opens only them; the clock and the goals are not there.
+  await coach.goto(APP + '#/live');
+  await coach.locator('.live-dock [data-act="sub"]').waitFor({ timeout: 8000 });
+  expect(await coach.locator('.live-dock [data-act="shape"]').count() === 1, 'no shape change in the squad bar');
+  expect(await coach.locator('.live-dock [data-act="goal-us"], .live-dock [data-act="start"]').count() === 0, 'goals or the whistle in the squad bar');
   await asAdmin('clearLive');
   const coachId = (await asAdmin('listUsers')).find((u) => u.name === 'המאמן').id;
   await asAdmin('setStatus', { id: coachId, status: 'revoked' });

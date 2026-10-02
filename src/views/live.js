@@ -55,6 +55,8 @@ function statusChip(state) {
 // A goal from the spot, beside the scorer's name.
 const PEN_TAG = ' <span class="tl-pen">פנדל</span>';
 
+// `interactive`: true for every editable event, or the list of types that open
+// (the coach's squad buttons correct substitutions, not goals).
 export function timelineHtml(state, { interactive = false, us: usName = '' } = {}) {
   const chrono = [...state.events].map((e, i) => ({ e, i })).sort((a, b) => a.e.period - b.e.period || a.e.atMs - b.e.atMs || a.i - b.i);
   const after = new Map();
@@ -97,7 +99,7 @@ export function timelineHtml(state, { interactive = false, us: usName = '' } = {
     const atStart = e.atStart ? `בתחילת ${esc(M.periodName(state.format, e.period))}` : '';
     const note = (s) => (s || atStart ? `<small>${[s, atStart].filter(Boolean).join(' · ')}</small>` : '');
     const side = e.side === 'them' ? 'them' : 'us';
-    const tag = interactive && M.EDITABLE.includes(e.type) ? 'button' : 'div';
+    const tag = (Array.isArray(interactive) ? interactive.includes(e.type) : interactive && M.EDITABLE.includes(e.type)) ? 'button' : 'div';
     const attrs = tag === 'button' ? ` type="button" data-event="${esc(e.id)}"` : '';
     const row = (cls, body) => `<li data-ev="${esc(e.id)}"><${tag} class="ev ${cls}"${attrs}>${minute}${body}</${tag}></li>`;
     if (e.type === 'goal') {
@@ -198,6 +200,11 @@ export function mountLive(view, ctx) {
 
   const state = () => S.state;
   const control = () => S.canControl && state() && state().status !== 'ended';
+  // The coach records the squad — substitutions and the shape — by default,
+  // and everything else (goals, the clock, the whistle) only by choice
+  // (the owner's request). A parent with a code records the match: all of it.
+  const coachOnly = () => !S.isAdmin && ctx.canMinutes();
+  const fullCtl = () => control() && (!coachOnly() || store.getCoachFull());
   const now = () => serverNow();
 
   function act(op, undoText) {
@@ -333,7 +340,7 @@ export function mountLive(view, ctx) {
     const parts = '<span class="num" data-clock></span><span class="sc-extra num" data-extra></span>';
     if (st.status !== 'running') return `<div class="sc-clock">${parts}</div>`;
     const period = `<span class="sc-clock-p">${esc(M.periodName(st.format, st.period))}</span>`;
-    if (!control()) return `<div class="sc-clock">${parts}${period}</div>`;
+    if (!fullCtl()) return `<div class="sc-clock">${parts}${period}</div>`;
     const run = st.clock.running;
     return `<div class="sc-clock"><button type="button" class="sc-clock-btn" data-act="clock" aria-label="השעון — ${run ? 'עצירה, תיקון וסיום' : 'עצור. המשך, תיקון וסיום'}">
       <span class="sc-clock-ic">${icon(run ? 'pause' : 'play')}</span>${parts}${period}${run ? '' : '<span class="sc-stopped">עצור</span>'}</button></div>`;
@@ -347,7 +354,8 @@ export function mountLive(view, ctx) {
     const strip = S.hidden
       ? `<div class="sc-strip">${icon('eyeoff')}<span>ההורים עוד לא רואים${S.isAdmin ? '' : ' — יופיע אצלם כשהמנהל יפרסם'}</span>${S.isAdmin ? '<button type="button" class="sc-strip-btn" data-act="publish">פרסום</button>' : ''}</div>`
       : '';
-    return `<p class="sc-meta"><span class="num">${line}</span> · <button type="button" class="linkish" data-act="details">${icon('edit')} פרטים</button></p>${strip}`;
+    const details = fullCtl() ? ` · <button type="button" class="linkish" data-act="details">${icon('edit')} פרטים</button>` : '';
+    return `<p class="sc-meta"><span class="num">${line}</span>${details}</p>${strip}`;
   }
 
   function syncChip() {
@@ -372,6 +380,7 @@ export function mountLive(view, ctx) {
   // in "עוד".
   function dock(st) {
     const btn = (act, ic, label, cls = '') => `<button type="button" class="dk-btn${cls}" data-act="${act}">${icon(ic)}<span>${label}</span></button>`;
+    if (!fullCtl()) return squadDock(st, btn);
     let body = '';
     if (st.status === 'setup') {
       body = `<div class="dk-row main">${btn('start', 'play', `שריקת פתיחה · ${esc(M.periodName(st.format, 0))}`, ' gold')}<button type="button" class="dk-btn icon-only" data-act="more" aria-label="עוד">${icon('more')}</button></div>`;
@@ -385,7 +394,20 @@ export function mountLive(view, ctx) {
       body = `${btn('finish', 'check', 'סיום ושמירת המשחק', ' gold')}
         <div class="dk-row">${btn('goal-us', 'ball', 'שער שנשכח', ' sm')}${btn('goal-them', 'ball', 'שער ליריבה', ' sm')}${btn('more', 'more', 'עוד', ' sm')}</div>`;
     }
+    // Opened by choice, closed the same way: a quiet line under the full bar.
+    if (body && coachOnly()) body += `<button type="button" class="dk-toggle" data-act="squad">${icon('user')} חזרה לכפתורי הסגל</button>`;
     return body ? `<div class="live-dock" data-dock>${body}</div>` : '';
+  }
+
+  // The coach's default bar: the squad, and nothing that records the match.
+  function squadDock(st, btn) {
+    const all = `<button type="button" class="dk-toggle" data-act="full">${icon('more')} אפשרויות מלאות</button>`;
+    const note = (ic, text) => `<p class="dk-note">${icon(ic)}<span>${text}</span></p>`;
+    let body = '';
+    if (st.status === 'setup') body = note('user', 'מסדרים את ההרכב על המגרש. השריקה — אצל מי שמתעד.');
+    else if (st.status === 'running' || st.status === 'break') body = `<div class="dk-row">${btn('sub', 'swap', 'חילוף', ' gold')}${btn('shape', 'swap', 'שינוי מערך')}</div>`;
+    else if (st.status === 'fulltime') body = note('check', 'הזמן נגמר. השמירה — אצל מי שמתעד.');
+    return body ? `<div class="live-dock" data-dock>${body}${all}</div>` : '';
   }
 
   // Before kick-off: the pitch is the editor. A tap on a slot picks who
@@ -399,7 +421,7 @@ export function mountLive(view, ctx) {
     const out = [...st.players].filter((p) => !st.lineup.some((l) => l.pid === p.id)).sort(byNumber);
     const check = (done, label) => `<span class="ck${done ? ' done' : ''}">${done ? icon('check') : ''}${label}</span>`;
     return `<section class="setup">
-      <div class="checks">${check(!!String(st.opponent || '').trim(), 'פרטים')}${check(st.lineup.length === size, `הרכב <span class="num">${st.lineup.length}/${size}</span>`)}${S.isAdmin ? check(!S.hidden, 'פרסום להורים') : ''}</div>
+      <div class="checks">${fullCtl() ? check(!!String(st.opponent || '').trim(), 'פרטים') : ''}${check(st.lineup.length === size, `הרכב <span class="num">${st.lineup.length}/${size}</span>`)}${S.isAdmin ? check(!S.hidden, 'פרסום להורים') : ''}</div>
       <div class="formation-tools">
         <div class="seg formation-seg" role="radiogroup" aria-label="מערך">
           ${formationsFor(size).map((f) => `<button type="button" role="radio" data-formation="${f.id}" aria-checked="${f.id === formation.id}" aria-selected="${f.id === formation.id}"><span class="num" dir="ltr">${f.id}</span></button>`).join('')}
@@ -755,7 +777,7 @@ export function mountLive(view, ctx) {
           </section>
           ${setup ? '' : `<section class="pane" id="pane-events" role="tabpanel" aria-label="מהלך המשחק"${pane === 'events' ? '' : ' hidden'}>
             ${ctl && evCount ? '<p class="pane-hint">הקישו על אירוע לתיקון</p>' : ''}
-            <div class="card">${timelineHtml(st, { interactive: ctl, us: ctx.team.name })}</div>
+            <div class="card">${timelineHtml(st, { interactive: ctl && (fullCtl() || ['sub']), us: ctx.team.name })}</div>
           </section>`}
         </div>`}
       ${st.status === 'ended' ? endedPanel(st) : ''}
@@ -1730,8 +1752,15 @@ export function mountLive(view, ctx) {
       act({ t: 'start', at: now() });
       return;
     }
-    if (a === 'clock' && control() && st.status === 'running') { clockSheet(); return; }
-    if (a === 'details' && control() && st.status === 'setup') { detailsSheet(); return; }
+    if (a === 'clock' && fullCtl() && st.status === 'running') { clockSheet(); return; }
+    if (a === 'details' && fullCtl() && st.status === 'setup') { detailsSheet(); return; }
+    if (a === 'shape' && control() && ['running', 'break'].includes(st.status)) { shapeSheet(); return; }
+    if (a === 'full' || a === 'squad') {
+      store.setCoachFull(a === 'full');
+      render();
+      toast(a === 'full' ? 'כל הכפתורים פתוחים — שערים, שעון ופנדל' : 'רק כפתורי הסגל והחילופים');
+      return;
+    }
     if (a === 'goal-us') { goalSheet(); return; }
     if (a === 'penalty') { penaltySheet(); return; }
     if (a === 'goal-them') {

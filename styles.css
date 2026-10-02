@@ -1102,6 +1102,17 @@ body.with-nav .toast { bottom: calc(var(--nav-space) + 10px); }
 .dk-btn.icon-only { width: 52px; padding: 0; }
 .dk-btn:active { transform: scale(.97); }
 .dk-btn:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+/* The coach: "all the buttons" and back, a quiet line; a note where the
+   squad has nothing to do (the whistle, the save). */
+.dk-toggle {
+  justify-self: center; display: inline-flex; align-items: center; gap: .35rem; min-height: 30px; padding: 0 .8rem;
+  font: inherit; font-size: .8rem; font-weight: 700; color: var(--muted); background: none; border: 0; cursor: pointer;
+  -webkit-tap-highlight-color: transparent; touch-action: manipulation;
+}
+.dk-toggle svg { width: 15px; height: 15px; color: var(--gold); stroke-width: 1.7; }
+.dk-toggle:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; border-radius: 10px; }
+.dk-note { display: flex; align-items: center; justify-content: center; gap: .45rem; margin: 0; padding: .45rem .3rem 0; font-size: .82rem; font-weight: 600; color: var(--muted); text-align: center; }
+.dk-note svg { width: 16px; height: 16px; flex: none; color: var(--gold); stroke-width: 1.7; }
 /* What has to clear the bar: the page end, the toasts, the update bar. */
 body.with-dock { padding-bottom: calc(var(--nav-space) + var(--dock-h, 7.5rem) + 1rem); }
 body.with-dock .toast { bottom: calc(var(--nav-space) + var(--dock-h, 7.5rem) + 16px); }

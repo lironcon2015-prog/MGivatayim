@@ -56,6 +56,9 @@ export const setAlerted = (k) => set('alerted', k);
 // The alert the coach folded with "got it" (same key): it stays one line.
 export const getFolded = () => get('folded') || '';
 export const setFolded = (k) => set('folded', k || null);
+// The coach's live screen: the squad's buttons, or all of them by choice.
+export const getCoachFull = () => get('coachFull') === '1';
+export const setCoachFull = (on) => set('coachFull', on ? '1' : null);
 
 export function forgetAccess() {
   setCachedSeason(null);

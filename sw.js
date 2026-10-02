@@ -3,7 +3,7 @@
    CACHE_VERSION must equal version.json and window._BUNDLE_VERSION in
    index.html. `node tools/bump.mjs` writes all three; tests/pwa.mjs fails if
    they drift apart. */
-const CACHE_VERSION = '1.57.0';
+const CACHE_VERSION = '1.57.1';
 const CACHE_NAME = 'mgivatayim-' + CACHE_VERSION;
 
 /* The app itself: everything it needs to open with no network, kept as one
@@ -38,11 +38,18 @@ const NETWORK_WAIT_MS = 4000;
    install fails, the version in use stays as it is, and the page's next
    check asks again. cache:'no-cache' fills from the server, not from an HTTP
    cache that may still hold the previous release — GitHub Pages sends
-   max-age=600; files that did not change come back as a short 304. */
+   max-age=600; files that did not change come back as a short 304.
+   Each file is asked for under this version's own address (?v=): the CDN in
+   front of Pages keys its copies by address, and asked for the plain one it
+   could still answer with the last release's module — only the page is
+   checked for its version, so 1.57.0 was kept with the live screen of 1.56
+   (the owner tapped "sub" on 1.57.0 and got the old sheet), and a copy is
+   never fetched again. Stored under the plain address the app asks for. */
+const fresh = (u) => `${u}${u.includes('?') ? '&' : '?'}v=${CACHE_VERSION}`;
 self.addEventListener('install', (e) => {
   e.waitUntil((async () => {
     const got = await Promise.all(CORE.map(async (u) => {
-      const res = await fetch(u, { cache: 'no-cache' });
+      const res = await fetch(fresh(u), { cache: 'no-cache' });
       if (!res.ok) throw new Error(`${u}: ${res.status}`);
       return [u, res];
     }));

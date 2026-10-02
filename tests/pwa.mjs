@@ -82,12 +82,18 @@ const PORT = 8771;
 let down = null;   // a path the server answers with an error, as Pages mid-deploy
 let slow = 0;      // ms every answer waits: a pitch with one bar
 let stale = null;  // the page a CDN still holds from the last release
+let edge = null;   // { path: body } a CDN edge still holds, at the plain address only
 const hits = {};
 const server = createServer(async (req, res) => {
   const p = new URL(req.url, 'http://x').pathname;
   hits[p] = (hits[p] || 0) + 1;
   if (slow) await new Promise((r) => setTimeout(r, slow));
   if (p === down) { res.writeHead(503); res.end('down'); return; }
+  if (edge?.[p] && !new URL(req.url, 'http://x').search) {
+    res.writeHead(200, { 'Content-Type': TYPES[extname(p)] || 'application/octet-stream', 'Cache-Control': 'max-age=600' });
+    res.end(edge[p]);
+    return;
+  }
   const f = join(site, p.endsWith('/') ? p + 'index.html' : p);
   try {
     // max-age like GitHub Pages, so the test would catch an update path
@@ -218,6 +224,27 @@ await step('an update with a file that fails is not taken half; the next check b
 
 await step('an update whose page is still the last release (a CDN behind) is not taken either', () =>
   notTakenHalf(() => { stale = readFileSync(join(site, 'index.html')); }, () => { stale = null; }, '/index.html'));
+
+await step('a module the CDN still holds from the last release does not get into the new copy', async () => {
+  // 1.57.0 reached a phone with the page of 1.57.0 and the live screen of
+  // 1.56: an edge still held the old module at its plain address, only the
+  // page is checked for its version, and a copy is never fetched again.
+  const before = versions(site).json;
+  await showing(page, before);
+  const path = '/src/config.js';
+  const file = join(site, path);
+  const old = readFileSync(file, 'utf8');
+  edge = { [path]: old };
+  let next;
+  try {
+    writeFileSync(file, old + '\n// fresh in this release\n');
+    next = deploy();
+    await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+    await showing(page, next);
+    const kept = await page.evaluate(async (v) => (await (await caches.open('mgivatayim-' + v)).match('./src/config.js'))?.text(), next);
+    expect(kept?.includes('fresh in this release'), 'the new copy holds the module of the last release');
+  } finally { edge = null; }
+});
 
 await step('unsaved manager work blocks the automatic reload; a bar is offered instead', async () => {
   const admin = await ctx.newPage();

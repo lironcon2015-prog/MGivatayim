@@ -1,7 +1,7 @@
 import { topBy, opponentLogo } from '../season.js';
 import { longDate, clock, pct, dec, esc, safeUrl, splitDuration, pad2, wazeLink, navLink, isGoogleMaps, isShortMapLink, mapsCoords } from '../format.js';
 import { icon } from '../icons.js';
-import { crestImg, oppLogo, roundText, sectionHead, formPill, fixtureRow, leaderRow, tile, splitBar, linkRow, videoCard, sampleNote, SCHEDULE_SAMPLE, RESULTS_SAMPLE } from '../components.js';
+import { myCardHtml, crestImg, oppLogo, roundText, sectionHead, formPill, fixtureRow, leaderRow, tile, splitBar, linkRow, videoCard, sampleNote, SCHEDULE_SAMPLE, RESULTS_SAMPLE } from '../components.js';
 import { DAYS, weekday } from '../trainings.js';
 import { openSheet, toast } from '../ui/sheet.js';
 import { call } from '../bridge.js';
@@ -254,9 +254,57 @@ function wireWeek(host, s) {
   if (next) next.onclick = () => { showNext = !showNext; host.innerHTML = weekInner(s); wireWeek(host, s); };
 }
 
+/* ── The team message ─────────────────────────────────────────────────── */
+
+// One line from the coach or the manager, on everyone's home screen (the
+// owner's pick for the player role): written, replaced, cleared — no replies.
+const MSG_MAX = 300;
+function messageHtml(s) {
+  const m = s.message;
+  if (!m) {
+    return s.canMessage ? `<section><button type="button" class="msg-add" data-msg>${icon('edit')}הודעה לקבוצה — כולם יראו אותה כאן</button></section>` : '';
+  }
+  const at = m.at ? new Date(m.at) : null;
+  return `<section><div class="card msg-card">
+    ${icon('whistle')}
+    <div class="msg-body"><span class="msg-label">הודעה מהמאמן</span><p>${esc(m.text)}</p>
+      ${at && !Number.isNaN(at.getTime()) ? `<span class="msg-at">${esc(longDate(at))} · <span class="num">${esc(clock(at))}</span></span>` : ''}</div>
+    ${s.canMessage ? `<button type="button" class="chip-tool msg-edit" data-msg aria-label="עריכת ההודעה">${icon('edit')}</button>` : ''}
+  </div></section>`;
+}
+
+function messageSheet(s) {
+  const sheet = openSheet({
+    title: 'הודעה לקבוצה',
+    subtitle: 'מופיעה בראש מסך הבית אצל כולם — הורים ושחקנים',
+    body: `<label class="field" for="msg-text"><span>ההודעה</span>
+        <textarea id="msg-text" maxlength="${MSG_MAX}" rows="3">${esc(s.message?.text || '')}</textarea>
+        <small>עד ${MSG_MAX} תווים. הודעה חדשה מחליפה את הקודמת.</small></label>
+      <div class="sheet-actions">
+        <button type="button" class="btn" data-msg-save>פרסום</button>
+        ${s.message ? '<button type="button" class="btn secondary" data-msg-clear>הסרת ההודעה</button>' : ''}
+      </div>`,
+    onMount: ({ el }) => {
+      const busy = (on) => el.querySelectorAll('.sheet-actions .btn').forEach((b) => { b.disabled = on; });
+      const send = async (text, done) => {
+        busy(true);
+        try { await s.saveMessage(text); sheet.close('done'); toast(done); } catch (e) { busy(false); toast(esc(e.message), { kind: 'err' }); }
+      };
+      el.querySelector('[data-msg-save]').onclick = () => {
+        const text = el.querySelector('#msg-text').value.trim();
+        if (!text) { toast('כתבו הודעה, או הסירו את הקיימת.', { kind: 'err' }); return; }
+        send(text, 'ההודעה פורסמה');
+      };
+      const clear = el.querySelector('[data-msg-clear]');
+      if (clear) clear.onclick = () => send('', 'ההודעה הוסרה');
+    },
+  });
+}
+
 export function wireHome(root, s) {
   const host = root.querySelector('[data-week]');
   if (host) wireWeek(host, s);
+  root.querySelectorAll('[data-msg]').forEach((b) => { b.onclick = () => messageSheet(s); });
   return startCountdown(root);
 }
 
@@ -267,6 +315,7 @@ export function renderHome(s) {
   const scorers = topBy(s.players, 'goals', 5);
 
   return `
+  ${messageHtml(s)}
   ${weekHtml(s)}
   <section>
     ${nextMatchCard(s)}
@@ -304,14 +353,17 @@ export function renderHome(s) {
     </div>
   </section>
 
-  <section>
+  ${s.isPlayer ? `<section>
+    ${sectionHead('הכרטיס שלי', s.card?.list.length > 3 ? '<a href="#/stats" data-jump="stats-mine">לכרטיס המלא</a>' : '', 'shirt')}
+    ${myCardHtml(s, { limit: 3 })}
+  </section>` : `<section>
     ${sectionHead('מובילי העונה', '<a href="#/stats" data-jump="stats-leaders">לטבלה המלאה</a>', 'trophy')}
     <div class="card rows">
       ${scorers.length
         ? scorers.map((p, i) => leaderRow(p, i + 1, [{ key: 'goals', label: 'שערים' }, { key: 'assists', label: 'בישולים' }])).join('')
         : `<div class="empty">${esc(s.emptyScorers)}</div>`}
     </div>
-  </section>
+  </section>`}
 
   ${s.videos.length ? `<section>
     ${sectionHead('סרטונים מהעונה', '<a href="#/media">לכל הסרטונים</a>', 'film')}
@@ -323,7 +375,7 @@ export function renderHome(s) {
     <div class="card rows">${s.links.map(linkRow).join('')}</div>
   </section>` : ''}
 
-  <section>
+  ${s.isPlayer ? '' : `<section>
     ${sectionHead('תמונת מצב של העונה', '', 'bulb')}
     <div class="card">
       ${s.analysis.items.map((it) => `<div class="insight"><span class="dot"></span><span><b>${esc(it.label)}:</b> ${esc(it.text)}</span></div>`).join('')}
@@ -331,7 +383,7 @@ export function renderHome(s) {
         ? `${o.streak.current} ניצחונות ברצף` : 'אין רצף ניצחונות פתוח'} · הרצף הטוב בעונה: ${o.streak.best}.</span></div>
       ${s.analysis.note ? `<p class="note">${esc(s.analysis.note)}</p>` : ''}
     </div>
-  </section>`;
+  </section>`}`;
 }
 
 // Recomputed from the kickoff timestamp on every tick rather than decremented,

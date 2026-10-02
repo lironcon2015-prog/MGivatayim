@@ -1,5 +1,5 @@
 import { outcomeOf, OUTCOMES } from './season.js';
-import { esc, safeUrl } from './format.js';
+import { esc, safeUrl, shortDate } from './format.js';
 import { icon } from './icons.js';
 import { youtubeThumb, cachedPosterUrl } from './posters.js';
 
@@ -271,4 +271,36 @@ export function foldRows(list, key, shown = 5) {
   else (list.closest('.card') || list).after(btn);
   list._foldBtn = btn;
   paint();
+}
+
+/* ── The player's own card (role 'player') ─────────────────────────────── */
+
+// A child's phone shows his own numbers and never a ranking (the owner: no
+// leaderboard for players). League games, goals and assists — friendlies
+// count in none — and every goal and assist, newest first, a friendly's
+// tagged "אימון". `limit` cuts the list on the home screen.
+const CONTRIB = { goal: ['ball', 'שער'], pen: ['penalty', 'שער בפנדל'], assist: ['boot', 'בישול'] };
+export function myCardHtml(s, { limit = Infinity } = {}) {
+  const c = s.card;
+  if (!c) {
+    return `<div class="card my-card"><div class="empty">המנהל צריך לבחור מי אתה מהסגל — אחרי זה יופיעו כאן המשחקים, השערים והבישולים שלך.</div></div>`;
+  }
+  const rows = c.list.slice(0, limit).map((r) => {
+    const [glyph, word] = CONTRIB[r.kind];
+    return `<button type="button" class="my-row" data-match="${s.recent.indexOf(r.match)}">
+      <span class="my-ico ${r.kind === 'assist' ? 'a' : 'g'}">${icon(glyph)}</span>
+      <span class="who"><b>${word}${r.minute ? ` <span class="num">${r.minute}</span>` : ''}</b><span>מול ${esc(r.match.opponent)} · <span class="num">${esc(shortDate(r.match.date))}</span></span></span>
+      ${r.friendly ? '<span class="my-tag">אימון</span>' : ''}
+    </button>`;
+  }).join('');
+  return `<div class="card my-card">
+    <div class="my-head"><span class="my-num num">${c.player.number ?? ''}</span><b>${esc(c.player.name)}</b></div>
+    <div class="tiles three">
+      ${tile({ value: c.games, label: 'משחקים' })}
+      ${tile({ value: c.goals, label: 'שערים', tone: 'accent' })}
+      ${tile({ value: c.assists, label: 'בישולים' })}
+    </div>
+    ${rows ? `<div class="rows my-list">${rows}</div>` : '<div class="empty">השער הראשון שלך יופיע כאן.</div>'}
+    ${c.list.some((r) => r.friendly) ? '<p class="note">שערים ובישולים ממשחקי אימון מופיעים ברשימה ולא נספרים במספרים.</p>' : ''}
+  </div>`;
 }

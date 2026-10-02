@@ -1,4 +1,4 @@
-import { buildSeason, opponentLogo } from './season.js';
+import { playerCard, buildSeason, opponentLogo } from './season.js';
 import { esc, seasonLabel, byNumber } from './format.js';
 import { crestImg, keepImages, keepFocus } from './components.js';
 import { icon } from './icons.js';
@@ -49,6 +49,7 @@ const isAdmin = () => !!store.getAdminCode();
 // The coach's screens — playing time — are the manager's too. The bridge
 // decides who gets the data; this only decides what to draw.
 const canMinutes = () => isAdmin() || state.payload?.role === 'coach';
+const isPlayer = () => !isAdmin() && state.payload?.role === 'player';
 const coachData = () => cleanCoach(state.payload?.coach);
 const coachCfg = (liveId) => coachFor(coachData(), liveId);
 
@@ -81,12 +82,22 @@ function prepare(payload) {
   s.canEditTrainings = canMinutes();
   s.saveTraining = saveTraining;
   s.coach = coachData();
+  // A child's own phone (role 'player'): his card instead of the leaderboard,
+  // no analysis, no uploads, no control code. The bridge strips the rest.
+  s.isPlayer = isPlayer();
+  s.card = s.isPlayer ? playerCard(s, payload.me) : null;
+  // The team message: one line from the coach or the manager, on everyone's
+  // home screen; written by them (setMessage).
+  s.message = payload.message?.text ? payload.message : null;
+  s.canMessage = canMinutes();
+  s.saveMessage = saveMessage;
   return s;
 }
 
 // A save from the manager's editor answers with the season alone; the
 // role and the coach data it did not touch carry over.
-const withCarried = (payload) => (state.payload && payload && !('role' in payload) ? { ...payload, role: state.payload.role, coach: state.payload.coach } : payload);
+const withCarried = (payload) => (state.payload && payload && !('role' in payload)
+  ? { ...payload, role: state.payload.role, coach: state.payload.coach, me: state.payload.me, message: state.payload.message } : payload);
 
 function accept(payload) {
   payload = withCarried(payload);
@@ -227,6 +238,12 @@ async function adminLogin(code) {
 // behind it. The bridge answers with the whole coach record, which replaces
 // the optimistic one — it may have frozen older matches at the old default.
 // One date's training, then the season again, so the strip shows it.
+// The team message: written, then the season again so every screen has it.
+async function saveMessage(text) {
+  await call('setMessage', { text }, { asAdmin: isAdmin() });
+  await refresh();
+}
+
 async function saveTraining(date, change) {
   await call('setTrainingChange', { date, change }, { asAdmin: isAdmin() });
   await refresh();
@@ -301,7 +318,9 @@ let teardown = () => {};
 // Who this phone is, on every screen (the owner's pick from a mockup): one
 // word closing the league line, with the icon of the role. A parent sees none.
 function roleMark() {
-  const [glyph, word] = isAdmin() ? ['shield', 'מנהל'] : canMinutes() ? ['whistle', 'מאמן'] : [];
+  const card = isPlayer() && state.season?.card;
+  const [glyph, word] = isAdmin() ? ['shield', 'מנהל'] : canMinutes() ? ['whistle', 'מאמן']
+    : isPlayer() ? ['shirt', card ? esc(card.player.name.split(' ')[0]) + (card.player.number != null ? ` <span class="num">${Number(card.player.number)}</span>` : '') : 'שחקן'] : [];
   return word ? ` · <span class="role-mark">${icon(glyph)}${word}</span>` : '';
 }
 
@@ -476,6 +495,7 @@ function draw() {
       nextMatch: s.nextMatch,
       isAdmin,
       canMinutes,
+      isPlayer,
       coachCfg,
       saveCoach,
       players: () => s.players.map((p) => ({ id: p.id, name: p.name, number: p.number ?? null, pos: p.pos || '', pos2: p.pos2 || '' })),

@@ -818,13 +818,20 @@ export function mountAdmin(view, ctx) {
     // marked one by one.
     // A switch, not a button that renames itself: the current role and the
     // other one are both in view.
+    // A player is a child's own phone, linked to one child of the squad (his
+    // card): "שחקן" always opens the picker, so a link can be changed.
     const roleSwitch = (u) => {
-      const coach = u.role === 'coach';
-      const opt = (role, label, on) => `<button type="button" data-user="${esc(u.id)}" data-role="${role}" aria-pressed="${on}"${on ? ' disabled' : ''}>${label}</button>`;
-      return `<span class="role-tg" role="group" aria-label="${esc(`תפקיד של ${u.name}`)}">${opt('parent', 'הורה', !coach)}${opt('coach', 'מאמן', coach)}</span>`;
+      const role = u.role === 'coach' || u.role === 'player' ? u.role : 'parent';
+      const opt = (r, label) => `<button type="button" data-user="${esc(u.id)}" data-role="${r}" aria-pressed="${role === r}"${role === r && r !== 'player' ? ' disabled' : ''}>${label}</button>`;
+      return `<span class="role-tg" role="group" aria-label="${esc(`תפקיד של ${u.name}`)}">${opt('parent', 'הורה')}${opt('coach', 'מאמן')}${opt('player', 'שחקן')}</span>`;
+    };
+    const playerOf = (u) => {
+      if (u.role !== 'player') return '';
+      const p = squadList().find((x) => x.key === u.pid);
+      return p ? `<span>${icon('shirt')} ${esc(p.name)}${p.number != null ? ` <span class="num">${esc(p.number)}</span>` : ''}</span>` : `<span class="role-unlinked">${icon('shirt')} שחקן — עוד לא נבחר מהסגל</span>`;
     };
     const row = (u, actions) => `<div class="user-row">
-        <span class="who"><button type="button" class="who-name" data-rename="${esc(u.id)}" aria-label="${esc(`שינוי השם של ${u.name}`)}"><b>${esc(u.name)}</b>${icon('edit')}</button><span>ביקש ${esc(stamp(u.requestedAt))}${u.lastSeen ? ` · נראה ${esc(stamp(u.lastSeen))}` : ''}</span></span>
+        <span class="who"><button type="button" class="who-name" data-rename="${esc(u.id)}" aria-label="${esc(`שינוי השם של ${u.name}`)}"><b>${esc(u.name)}</b>${icon('edit')}</button><span>ביקש ${esc(stamp(u.requestedAt))}${u.lastSeen ? ` · נראה ${esc(stamp(u.lastSeen))}` : ''}</span>${playerOf(u)}</span>
         <span class="acts">${u.status === 'approved' ? roleSwitch(u) : ''}${actions.map(([st, label, cls]) =>
           `<button type="button" class="btn small ${cls || ''}" data-user="${esc(u.id)}" data-set="${st}">${label}</button>`).join('')}</span>
       </div>`;
@@ -846,7 +853,7 @@ export function mountAdmin(view, ctx) {
       </div>`;
     return block('ממתינים לאישור', 'user', by(['pending']), [['approved', 'אישור'], ['rejected', 'דחייה', 'secondary']], 'אין בקשות חדשות.')
       + block('בעלי גישה', 'check', holders, [['revoked', 'ביטול', 'danger']], 'עוד לא אושר אף אחד.',
-        'מאמן רואה גם דקות משחק. התפקיד שייך למכשיר ולא לאדם: מאמן עם טלפון ומחשב מסומן בכל אחד מהם.', sortSeg)
+        'מאמן רואה גם דקות משחק. שחקן — הטלפון של הילד: רואה את הנתונים שלו בלי טבלת מובילים, ולא מעלה תמונות. התפקיד שייך למכשיר ולא לאדם: מאמן עם טלפון ומחשב מסומן בכל אחד מהם.', sortSeg)
       + inviteHtml()
       + (gone.length ? block('נדחו / בוטלו', 'shield', gone, [['approved', 'אישור'], ['remove', 'מחיקה', 'secondary']], '') : '');
   }
@@ -935,8 +942,39 @@ export function mountAdmin(view, ctx) {
     paintTab('access');
   }
 
-  async function setRole(id, role) {
-    try { await call('setRole', { id, role }, { asAdmin: true }); }
+  // The squad as the saved season has it, by shirt number; a player's key is
+  // the one season.js gives him (id, else 'n:' + name).
+  function squadList() {
+    return [...(draft?.players || [])].filter((p) => String(p.name || '').trim()).sort(byNumber)
+      .map((p) => ({ key: p.id || 'n:' + String(p.name).trim(), name: String(p.name).trim(), number: p.number ?? null }));
+  }
+
+  function playerSheet(id) {
+    const u = users?.find((x) => x.id === id);
+    if (!u) return;
+    const squad = squadList();
+    const taken = new Set(users.filter((x) => x.role === 'player' && x.id !== id && x.pid).map((x) => x.pid));
+    openSheet({
+      title: `מי זה מהסגל? · ${u.name}`,
+      subtitle: 'הטלפון של השחקן יראה את המשחקים, השערים והבישולים שלו',
+      tall: true,
+      body: squad.length
+        ? `<div class="pick-list">${squad.map((p) => `<button type="button" class="pp-row" data-pick-player="${esc(p.key)}" aria-pressed="${u.pid === p.key}">
+            <span class="num">${p.number ?? ''}</span><b>${esc(p.name)}</b>${taken.has(p.key) ? '<small>כבר מקושר לטלפון אחר</small>' : ''}</button>`).join('')}</div>`
+        : '<p class="sheet-text">אין עדיין שחקנים בסגל. אפשר לסמן כשחקן עכשיו ולבחור אחר כך.</p><div class="sheet-actions"><button type="button" class="btn" data-pick-player="">סימון כשחקן</button></div>',
+      onMount: ({ el, close }) => {
+        el.addEventListener('click', (e) => {
+          const b = e.target.closest('[data-pick-player]');
+          if (!b) return;
+          close('done');
+          setRole(id, 'player', b.dataset.pickPlayer);
+        });
+      },
+    });
+  }
+
+  async function setRole(id, role, pid = '') {
+    try { await call('setRole', role === 'player' ? { id, role, pid } : { id, role }, { asAdmin: true }); }
     catch (e) { usersError = e.message; }
     await loadUsers();
   }
@@ -1438,6 +1476,7 @@ export function mountAdmin(view, ctx) {
       return;
     }
     if (t.dataset.set) { t.disabled = true; setStatus(t.dataset.user, t.dataset.set); return; }
+    if (t.dataset.role === 'player') { playerSheet(t.dataset.user); return; }
     if (t.dataset.role) { t.disabled = true; setRole(t.dataset.user, t.dataset.role); return; }
     if (t.dataset.rename) { renameSheet(t.dataset.rename); return; }
     if (t.dataset.import === 'file') { view.querySelector('[data-import-file]')?.click(); return; }

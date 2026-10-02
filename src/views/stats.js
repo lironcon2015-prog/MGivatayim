@@ -1,6 +1,6 @@
 import { topBy } from '../season.js';
 import { pct, dec, esc } from '../format.js';
-import { sectionHead, leaderRow, tile, splitBar, matchRow, fixtureRow, sampleNote, foldRows, SCHEDULE_SAMPLE, RESULTS_SAMPLE } from '../components.js';
+import { myCardHtml, sectionHead, leaderRow, tile, splitBar, matchRow, fixtureRow, sampleNote, foldRows, SCHEDULE_SAMPLE, RESULTS_SAMPLE } from '../components.js';
 import { seasonMinutesHtml, wireSeasonMinutes } from './minutes.js';
 
 const BOARDS = [
@@ -44,14 +44,17 @@ export function renderStats(s) {
     </div>
   </section>
 
-  <section id="stats-leaders">
+  ${s.isPlayer ? `<section id="stats-mine">
+    ${sectionHead('הכרטיס שלי', '', 'shirt')}
+    ${myCardHtml(s)}
+  </section>` : `  <section id="stats-leaders">
     ${sectionHead('טבלת מובילים', '', 'trophy')}
     <div class="seg" role="tablist" id="board-tabs">
       ${BOARDS.map((b, i) => `<button role="tab" type="button" data-board="${b.key}" aria-selected="${i === 0}">${esc(b.label)}</button>`).join('')}
     </div>
     <div class="card rows" id="board" style="margin-top:.7rem"></div>
     ${s.squadGoalsMatch || !s.isAdmin ? '' : `<p class="note">למנהל: לשחקנים שויכו ${s.squadGoals} שערים מתוך ${s.playerGoals} של הקבוצה${s.playerGoals !== s.overall.gf ? ' (בלי גולים עצמיים של היריבה)' : ''}. תוצאה שהוזנה ידנית לא כוללת כובשים — אפשר להשלים ב"שערים לפני הלייב" בעורך השחקנים.</p>`}
-  </section>
+  </section>`}
 
   ${s.showMinutes ? seasonMinutesHtml(s) : ''}
 
@@ -67,14 +70,14 @@ export function renderStats(s) {
     <div class="card rows" data-fold="matches">${s.recent.length ? s.recent.map(matchRow).join('') : '<div class="empty">טרם נוספו משחקים.</div>'}</div>
   </section>
 
-  <section>
+  ${s.isPlayer ? '' : `<section>
     ${sectionHead('תרומת המוביל', '', 'bulb')}
     <div class="card">
       ${best
         ? `<div class="insight"><span class="dot"></span><span><b>${esc(best.name)}</b> כבש ${best.goals} מתוך ${s.overall.gf} שערי הקבוצה — ${share} מהתפוקה.</span></div>`
         : `<div class="empty">${esc(s.emptyScorers)}</div>`}
     </div>
-  </section>`;
+  </section>`}`;
 }
 
 export function wireStats(root, s) {

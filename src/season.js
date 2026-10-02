@@ -3,7 +3,7 @@
 // totals drift from the fixtures they summarise, and the mockups this app was
 // built from already disagreed with themselves that way.
 
-import { cleanPlayedMatch } from './live/model.js';
+import { cleanPlayedMatch, minuteLabel, DEFAULT_FORMAT } from './live/model.js';
 import { primaryPos, posLabel } from './positions.js';
 import { upcomingFixtures, fixtureAsNext } from './fixtures.js';
 import { trainingWeek, nextWeekFrom } from './trainings.js';
@@ -88,7 +88,9 @@ export function buildSeason(input, now = new Date()) {
     matches: (input.matches ?? []).filter(Boolean).map(cleanPlayedMatch),
     fixtures: (input.fixtures ?? []).map((f) => withHomeVenue(f, input.team?.homeVenue)),
     players: input.players ?? [],
-    videos: input.videos ?? [],
+    // Who is in a video (player ids; the infrastructure for "who is in the
+    // photo" — nothing shows it yet). Ids only: they may land in attributes.
+    videos: (input.videos ?? []).map((v) => ({ ...v, players: Array.isArray(v?.players) ? v.players.slice(0, 30).map(String).filter((x) => /^[\w:\u0590-\u05FF .'-]{1,120}$/.test(x)) : [] })),
     links: input.links ?? [],
     trainings: input.trainings ?? [],
     trainingChanges: input.trainingChanges ?? [],
@@ -208,6 +210,34 @@ export function buildSeason(input, now = new Date()) {
     emptyScorers: friendlyGoals ? 'שערים ממשחקי אימון לא נספרים בטבלה.'
       : overall.gf ? 'עוד לא שויכו שערים לשחקנים.' : 'טרם נרשמו שערים העונה.',
   };
+}
+
+// A player's own card (the player role, payload.me from the bridge): the
+// goals and assists the table would give him — his base plus the league
+// count, both already in season.players — the league games the bridge counted
+// (it alone still sees past lineups), and every goal he scored or set up, newest
+// first. Friendlies are listed, tagged, and counted in no number: the table
+// does not count them either.
+export function playerCard(season, me) {
+  const pid = me?.pid;
+  const p = pid ? season.players.find((x) => x.id === pid) : null;
+  if (!p) return null;
+  const list = [];
+  for (const m of season.recent) {
+    const add = (kind, minute) => list.push({ kind, minute, match: m, friendly: m.friendly });
+    for (const e of m.events || []) {
+      if (e.type !== 'goal' || e.side === 'them' || e.og) continue;
+      const minute = e.atStart ? '' : minuteLabel(m.format || DEFAULT_FORMAT, e.period, e.atMs);
+      if (e.scorer === pid) add(e.pen ? 'pen' : 'goal', minute);
+      if (e.assist === pid) add('assist', minute);
+    }
+    for (const g of m.goals || []) {
+      if (g.og) continue;
+      if (g.scorer === pid) add('goal', '');
+      if (g.assist === pid) add('assist', '');
+    }
+  }
+  return { player: p, games: Number(me.games) || 0, goals: p.goals, assists: p.assists, list };
 }
 
 export function topBy(players, key, limit = 5) {

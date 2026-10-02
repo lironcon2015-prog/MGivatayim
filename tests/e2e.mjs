@@ -2000,6 +2000,69 @@ await step('the roster: off until the manager turns it on, then the title opens 
   expect(await parent.locator('[data-roster]').count() === 0, 'the roster stays after it was turned off');
 });
 
+// A child's own phone: the manager marks it a player and picks who he is in
+// the squad. His card replaces the leaderboard; no analysis, no uploads, no
+// control code. The team message from the coach shows on everyone's home.
+await step('a player sees his own card and no leaderboard; the coach\'s message reaches everyone', async () => {
+  await parent.goto(APP + '#/stats');
+  await parent.reload();
+  const top = parent.locator('#board .leader').first();
+  await top.waitFor({ timeout: 8000 });
+  const name = (await top.locator('.who b').innerText()).trim();
+  const goals = (await top.locator('.fig.g b').innerText()).trim();
+  const kid = await device('player');
+  await kid.goto(APP);
+  await kid.fill('input[name=name]', 'הילד');
+  await kid.locator('#request-form button').click();
+  await waitText(kid, 'ממתינה לאישור');
+  await admin.goto(APP + '#/admin');
+  await admin.reload();
+  await admin.click('[data-tab="access"]');
+  const row = admin.locator('.user-row').filter({ has: admin.locator('.who b', { hasText: /^הילד$/ }) });
+  await row.locator('[data-set="approved"]').click();
+  await row.locator('[data-role="player"]').click();
+  await admin.locator('.sheet .pp-row', { hasText: name }).first().click();
+  await row.locator('[data-role="player"][aria-pressed="true"]').waitFor({ timeout: 8000 });
+  expect((await row.innerText()).includes(name), 'the access list does not say who the player is');
+  await kid.click('#recheck');
+  await kid.locator('.my-card').first().waitFor({ timeout: 8000 });
+  const home = await kid.locator('#view').innerText();
+  expect(home.includes('הכרטיס שלי') && !home.includes('מובילי העונה') && !home.includes('תמונת מצב'), 'the player\'s home shows a ranking or the analysis');
+  expect((await kid.locator('.topbar .role-mark').innerText()).includes(name.split(' ')[0]), 'the title does not name the player');
+  await kid.goto(APP + '#/stats');
+  await kid.locator('#stats-mine .my-card').waitFor({ timeout: 8000 });
+  expect(await kid.locator('#board-tabs, #board').count() === 0, 'the player got the leaderboard');
+  expect(!(await kid.locator('#view').innerText()).includes('תרומת המוביל'), 'the player got "the leader\'s share"');
+  expect((await kid.locator('#stats-mine .tile.accent b').innerText()).trim() === goals, `the card's goals are not the table's (${goals})`);
+  await kid.goto(APP + '#/media');
+  await kid.locator('[data-gallery] .sec-head').first().waitFor({ timeout: 8000 });
+  expect(await kid.locator('.gl-dock, [data-upload]').count() === 0, 'the player can upload');
+  await kid.goto(APP + '#/live');
+  await kid.locator('#view .card').first().waitFor({ timeout: 8000 });
+  expect(await kid.locator('[data-act="claim"]').count() === 0, 'the player is offered a control code');
+
+  // The message: written by the coach on his home screen, read by all.
+  await coach.goto(APP + '#/');
+  await coach.reload();
+  await coach.locator('[data-msg]').first().click();
+  await coach.fill('#msg-text', 'מחר   חולצה לבנה');
+  await coach.locator('[data-msg-save]').click();
+  await coach.locator('.msg-card', { hasText: 'מחר חולצה לבנה' }).waitFor({ timeout: 8000 });
+  for (const pg of [kid, parent]) {
+    await pg.goto(APP + '#/');
+    await pg.reload();
+    await pg.locator('.msg-card', { hasText: 'מחר חולצה לבנה' }).waitFor({ timeout: 8000 });
+    expect(await pg.locator('[data-msg]').count() === 0, 'a parent or a player can edit the message');
+  }
+  await coach.locator('.msg-edit').click();
+  await coach.locator('[data-msg-clear]').click();
+  await coach.locator('.msg-add').waitFor({ timeout: 8000 });
+  expect(!kid.errors.length, kid.errors.join(' | '));
+  const u = (await asAdmin('listUsers')).find((x) => x.name === 'הילד');
+  await asAdmin('setStatus', { id: u.id, status: 'revoked' });
+  await kid.context().close();
+});
+
 await step('revoking locks the parent out and drops their cached copy', async () => {
   await admin.goto(APP + '#/admin');
   await admin.click('[data-tab="access"]');

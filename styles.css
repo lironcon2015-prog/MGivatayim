@@ -451,6 +451,35 @@ button.form-pill:focus-visible { outline: 2px solid var(--gold); outline-offset:
 .tile.accent b { color: var(--gold); }
 .tile.good b { color: var(--win); }
 
+/* ── The player's own card, the team message ───────────────────────── */
+.my-head { display: flex; align-items: baseline; gap: .55rem; margin-bottom: .8rem; }
+.my-head b { font-size: 1.1rem; }
+.my-num { color: var(--gold); font-size: 1.1rem; font-weight: 600; }
+.my-card .tile { background: var(--surface-2); }
+.my-list { margin-top: .6rem; }
+.my-row {
+  display: flex; align-items: center; gap: .7rem; width: 100%; padding: .7rem 0; text-align: start;
+  background: none; border: 0; color: inherit; font: inherit; touch-action: manipulation;
+}
+.my-row + .my-row { border-top: 1px solid var(--line); }
+.my-row .who { flex: 1; min-width: 0; }
+.my-row .who b { display: block; font-size: .95rem; }
+.my-row .who > span { font-size: .78rem; color: var(--faint); }
+.my-ico { width: 32px; height: 32px; flex: none; border-radius: 50%; display: grid; place-items: center; background: var(--surface-2); }
+.my-ico svg { width: 17px; height: 17px; }
+.my-ico.g { color: var(--gold); }
+.my-ico.a { color: var(--blue); }
+.my-tag { flex: none; font-size: .72rem; color: var(--muted); border: 1px dashed var(--faint); border-radius: 999px; padding: .1rem .55rem; }
+.msg-card { display: flex; gap: .75rem; align-items: flex-start; }
+.msg-card > svg { width: 20px; height: 20px; flex: none; color: var(--gold); margin-top: .15rem; }
+.msg-card .msg-body { flex: 1; min-width: 0; }
+.msg-card .msg-label { display: block; font-size: .78rem; font-weight: 700; color: var(--gold); }
+.msg-card p { margin: .2rem 0 0; white-space: pre-line; overflow-wrap: anywhere; }
+.msg-card .msg-at { font-size: .74rem; color: var(--faint); }
+.msg-edit { flex: none; }
+.msg-add { display: flex; align-items: center; gap: .5rem; width: 100%; color: var(--muted); background: none; border: 1px dashed var(--line); border-radius: var(--r-card); padding: .75rem 1rem; font: inherit; }
+.msg-add svg { width: 16px; height: 16px; color: var(--gold); }
+
 /* ── Split bars ──────────────────────────────────────────────────────── */
 .split + .split { margin-top: 1rem; }
 .split-head { display: flex; align-items: baseline; gap: .4rem; font-size: .86rem; margin-bottom: .45rem; }
@@ -776,6 +805,18 @@ input[type="checkbox"]:focus-visible { outline: 2px solid var(--gold); outline-o
 .invite-more .invite-preview { margin-top: .6rem; }
 .btn.wide { width: 100%; margin-top: .9rem; }
 
+.pick-list { display: flex; flex-direction: column; }
+.pp-row {
+  display: flex; align-items: baseline; gap: .7rem; width: 100%; padding: .8rem .2rem; text-align: start;
+  background: none; border: 0; color: var(--text); font: inherit; cursor: pointer;
+}
+.pp-row + .pp-row { border-top: 1px solid var(--line); }
+.pp-row .num { width: 1.6rem; color: var(--faint); }
+.pp-row b { flex: 1; }
+.pp-row small { color: var(--faint); font-size: .74rem; }
+.pp-row[aria-pressed="true"] b { color: var(--gold); }
+.role-unlinked { color: var(--gold); }
+.user-row .who > span svg { width: 13px; height: 13px; vertical-align: -2px; color: var(--gold); }
 .user-row { display: flex; align-items: center; gap: .65rem; padding: .85rem 0; }
 .user-row + .user-row { border-top: 1px solid var(--line); }
 .user-row .who { flex: 1; min-width: 0; }
@@ -785,7 +826,7 @@ input[type="checkbox"]:focus-visible { outline: 2px solid var(--gold); outline-o
 .user-row .who-name b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .user-row .who-name svg { width: 13px; height: 13px; flex: none; color: var(--faint); }
 .user-row .who span { font-size: .75rem; color: var(--faint); }
-.user-row .acts { display: flex; gap: 6px; flex: none; }
+.user-row .acts { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; flex: none; max-width: 62%; }
 
 /* The save bar stays reachable at the bottom of a long form: the manager
    edits a score near the top and should not have to scroll to commit it.

@@ -198,6 +198,9 @@ export function openMatchSheet(match, coach = null, us = '') {
   });
 }
 
+// A child's phone takes no control code (the bridge refuses: notPlayer_).
+const CLAIM_LINK = '<p class="gate-foot"><button type="button" class="linkish" data-act="claim">יש לי קוד שליטה במשחק</button></p>';
+
 // Results listed on the live screen while nothing is live.
 const RECENT_SHOWN = 5;
 
@@ -210,6 +213,7 @@ export function mountLive(view, ctx) {
   let redrawLater = false;  // a redraw that waited for it to lift
 
   const state = () => S.state;
+  const claimLink = () => (ctx.isPlayer?.() ? '' : CLAIM_LINK);
   const control = () => S.canControl && state() && state().status !== 'ended';
   // The coach records the squad — substitutions and the shape — by default,
   // and everything else (goals, the clock, the whistle) only by choice
@@ -682,7 +686,7 @@ export function mountLive(view, ctx) {
     }
     return `<section><div class="card gate"><h2>אין משחק חי כרגע</h2>${next}
       <p class="note">כשהמשחק יתחיל, הוא יופיע כאן בזמן אמת.</p></div></section>
-      <p class="gate-foot"><button type="button" class="linkish" data-act="claim">יש לי קוד שליטה במשחק</button></p>${recentHtml()}`;
+      ${claimLink()}${recentHtml()}`;
   }
 
   // Any fixture in the schedule can go live now, whatever its date — games
@@ -792,7 +796,7 @@ export function mountLive(view, ctx) {
           </section>`}
         </div>`}
       ${st.status === 'ended' ? endedPanel(st) : ''}
-      ${!S.canControl && st.status !== 'ended' ? '<p class="gate-foot"><button type="button" class="linkish" data-act="claim">יש לי קוד שליטה במשחק</button></p>' : ''}
+      ${!S.canControl && st.status !== 'ended' ? claimLink() : ''}
       ${ctl ? dock(st) : ''}`;
     restoreImages();
     restoreFocus();

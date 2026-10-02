@@ -134,10 +134,15 @@ const fileInput = '<input type="file" data-files accept="image/*,video/*" multip
 
 // The upload button in a bar fixed above the nav (the owner's pick from a
 // mockup): after the last of 40 photos it was screens away.
+// A child's phone (role 'player') looks and saves: no upload, no hiding, as
+// the bridge enforces (notPlayer_). Set on every wiring of the screen.
+let viewOnly = false;
+const canUploadTo = (g) => !viewOnly && g.mode !== 'closed' && !g.blocked;
+
 const dock = (button) => `<div class="gl-dock">${button}${fileInput}</div>`;
 
 function overviewHtml(g, s) {
-  const canUpload = g.mode !== 'closed' && !g.blocked;
+  const canUpload = canUploadTo(g);
   const items = visible(g);
   const photos = photosOf(items), clips = clipsOf(items);
   const linked = sortedVideos(s);
@@ -163,7 +168,7 @@ function overviewHtml(g, s) {
 // One game's page: every photo (or clip) of it, picking, and an upload that
 // already knows the game.
 function albumHtml(g, grp, sel) {
-  const canUpload = g.mode !== 'closed' && !g.blocked;
+  const canUpload = canUploadTo(g);
   const photos = photosOf(grp.items), clips = clipsOf(grp.items);
   const list = shownTab === 'videos' ? clips : photos;
   const parents = new Set(grp.items.map((it) => it.byName)).size;
@@ -184,6 +189,16 @@ function albumHtml(g, grp, sel) {
 
 function helpSheet(g) {
   const review = g.mode === 'review';
+  if (viewOnly) {
+    openSheet({
+      title: 'איך הגלריה עובדת',
+      body: `<div class="help">
+        <p>כאן התמונות והסרטונים שההורים מעלים מהמשחקים, לפי משחק. פותחים תמונה ← <b>"שמירה"</b> כדי לשמור אותה בטלפון.</p>
+        <p>תמונה שלך שהיית מעדיף שלא תופיע? ספר להורים — הם יכולים להסתיר אותה.</p>
+      </div>`,
+    });
+    return;
+  }
   openSheet({
     title: 'איך הגלריה עובדת',
     tall: true,
@@ -319,7 +334,7 @@ function viewer(g, list, start, { asAdmin, onChange }) {
           ${canShare ? `<button type="button" class="btn secondary" data-v="share">${icon('share')} שיתוף</button>` : ''}
           ${it.mine || asAdmin
             ? `<button type="button" class="btn secondary" data-v="delete">${icon('trash')} מחיקה</button>`
-            : `<button type="button" class="btn secondary" data-v="hide">${icon('eyeoff')} הסתרה</button>`}
+            : viewOnly ? '' : `<button type="button" class="btn secondary" data-v="hide">${icon('eyeoff')} הסתרה</button>`}
         </div>
       </div>`;
   }
@@ -429,6 +444,7 @@ export function wireGallery(root, s, { isAdmin = () => false } = {}) {
   let alive = true;
   let g = cachedGallery();
   const asAdmin = isAdmin();
+  viewOnly = !asAdmin && !!s.isPlayer;
   const sel = { on: false, ids: new Set(), busy: false, asAdmin };
   const endSelect = () => { sel.on = false; sel.ids.clear(); sel.busy = false; };
   const kindOk = (it) => (shownTab === 'videos' ? it.kind === 'video' : it.kind !== 'video');

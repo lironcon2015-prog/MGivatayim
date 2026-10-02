@@ -8,6 +8,7 @@
 // week is over.
 
 import { todayInIsrael } from './fixtures.js';
+import { israelIso } from './format.js';
 
 export const DAYS = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
 
@@ -34,7 +35,7 @@ function venueOf(v, home) {
 
 // Sunday to Saturday around today (Israel), the week a parent plans by;
 // `ahead` = 1 is the week after (the owner's "next week" button, offered
-// from Saturday). The week's games sit in their days, a played one with
+// once the week's last training is over — nextWeekFrom). The week's games sit in their days, a played one with
 // its score.
 export function trainingWeek(season, games, now = new Date(), ahead = 0) {
   const today = todayInIsrael(now);
@@ -112,6 +113,18 @@ export function trainingWeek(season, games, now = new Date(), ahead = 0) {
   return { start, end, ahead, trainings: days.length, items };
 }
 
-// The "next week" button shows from Saturday: the week's game is that day,
-// and parents plan the coming week from it.
-export const offersNextWeek = (now = new Date()) => weekday(todayInIsrael(now)) === 6;
+// When the "next week" button shows (the owner's ask; it was Saturday): once
+// the week's last training is over, nothing in this week is left to plan for.
+// A cancelled training, or one moved out of the week, does not count; one
+// with no end time is over when its day is. A week with no training left
+// offers it at once. A moment (ms), so a screen drawn before it can tell that
+// it passed (refresh in app.js).
+export function nextWeekFrom(week) {
+  let last = 0;
+  for (const i of week?.items || []) {
+    if (i.kind !== 'training' || i.change === 'cancelled' || i.change === 'away') continue;
+    const at = Date.parse(israelIso(i.date, i.end || '23:59'));
+    if (at > last) last = at;
+  }
+  return last;
+}

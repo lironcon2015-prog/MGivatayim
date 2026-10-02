@@ -338,7 +338,22 @@ await test('trainings: the week is the routine plus this week\'s changes, and th
   assert.equal(sat.nextWeek.start, '2026-10-04');
   assert.ok(sat.nextWeek.ahead && sat.nextWeek.items.every((i) => !i.past && !i.today));
   assert.deepEqual(sat.nextWeek.items.map((i) => i.kind + ' ' + i.date), ['training 2026-10-04', 'training 2026-10-06', 'training 2026-10-08', 'game 2026-10-10']);
-  assert.ok(!buildSeason(base, tuesday).offersNextWeek, 'only from Saturday');
+  assert.ok(!buildSeason(base, tuesday).offersNextWeek, 'not while trainings are left this week');
+  // Offered once the week's last training is over: Thursday's, 16:30–18:30
+  // in Israel (+03:00).
+  assert.ok(!buildSeason(base, new Date('2026-10-01T15:29:00Z')).offersNextWeek, 'during the last training');
+  const thuDone = buildSeason(base, new Date('2026-10-01T15:31:00Z'));
+  assert.ok(thuDone.offersNextWeek, 'right after the last training');
+  assert.equal(thuDone.week.start, '2026-09-27', 'the week shown is still this one');
+  assert.equal(thuDone.nextWeekFrom, Date.parse('2026-10-01T15:30:00Z'));
+  // A cancelled last training does not count: Wednesday's extra one, to 20:00, closes the week.
+  const cancelThu = { ...base, trainingChanges: [...base.trainingChanges.filter((c) => c.date !== '2026-10-01'), { date: '2026-10-01', cancelled: true }] };
+  assert.ok(buildSeason(cancelThu, new Date('2026-09-30T17:01:00Z')).offersNextWeek, 'a cancelled training holds nothing back');
+  assert.ok(!buildSeason(cancelThu, new Date('2026-09-30T16:59:00Z')).offersNextWeek);
+  // Moved into next week: gone from this one.
+  const movedThu = { ...base, trainingChanges: [...base.trainingChanges.filter((c) => c.date !== '2026-10-01'), { date: '2026-10-01', movedTo: '2026-10-05' }] };
+  assert.ok(buildSeason(movedThu, new Date('2026-09-30T17:01:00Z')).offersNextWeek, 'a training moved out of the week holds nothing back');
+  assert.ok(buildSeason({ ...base, trainings: [], trainingChanges: [] }, tuesday).offersNextWeek, 'no training left: offered at once');
   assert.equal(buildSeason(base, new Date('2026-10-04T08:00:00Z')).week.start, '2026-10-04', 'Sunday starts the next week');
   assert.equal(buildSeason({ ...base, trainings: [], trainingChanges: [] }, tuesday).week.trainings, 0, 'no trainings, no strip');
   // A game played this week stays in its day, past and with its score —

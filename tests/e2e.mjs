@@ -1111,17 +1111,19 @@ await step('a weekly training shows above the next match, on the first screen, a
   expect(await sheet.locator('a.btn[href^="https://www.waze.com/ul?q="]').count() === 1, 'no Waze link for the home ground');
   await parent.locator('.sheet-x').click();
 
-  // "Next week" is offered from Saturday only, and shows the week after.
+  // "Next week" is offered once the week's last training is over — here
+  // today's, which ends at 18:30 — and shows the week after.
   const next = parent.locator('[data-next-week]');
-  if (day === 6) {
+  const nowHM = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Jerusalem', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date());
+  if (nowHM >= '18:30') {
     await next.click();
     await parent.locator('.wk-label', { hasText: 'אימוני השבוע הבא' }).waitFor();
     const n = (await parent.locator('.week-sec .wk-day').first().innerText()).replace(/\s+/g, ' ');
-    expect(n.includes('שבת') && n.includes('17:00'), 'next week\'s square: ' + n);
+    expect(n.includes(['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'][day]) && n.includes('17:00'), 'next week\'s square: ' + n);
     expect(!(await parent.locator('.week-sec .wk-day.training.today').count()), 'next week has a "today"');
     await parent.locator('[data-next-week]').click();
     await parent.locator('.week-sec .wk-day.training.today').waitFor();
-  } else expect(!(await next.count()), 'the next week button shows before Saturday');
+  } else expect(!(await next.count()), 'the next week button shows before the week\'s last training is over');
 });
 
 await step('a training that differs from the routine is framed and flagged, and the sheet says what changed', async () => {

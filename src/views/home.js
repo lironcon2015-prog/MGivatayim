@@ -76,7 +76,8 @@ const hoursOf = (t) => (t.start && t.end ? `${t.start}–${t.end}` : t.start || 
 // its top edge (the owner's pick, and the one red outside match results).
 const FLAGS = { changed: 'שינוי', cancelled: 'בוטל', extra: 'נוסף', moved: 'הוזז', away: 'הוזז' };
 
-// Next week is offered from Saturday; the choice lives for the visit.
+// Next week is offered once this week's last training is over (nextWeekFrom);
+// the choice lives for the visit.
 let showNext = false;
 const shownWeek = (s) => (s.offersNextWeek && showNext ? s.nextWeek : s.week);
 

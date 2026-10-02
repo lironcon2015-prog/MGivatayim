@@ -6,7 +6,7 @@
 import { cleanPlayedMatch } from './live/model.js';
 import { primaryPos, posLabel } from './positions.js';
 import { upcomingFixtures, fixtureAsNext } from './fixtures.js';
-import { trainingWeek, offersNextWeek } from './trainings.js';
+import { trainingWeek, nextWeekFrom } from './trainings.js';
 
 export const OUTCOMES = { win: 'ניצחון', draw: 'תיקו', loss: 'הפסד' };
 
@@ -151,14 +151,19 @@ export function buildSeason(input, now = new Date()) {
   const games = [...chronological.map((m) => ({ date: m.date, opponent: m.opponent, gf: Number(m.gf), ga: Number(m.ga) })),
     ...(nextMatch ? [{ date: kick.slice(0, 10), time: nextMatch.timeTbd ? '' : kick.slice(11, 16), opponent: nextMatch.opponent }] : []), ...upcoming];
 
+  const week = trainingWeek(raw, games, now);
+  const weekDone = nextWeekFrom(week);
+
   return {
     ...raw,
     nextMatch,
     // This week's trainings and the week after, each closed by its game
-    // (src/trainings.js); the view offers the second from Saturday.
-    week: trainingWeek(raw, games, now),
+    // (src/trainings.js); the view offers the second once this week's last
+    // training is over.
+    week,
     nextWeek: trainingWeek(raw, games, now, 1),
-    offersNextWeek: offersNextWeek(now),
+    nextWeekFrom: weekDone,
+    offersNextWeek: now.getTime() >= weekDone,
     // Every fixture still ahead, and those after the one the card shows. The
     // fixture on the day of a next match set by hand shows that match's
     // kickoff: the schedule said "time not set" beside a card saying 09:30.

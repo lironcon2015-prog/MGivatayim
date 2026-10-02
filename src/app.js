@@ -155,7 +155,10 @@ async function refresh() {
     // the parent had opened on the screen, and the media screen asked the
     // bridge for the gallery again each time.
     const same = state.access === 'approved' && !state.stale && state.season?.day === todayInIsrael()
-      && JSON.stringify(withCarried(next)) === JSON.stringify(state.payload);
+      && JSON.stringify(withCarried(next)) === JSON.stringify(state.payload)
+      // The week's last training ended since the screen was drawn: "next
+      // week" is offered now, and only a redraw shows it.
+      && (state.season.offersNextWeek || !(state.season.nextWeekFrom <= Date.now()));
     if (same) { checkPending(); return; }
     accept(next);
   } catch (e) {

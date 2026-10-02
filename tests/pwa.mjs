@@ -108,9 +108,29 @@ const browser = await chromium.launch(exe ? { executablePath: exe } : {});
 const ctx = await browser.newContext({ viewport: { width: 400, height: 800 } });
 await ctx.route(/fonts\.|script\.google\.com/, (r) => r.abort());
 const page = await ctx.newPage();
+// What the update path did, kept for when a page stays on the old version:
+// that happens now and then on a loaded machine (seen on code from before
+// the live dock too) and never under observation, so it says so itself.
+const trail = [];
+const t0 = Date.now();
+const note = (x) => { trail.push(`${((Date.now() - t0) / 1000).toFixed(1)}s ${x}`); if (trail.length > 40) trail.shift(); };
+ctx.on('request', (r) => { if (/version\.json|sw\.js|index\.html|\/(\?|$)/.test(r.url())) note(`${r.serviceWorker() ? 'sw ' : ''}${r.url().replace(/^https?:\/\/[^/]+/, '')}`); });
+page.on('framenavigated', (f) => { if (f === page.mainFrame()) note('load ' + f.url().replace(/^https?:\/\/[^/]+/, '')); });
+page.on('pageerror', (e) => note('error ' + e.message));
 const shown = () => page.locator('#app-version').innerText();
 const deploy = () => execFileSync(process.execPath, [join(site, 'tools/bump.mjs')], { cwd: site }).toString().split('→')[1].trim().split('\n')[0];
-const showing = (p, v) => p.waitForFunction((x) => document.getElementById('app-version')?.textContent === x, v, { timeout: 15000 });
+const showing = (p, v) => p.waitForFunction((x) => document.getElementById('app-version')?.textContent === x, v, { timeout: 15000 })
+  .catch(async (e) => {
+    const state = await p.evaluate(async () => ({
+      shown: document.getElementById('app-version')?.textContent,
+      controller: navigator.serviceWorker.controller?.scriptURL,
+      registrations: (await navigator.serviceWorker.getRegistrations()).map((r) => [r.active?.scriptURL, r.waiting?.scriptURL, r.installing?.scriptURL]),
+      caches: await caches.keys(),
+      session: { ...sessionStorage },
+    })).catch((x) => 'unreadable: ' + x.message);
+    console.log(`     stuck waiting for ${v}:`, JSON.stringify(state), '\n     ' + trail.join('\n     '));
+    throw e;
+  });
 const hasCopy = (p, v) => p.evaluate((x) => caches.has('mgivatayim-' + x), v);
 
 const start = versions(site).json;

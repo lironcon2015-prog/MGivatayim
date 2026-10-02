@@ -316,15 +316,38 @@ export function mountLive(view, ctx) {
     const sc = M.score(st);
     const crest = crestImg(ctx.team);
     return `<section class="live-top"><div class="card score-card">
-      <div class="sc-head">${statusChip(st)}<span class="sc-side">${watchChip(st)}<span class="sc-period">${st.status === 'running' ? esc(M.periodName(st.format, st.period)) : esc(M.describeFormat(st.format))}</span></span></div>
+      <div class="sc-head">${statusChip(st)}${syncMark()}<span class="sc-side">${watchChip(st)}${st.status === 'running' || (st.status === 'setup' && control()) ? '' : `<span class="sc-period">${esc(M.describeFormat(st.format))}</span>`}</span></div>
       <div class="sc-row">
         <div class="sc-team us"><span class="sc-crest">${crest}</span><b>${esc(ctx.team.name)}</b><small>${st.home ? 'בית' : 'חוץ'}</small></div>
         <div class="sc-score num" aria-label="${sc.us} : ${sc.them}"><span class="ours" data-us>${sc.us}</span><span class="sep">:</span><span data-them>${sc.them}</span></div>
         <div class="sc-team"><span class="sc-disc">${esc((st.opponent || '?').slice(0, 2))}${oppLogo(ctx.logo?.(st.opponent), st.opponent || 'יריבה')}</span><b>${esc(st.opponent || 'יריבה')}</b><small>${st.home ? 'חוץ' : 'בית'}</small></div>
       </div>
       ${scorersHtml(st)}
-      <div class="sc-clock"><span class="num" data-clock></span><span class="sc-extra num" data-extra></span></div>
+      ${st.status === 'setup' && control() ? setupSummary(st) : clockHtml(st)}
     </div></section>`;
+  }
+
+  // The clock and its period together. Whoever controls the match taps it
+  // for everything about time: pause, a correction, the end of the period.
+  function clockHtml(st) {
+    const parts = '<span class="num" data-clock></span><span class="sc-extra num" data-extra></span>';
+    if (st.status !== 'running') return `<div class="sc-clock">${parts}</div>`;
+    const period = `<span class="sc-clock-p">${esc(M.periodName(st.format, st.period))}</span>`;
+    if (!control()) return `<div class="sc-clock">${parts}${period}</div>`;
+    const run = st.clock.running;
+    return `<div class="sc-clock"><button type="button" class="sc-clock-btn" data-act="clock" aria-label="השעון — ${run ? 'עצירה, תיקון וסיום' : 'עצור. המשך, תיקון וסיום'}">
+      <span class="sc-clock-ic">${icon(run ? 'pause' : 'play')}</span>${parts}${period}${run ? '' : '<span class="sc-stopped">עצור</span>'}</button></div>`;
+  }
+
+  // Before kick-off, under the score: the match in one line, its details a
+  // tap away, and whether parents see it yet.
+  function setupSummary(st) {
+    const date = st.date ? shortDate(st.date).slice(0, 5) : '';
+    const line = [st.home ? 'בית' : 'חוץ', date, M.describeSize(M.sizeOf(st)), M.describeFormat(st.format)].filter(Boolean).map(esc).join(' · ');
+    const strip = S.hidden
+      ? `<div class="sc-strip">${icon('eyeoff')}<span>ההורים עוד לא רואים${S.isAdmin ? '' : ' — יופיע אצלם כשהמנהל יפרסם'}</span>${S.isAdmin ? '<button type="button" class="sc-strip-btn" data-act="publish">פרסום</button>' : ''}</div>`
+      : '';
+    return `<p class="sc-meta"><span class="num">${line}</span> · <button type="button" class="linkish" data-act="details">${icon('edit')} פרטים</button></p>${strip}`;
   }
 
   function syncChip() {
@@ -332,91 +355,113 @@ export function mountLive(view, ctx) {
     const n = S.pending.length;
     if (S.sync === 'offline') return `<p class="sync off" role="status">${n ? `אין קליטה · ${n} ${n === 1 ? 'פעולה ממתינה' : 'פעולות ממתינות'} — יישלחו כשהחיבור יחזור` : 'אין קליטה — מה שתתעדו יישלח כשהחיבור יחזור'}</p>`;
     if (S.sync === 'error') return `<p class="sync err" role="alert">${esc(S.error)}</p>`;
-    if (n || S.sync === 'sending') return '<p class="sync" role="status">שולח…</p>';
-    return `<p class="sync ok" role="status">${icon('check')} כולם רואים את העדכון</p>`;
-  }
-
-  function controls(st) {
-    const moreBtn = `<button type="button" class="ctl-btn" data-act="more" aria-label="עוד">${icon('more')}<span>עוד</span></button>`;
-    if (st.status === 'setup') {
-      return `<div class="ctl">
-        <button type="button" class="ctl-main" data-act="start">${icon('play')} שריקת פתיחה · ${esc(M.periodName(st.format, 0))}</button>
-        <div class="ctl-row">${moreBtn}</div></div>`;
-    }
-    if (st.status === 'running') {
-      return `<div class="ctl">
-        <div class="ctl-goals">
-          <button type="button" class="ctl-goal" data-act="goal-us">${icon('ball')}<span>שער לנו</span></button>
-          <button type="button" class="ctl-goal them" data-act="goal-them">${icon('ball')}<span>שער ליריבה</span></button>
-        </div>
-        <div class="ctl-row">
-          <button type="button" class="ctl-btn" data-act="penalty">${icon('penalty')}<span>פנדל</span></button>
-          <button type="button" class="ctl-btn" data-act="sub">${icon('swap')}<span>חילוף</span></button>
-          <button type="button" class="ctl-btn" data-act="${st.clock.running ? 'pause' : 'resume'}" aria-label="${st.clock.running ? 'עצירת שעון' : 'המשך'}">${icon(st.clock.running ? 'pause' : 'play')}<span>${st.clock.running ? 'עצירה' : 'המשך'}</span></button>
-          <button type="button" class="ctl-btn" data-act="end" aria-label="סיום ${esc(M.periodWord(st.format))}">${icon('whistle')}<span>סיום</span></button>
-          ${moreBtn}
-        </div></div>`;
-    }
-    if (st.status === 'break') {
-      return `<div class="ctl">
-        <button type="button" class="ctl-main" data-act="start">${icon('play')} פתיחת ${esc(M.periodName(st.format, st.period))}</button>
-        <div class="ctl-row">
-          <button type="button" class="ctl-btn" data-act="sub">${icon('swap')}<span>חילוף</span></button>
-          <button type="button" class="ctl-btn" data-act="goal-us">${icon('ball')}<span>שער שנשכח</span></button>
-          <button type="button" class="ctl-btn" data-act="finish">${icon('flag')}<span>סיום המשחק</span></button>
-          ${moreBtn}
-        </div></div>`;
-    }
-    if (st.status === 'fulltime') {
-      return `<div class="ctl">
-        <button type="button" class="ctl-main" data-act="finish">${icon('check')} סיום ושמירת המשחק</button>
-        <div class="ctl-row">
-          <button type="button" class="ctl-btn" data-act="goal-us">${icon('ball')}<span>שער שנשכח</span></button>
-          <button type="button" class="ctl-btn" data-act="goal-them">${icon('ball')}<span>שער ליריבה</span></button>
-          ${moreBtn}
-        </div></div>`;
-    }
     return '';
   }
+  function syncMark() {
+    if (!S.canControl || S.sync === 'offline' || S.sync === 'error') return '';
+    const st = state();
+    if (!st || st.status === 'setup' || st.status === 'ended') return '';
+    return S.pending.length || S.sync === 'sending'
+      ? '<span class="sc-sync" role="status">שולח…</span>'
+      : `<span class="sc-sync ok" role="status">${icon('check')} כולם רואים</span>`;
+  }
 
+  // The controls of the moment, in a bar above the nav: always under the
+  // thumb, also while scrolled down to the pitch or the events. Time (pause,
+  // a correction, the end of a period) lives in the clock; the rare things
+  // in "עוד".
+  function dock(st) {
+    const btn = (act, ic, label, cls = '') => `<button type="button" class="dk-btn${cls}" data-act="${act}">${icon(ic)}<span>${label}</span></button>`;
+    let body = '';
+    if (st.status === 'setup') {
+      body = `<div class="dk-row main">${btn('start', 'play', `שריקת פתיחה · ${esc(M.periodName(st.format, 0))}`, ' gold')}<button type="button" class="dk-btn icon-only" data-act="more" aria-label="עוד">${icon('more')}</button></div>`;
+    } else if (st.status === 'running') {
+      body = `<div class="dk-row goals">${btn('goal-us', 'ball', 'שער לנו', ' gold')}${btn('goal-them', 'ball', 'שער ליריבה')}</div>
+        <div class="dk-row">${btn('sub', 'swap', 'חילוף', ' sm')}${btn('penalty', 'penalty', 'פנדל', ' sm')}${btn('more', 'more', 'עוד', ' sm')}</div>`;
+    } else if (st.status === 'break') {
+      body = `${btn('start', 'play', `פתיחת ${esc(M.periodName(st.format, st.period))}`, ' gold')}
+        <div class="dk-row">${btn('sub', 'swap', 'חילוף', ' sm')}${btn('goal-us', 'ball', 'שער שנשכח', ' sm')}${btn('more', 'more', 'עוד', ' sm')}</div>`;
+    } else if (st.status === 'fulltime') {
+      body = `${btn('finish', 'check', 'סיום ושמירת המשחק', ' gold')}
+        <div class="dk-row">${btn('goal-us', 'ball', 'שער שנשכח', ' sm')}${btn('goal-them', 'ball', 'שער ליריבה', ' sm')}${btn('more', 'more', 'עוד', ' sm')}</div>`;
+    }
+    return body ? `<div class="live-dock" data-dock>${body}</div>` : '';
+  }
+
+  // Before kick-off: the pitch is the editor. A tap on a slot picks who
+  // plays there (or takes him out); a tap on a name below puts him in the
+  // free slot that suits him. The match details live in a sheet.
   function lineupEditor(st) {
     const formation = M.formationOfState(st);
-    const chosen = new Map(st.lineup.map((l) => [l.pid, l.pos]));
     const open = freeSlots(formation.slots, st.lineup);
-    const rows = [...st.players].sort(byNumber).map((p) => {
-      const on = chosen.has(p.id);
-      return `<div class="lu-row${on ? ' on' : ''}">
-        <button type="button" class="lu-toggle" data-lineup="${esc(p.id)}" aria-pressed="${on}">
-          <span class="pick-num num">${p.number ?? '·'}</span>
-          <span class="lu-name">${esc(p.name)}<small>${esc([posLabel(p.pos), posLabel(p.pos2)].filter(Boolean).join(' / '))}</small></span>
-          ${on ? `<span class="lu-slot">${esc(posLabel(chosen.get(p.id)) || 'בהרכב')}</span>` : ''}
-          <span class="lu-check">${icon('check')}</span>
-        </button>
-      </div>`;
-    }).join('');
-    return `<section>
-      <div class="sec-head">${icon('calendar')}<h2>פרטי המשחק</h2></div>
-      <div class="card">
-        <div class="grid-2">
+    const size = M.sizeOf(st);
+    const absent = ctx.canMinutes() ? ctx.coachCfg(st.id).absent : new Set();
+    const out = [...st.players].filter((p) => !st.lineup.some((l) => l.pid === p.id)).sort(byNumber);
+    const check = (done, label) => `<span class="ck${done ? ' done' : ''}">${done ? icon('check') : ''}${label}</span>`;
+    return `<section class="setup">
+      <div class="checks">${check(!!String(st.opponent || '').trim(), 'פרטים')}${check(st.lineup.length === size, `הרכב <span class="num">${st.lineup.length}/${size}</span>`)}${S.isAdmin ? check(!S.hidden, 'פרסום להורים') : ''}</div>
+      <div class="formation-tools">
+        <div class="seg formation-seg" role="radiogroup" aria-label="מערך">
+          ${formationsFor(size).map((f) => `<button type="button" role="radio" data-formation="${f.id}" aria-checked="${f.id === formation.id}" aria-selected="${f.id === formation.id}"><span class="num" dir="ltr">${f.id}</span></button>`).join('')}
+        </div>
+        ${st.players.length ? `<button type="button" class="icon-btn lu-paste" data-act="paste-lineup" aria-label="הדבקת הרכב מהוואטסאפ" title="הדבקת הרכב מהוואטסאפ">${icon('clipboard')}</button>` : ''}
+      </div>
+      <p class="formation-note">${esc(formation.note)}</p>
+      ${pitchHtml(st, [...st.lineup, ...open.map((pos) => ({ pid: null, pos }))], { interactive: false, edit: true })}
+      <p class="pane-hint lu-hint">${open.length ? 'הקישו על עמדה כדי לבחור שחקן' : 'הקישו על שחקן כדי להחליף או להוציא'}</p>
+      ${st.players.length ? (out.length ? `<div class="bench lu-out"><span class="bench-label">לא בהרכב</span>
+        ${out.map((p) => absent.has(p.id)
+          ? `<span class="bench-p away" title="חסר"><span class="num">${p.number ?? '·'}</span>${esc(shortName(p.name))}</span>`
+          : `<button type="button" class="bench-p add" data-lineup="${esc(p.id)}" aria-label="${esc(`${p.name} — להרכב`)}"><span class="num">${p.number ?? '·'}</span>${esc(shortName(p.name))}</button>`).join('')}
+      </div>` : '') : '<div class="card empty">אין שחקנים בסגל. הוסיפו שחקנים במסך הניהול.</div>'}
+    </section>`;
+  }
+
+  // The match details before kick-off: each field goes out on change, as
+  // it did on the screen itself.
+  function detailsSheet({ focus = '' } = {}) {
+    const st = state();
+    if (!st || st.status !== 'setup') return;
+    let host = null;
+    // Closed by the backdrop or "back" with a field still being typed in: no
+    // change event comes, so what was typed goes out here.
+    const flush = () => {
+      const cur = state();
+      if (!host || !control() || cur?.status !== 'setup') return;
+      const patch = {};
+      host.querySelectorAll('[data-meta]').forEach((f) => {
+        const k = f.dataset.meta;
+        const v = k === 'home' ? f.value === 'true' : f.value.trim();
+        if (v !== cur[k] && !(k === 'opponent' && !v)) patch[k] = v;
+      });
+      if (Object.keys(patch).length) act({ t: 'meta', patch });
+    };
+    const sh = openSheet({
+      title: 'פרטי המשחק',
+      onClose: flush,
+      body: `<div class="grid-2">
           <label class="field span-2"><span>יריבה</span><input data-meta="opponent" value="${esc(st.opponent)}" placeholder="שם הקבוצה היריבה" /></label>
           <label class="field"><span>תאריך</span><input type="date" data-meta="date" value="${esc(st.date)}" /></label>
           <label class="field"><span>בית / חוץ</span><select data-meta="home"><option value="true"${st.home ? ' selected' : ''}>בית</option><option value="false"${st.home ? '' : ' selected'}>חוץ</option></select></label>
           ${ctx.veo() ? streamField(st) : ''}
         </div>
         <button type="button" class="format-line" data-act="format"><span>מבנה: <b>${esc(M.describeSize(M.sizeOf(st)))} · ${esc(M.describeFormat(st.format))}</b></span><span class="linkish">שינוי</span></button>
-      </div>
-    </section>
-    <section>
-      <div class="sec-head">${icon('user')}<h2>הרכב פותח</h2><span class="aside num">${st.lineup.length} מתוך ${M.sizeOf(st)}</span></div>
-      <div class="seg formation-seg" role="radiogroup" aria-label="מערך">
-        ${formationsFor(M.sizeOf(st)).map((f) => `<button type="button" role="radio" data-formation="${f.id}" aria-checked="${f.id === formation.id}" aria-selected="${f.id === formation.id}"><span class="num" dir="ltr">${f.id}</span></button>`).join('')}
-      </div>
-      <p class="formation-note">${esc(formation.note)}</p>
-      ${st.players.length ? `<button type="button" class="btn secondary small lu-paste" data-act="paste-lineup">${icon('copy')} הדבקת הרכב מהוואטסאפ</button>` : ''}
-      ${pitchHtml(st, [...st.lineup, ...open.map((pos) => ({ pid: null, pos }))], { interactive: false, edit: true })}
-      <p class="pane-hint lu-hint">${open.length ? 'הקישו על עמדה כדי לבחור שחקן' : 'הקישו על שחקן כדי להחליף או להוציא'}</p>
-      <div class="card lu">${rows || '<div class="empty">אין שחקנים בסגל. הוסיפו שחקנים במסך הניהול.</div>'}</div>
-    </section>`;
+        <div class="sheet-actions"><button type="button" class="btn" data-done>סיום</button></div>`,
+      onMount: ({ el }) => {
+        host = el;
+        el.addEventListener('change', (e) => {
+          const f = e.target;
+          if (!control() || state()?.status !== 'setup') return;
+          if (f.matches('[data-stream]')) { setStream(f.value); return; }
+          if (!f.dataset.meta) return;
+          const k = f.dataset.meta;
+          act({ t: 'meta', patch: { [k]: k === 'home' ? f.value === 'true' : f.value.trim() } });
+        });
+        el.querySelector('[data-act="format"]').addEventListener('click', () => { sh.close('next'); formatSheet(); });
+        el.querySelector('[data-done]').addEventListener('click', () => { document.activeElement?.blur?.(); sh.close('done'); });
+        if (focus) el.querySelector(`[data-meta="${focus}"]`)?.focus();
+      },
+    });
   }
 
   // One slot of the formation: who plays there. The squad in the slot's
@@ -640,7 +685,7 @@ export function mountLive(view, ctx) {
     if (pressing) { redrawLater = true; return; }
     const st = state();
     if (!S.loaded) { view.innerHTML = '<section><div class="card gate"><p class="gate-lead" role="status">מתחבר למשחק…</p></div></section>'; return; }
-    if (!st) { view.innerHTML = noLive(); return; }
+    if (!st) { view.innerHTML = noLive(); fitDock(); return; }
 
     const ctl = control();
     const field = M.onField(st);
@@ -680,10 +725,11 @@ export function mountLive(view, ctx) {
     // opponent's name, the coach's minimum) redraws around it, not over it.
     const restoreFocus = keepFocus(view);
     if (tab === 'minutes') {
-      view.innerHTML = `${scoreboard(st)}${hiddenNote()}${streamLink(st)}${tabs}<div data-mn-host>${liveMinutesHtml(st, now(), cfg, { folded: store.getFolded() === alertKey(st) })}</div>`;
+      view.innerHTML = `${scoreboard(st)}${syncChip()}${hiddenNote(st)}${streamLink(st)}${tabs}<div data-mn-host>${liveMinutesHtml(st, now(), cfg, { folded: store.getFolded() === alertKey(st) })}</div>${ctl ? dock(st) : ''}`;
       restoreImages();
       restoreFocus();
       lastMinute = minuteKey(st);
+      fitDock();
       window.scrollTo(0, scroll);
       hydratePosters(view);
       tick();
@@ -692,10 +738,10 @@ export function mountLive(view, ctx) {
 
     view.innerHTML = `
       ${scoreboard(st)}
-      ${hiddenNote()}
+      ${syncChip()}
+      ${hiddenNote(st)}
       ${streamLink(st)}
       ${tabs}
-      ${ctl ? `<section class="ctl-wrap">${controls(st)}${syncChip()}</section>` : ''}
       ${!ctl && S.netDown ? '<p class="sync off" role="status">אין חיבור — ייתכן שהמצב כאן לא עדכני</p>' : ''}
       ${setup && ctl ? lineupEditor(st) : `
         ${paneTabs}
@@ -713,19 +759,30 @@ export function mountLive(view, ctx) {
           </section>`}
         </div>`}
       ${st.status === 'ended' ? endedPanel(st) : ''}
-      ${!S.canControl && st.status !== 'ended' ? '<p class="gate-foot"><button type="button" class="linkish" data-act="claim">יש לי קוד שליטה במשחק</button></p>' : ''}`;
+      ${!S.canControl && st.status !== 'ended' ? '<p class="gate-foot"><button type="button" class="linkish" data-act="claim">יש לי קוד שליטה במשחק</button></p>' : ''}
+      ${ctl ? dock(st) : ''}`;
     restoreImages();
     restoreFocus();
+    fitDock();
     window.scrollTo(0, scroll);
     hydratePosters(view);
     tick();
   }
 
+  // The bar above the nav is as tall as its rows: the page end and the
+  // toasts clear exactly that.
+  function fitDock() {
+    const d = view.querySelector('[data-dock]');
+    if (d) document.body.style.setProperty('--dock-h', `${d.offsetHeight}px`);
+    document.body.classList.toggle('with-dock', !!d);
+  }
+
   // Not yet published: the manager prepares the match (lineup, a code for a
   // parent) long before it, the coach marks who came, and parents see it only
   // once the manager publishes — or by itself at the kick-off whistle.
-  function hiddenNote() {
-    if (!S.hidden) return '';
+  function hiddenNote(st) {
+    // Whoever prepares the match sees it in the scoreboard, as a strip.
+    if (!S.hidden || (st.status === 'setup' && control())) return '';
     return `<section><div class="card hidden-live">
       <p>${icon('eyeoff')}<span><b>ההורים עוד לא רואים את המשחק.</b> ${S.isAdmin ? 'רק את/ה, המאמן ומי שקיבל קוד שליטה.' : 'הוא יופיע אצלם כשהמנהל יפרסם אותו.'}</span></p>
       ${S.isAdmin ? `<button type="button" class="btn small" data-act="publish">${icon('eye')} פרסום להורים</button>
@@ -785,15 +842,19 @@ export function mountLive(view, ctx) {
   function endedPanel(st) {
     const filmed = ctx.veo() && S.isAdmin;
     const added = filmed && st.stream && ctx.videos().some((v) => v.url === st.stream);
-    return `<section><div class="card ended-card">
-      <p>${icon('check')} המשחק הסתיים ונשמר בתוצאות העונה.</p>
-      ${filmed ? (added ? `<p class="ctl-who">${icon('film')} המשחק המצולם בסרטונים.</p>`
-        : `<button type="button" class="btn small" data-act="veo-video">${icon('film')} הוספת המשחק המצולם</button>`) : ''}
-      ${S.isAdmin ? `<div class="row-btns">
-        <button type="button" class="btn small secondary" data-act="reopen">פתיחה מחדש לתיקון</button>
-        <button type="button" class="btn small secondary" data-act="clear">סגירת המסך החי</button></div>` : ''}
-    </div></section>`;
+    const row = (act, ic, label, quiet = false) => `<button type="button" class="m-row${quiet ? ' quiet' : ''}" data-act="${act}">
+      <span class="m-ic">${icon(ic)}</span><span class="m-tx">${label}</span>${quiet ? '' : `<span class="m-go">${icon('chevron')}</span>`}</button>`;
+    return `<section class="ended">
+      <p class="ctl-who">${icon('check')} המשחק הסתיים ונשמר בתוצאות העונה.</p>
+      ${filmed && added ? `<p class="ctl-who">${icon('film')} המשחק המצולם בסרטונים.</p>` : ''}
+      ${S.isAdmin ? `<div class="m-list">
+        ${filmed && !added ? row('veo-video', 'film', 'הוספת המשחק המצולם') : ''}
+        ${row('reopen', 'edit', 'פתיחה מחדש לתיקון')}
+        ${row('clear', 'x', 'סגירת המסך החי', true)}
+      </div>` : ''}
+    </section>`;
   }
+
 
   // The minutes tab moves with the clock: redrawn when a minute passes, not
   // four times a second.
@@ -827,6 +888,8 @@ export function mountLive(view, ctx) {
     else main = 'סיום';
     c.textContent = main;
     c.classList.toggle('paused', st.status === 'running' && !st.clock.running);
+    // Past the period's length: the clock itself hints that it is time to end it.
+    view.querySelector('.sc-clock-btn')?.classList.toggle('over', !!extra);
     x.textContent = extra;
     const sc = M.score(st);
     const key = `${sc.us}:${sc.them}`;
@@ -1410,43 +1473,106 @@ export function mountLive(view, ctx) {
     });
   }
 
-  async function moreSheet() {
+  // Everything about time, from a tap on the clock: pause or resume, a
+  // correction for a clock started late, and the end of the period.
+  function clockSheet() {
+    let timer = 0;
+    const sh = openSheet({
+      title: 'השעון',
+      onClose: () => clearInterval(timer),
+      body: '<div data-ck></div>',
+      onMount: ({ el }) => {
+        const host = el.querySelector('[data-ck]');
+        const paint = () => {
+          const st = state();
+          if (!st || st.status !== 'running') { sh.close('done'); return; }
+          const run = st.clock.running;
+          host.innerHTML = `<p class="sheet-text ck-sub">${esc(M.periodName(st.format, st.period))} מתוך <span class="num">${st.format.length}</span> · <span class="num">${st.format[st.period]}</span> דק׳</p>
+            <div class="ck-big num" data-ck-time></div><p class="ck-state">${run ? 'רץ' : 'עצור'}</p>
+            <div class="adj-row">${[['-60000', '−1′'], ['-10000', '−10″'], ['10000', '+10″'], ['60000', '+1′']].map(([ms, l]) =>
+              `<button type="button" class="btn small secondary num" data-adj="${ms}">${M.ltr(l)}</button>`).join('')}</div>
+            <div class="ck-actions">
+              <button type="button" class="btn secondary" data-ck-run>${icon(run ? 'pause' : 'play')} ${run ? 'עצירה' : 'המשך'}</button>
+              <button type="button" class="btn" data-ck-end>${icon('whistle')} סיום ${esc(M.periodName(st.format, st.period))}</button>
+            </div>
+            <p class="note">התיקון — לשעון שהופעל באיחור או מוקדם מדי. אחרי <span class="num">${st.format[st.period]}</span> דקות השעון ממשיך: זו תוספת הזמן.</p>`;
+          const time = () => {
+            const s2 = state();
+            if (!s2 || s2.status !== 'running') return;
+            const ms = M.elapsedMs(s2, now());
+            const t = host.querySelector('[data-ck-time]');
+            if (t) t.textContent = M.clockText(ms);
+          };
+          time();
+          host.querySelectorAll('[data-adj]').forEach((b) => { b.onclick = () => {
+            act({ t: 'adjust', ms: Number(b.dataset.adj), at: now() });
+            toast(`השעון תוקן ${b.textContent}`);
+            time();
+          }; });
+          host.querySelector('[data-ck-run]').onclick = () => { act({ t: run ? 'pause' : 'resume', at: now() }); paint(); };
+          host.querySelector('[data-ck-end]').onclick = () => { sh.close('done'); act({ t: 'end', period: st.period, at: now() }); };
+          clearInterval(timer);
+          timer = setInterval(time, 250);
+        };
+        paint();
+      },
+    });
+  }
+
+  // The rare things, grouped as rows: each opens what it always did. What
+  // cannot be undone comes last and quiet.
+  function moreSheet() {
     const st = state();
     const admin = S.isAdmin;
     const c = S.control;
-    const running = st.status === 'running';
+    const live = st.status === 'running' || st.status === 'break';
+    const row = (m, ic, label, sub = '', quiet = false) => `<button type="button" class="m-row${quiet ? ' quiet' : ''}" data-m="${m}">
+      <span class="m-ic">${icon(ic)}</span><span class="m-tx">${label}${sub ? `<small>${sub}</small>` : ''}</span>${quiet ? '' : `<span class="m-go">${icon('chevron')}</span>`}</button>`;
+    const group = (title, rows) => rows.filter(Boolean).length ? `<p class="m-head">${title}</p><div class="m-list">${rows.filter(Boolean).join('')}</div>` : '';
+    const who = admin
+      ? row('code', 'key', 'קוד שליטה להורה', c?.controllers?.length ? `בשליטת: ${c.controllers.map(esc).join(', ')}` : c?.codeActive ? `קוד פעיל · נותרו <span class="num">${c.attemptsLeft}</span> ניסיונות` : 'לא פעיל')
+      : '';
     const sh = openSheet({
       title: 'ניהול המשחק',
-      body: `
-        ${running ? `<div class="more-block"><h3>תיקון שעון</h3>
-          <div class="adj-row">${[['-60000', '−1′'], ['-10000', '−10″'], ['10000', '+10″'], ['60000', '+1′']].map(([ms, l]) =>
-            `<button type="button" class="btn small secondary num" data-adj="${ms}">${M.ltr(l)}</button>`).join('')}</div>
-          <p class="note">למקרה שהשעון הופעל באיחור או מוקדם מדי. השעון ממשיך לרוץ.</p></div>` : ''}
-        ${admin ? `<div class="more-block"><h3>מסירת שליטה להורה</h3>
-          <p class="note">בוחרים קוד ומוסרים אותו להורה. הקוד עובד פעם אחת, רק למשחק הזה, וננעל אחרי 5 ניסיונות שגויים.</p>
-          ${c?.controllers?.length ? `<p class="ctl-who">${icon('check')} בשליטת: <b>${c.controllers.map(esc).join(', ')}</b></p>` : ''}
-          ${c?.codeActive ? `<p class="ctl-who">${icon('key')} קוד פעיל · נותרו ${c.attemptsLeft} ניסיונות</p>` : ''}
-          <form class="code-row" data-code-form><input name="code" placeholder="קוד, למשל 4821" dir="ltr" inputmode="text" autocomplete="off" minlength="4" maxlength="24" />
-            <button type="submit" class="btn small">${c?.codeActive ? 'החלפת קוד' : 'הפעלת קוד'}</button></form>
-          ${c?.controllers?.length || c?.codeActive ? '<button type="button" class="btn small secondary" data-m="revoke">ביטול שליטת הורים</button>' : ''}
-        </div>` : `<div class="more-block"><p class="ctl-who">${icon('check')} אתם שולטים במשחק הזה.</p></div>`}
-        ${ctx.veo() ? `<div class="more-block"><h3>שידור Veo</h3>
-          <div class="code-row">${streamField(st).replace('<label class="field span-2">', '<label class="field">')}<button type="button" class="btn small" data-m="stream">שמירה</button></div>
-          <p class="note">מי שצופה במשחק רואה כפתור "צפייה בשידור חי". משאירים ריק כדי להסיר.</p></div>` : ''}
-        ${st.status === 'running' || st.status === 'break' ? `<div class="more-block"><h3>מערך ועמדות</h3>
-          <p class="note">עכשיו: <b class="num" dir="ltr">${esc(M.formationNow(st))}</b>. מעבר למערך אחר או החלפת עמדות בין שחקנים, בלי חילוף.</p>
-          <button type="button" class="btn secondary" data-m="shape">${icon('swap')} שינוי מערך</button></div>` : ''}
-        <div class="more-block">
-          ${st.status === 'running' || st.status === 'break' ? '<button type="button" class="btn secondary" data-m="finish">סיום המשחק עכשיו</button>' : ''}
-          ${admin && !S.hidden && st.status === 'setup' ? '<button type="button" class="btn secondary" data-m="hide">הסתרה מההורים עד הפרסום</button>' : ''}
-          ${admin ? '<button type="button" class="btn danger" data-m="cancel">ביטול המשחק החי (בלי שמירה)</button>' : ''}
-        </div>`,
+      body: `${admin ? '' : `<p class="ctl-who">${icon('check')} אתם שולטים במשחק הזה.</p>`}
+        ${group('במגרש', [live && row('shape', 'swap', 'שינוי מערך', `עכשיו <b class="num" dir="ltr">${esc(M.formationNow(st))}</b> · או החלפת עמדות`)])}
+        ${group('מי מתעד ומה רואים', [who, ctx.veo() && row('stream', 'broadcast', 'קישור לשידור (Veo)', st.stream ? 'יש קישור — כולם רואים כפתור צפייה' : 'אין קישור')])}
+        ${group(live ? 'סוף' : 'עוד', [
+          admin && !S.hidden && st.status === 'setup' && row('hide', 'eyeoff', 'הסתרה מההורים עד הפרסום', '', true),
+          live && row('finish', 'flag', 'סיום המשחק עכשיו', '', true),
+          admin && row('cancel', 'x', 'ביטול המשחק החי (בלי שמירה)', '', true),
+        ])}`,
       onMount: ({ el }) => {
-        el.querySelectorAll('[data-adj]').forEach((b) => b.addEventListener('click', () => {
-          act({ t: 'adjust', ms: Number(b.dataset.adj), at: now() });
-          toast(`השעון תוקן ${b.textContent}`);
-        }));
-        el.querySelector('[data-code-form]')?.addEventListener('submit', async (e) => {
+        const on = (m, fn) => el.querySelector(`[data-m="${m}"]`)?.addEventListener('click', fn);
+        on('shape', () => { sh.close('next'); shapeSheet(); });
+        on('code', () => { sh.close('next'); codeSheet(); });
+        on('stream', () => { sh.close('next'); streamSheet(); });
+        on('finish', () => { sh.close('next'); finish(); });
+        on('hide', async () => {
+          try { await S.admin('publishLive', { hidden: true }); sh.close('done'); toast('המשחק מוסתר מההורים עד שתפרסמו'); }
+          catch (err) { toast(esc(err.message), { kind: 'err' }); }
+        });
+        on('cancel', async () => {
+          sh.close('next');
+          if (!(await confirmSheet({ title: 'לבטל את המשחק החי?', text: `המשחק יוסר מהמסך של כולם, ושום דבר ממנו לא יישמר — גם לא שערים, בישולים או חילופים שכבר תועדו.${st.fixture ? ' הוא יחזור ללוח המשחקים בתאריך המקורי.' : ''}`, ok: 'ביטול המשחק', cancel: 'חזרה', danger: true }))) return;
+          try { await S.admin('clearLive', { discard: true }); toast('המשחק החי בוטל'); } catch (err) { toast(esc(err.message), { kind: 'err' }); }
+        });
+      },
+    });
+  }
+
+  function codeSheet() {
+    const c = S.control;
+    const sh = openSheet({
+      title: 'קוד שליטה להורה',
+      body: `<p class="sheet-text">בוחרים קוד ומוסרים אותו להורה. הקוד עובד פעם אחת, רק למשחק הזה, וננעל אחרי 5 ניסיונות שגויים.</p>
+        ${c?.controllers?.length ? `<p class="ctl-who">${icon('check')} בשליטת: <b>${c.controllers.map(esc).join(', ')}</b></p>` : ''}
+        ${c?.codeActive ? `<p class="ctl-who">${icon('key')} קוד פעיל · נותרו ${c.attemptsLeft} ניסיונות</p>` : ''}
+        <form class="code-row" data-code-form><input name="code" placeholder="קוד, למשל 4821" dir="ltr" inputmode="text" autocomplete="off" minlength="4" maxlength="24" />
+          <button type="submit" class="btn small">${c?.codeActive ? 'החלפת קוד' : 'הפעלת קוד'}</button></form>
+        ${c?.controllers?.length || c?.codeActive ? '<div class="sheet-actions"><button type="button" class="btn secondary" data-m="revoke">ביטול שליטת הורים</button></div>' : ''}`,
+      onMount: ({ el }) => {
+        el.querySelector('[data-code-form]').addEventListener('submit', async (e) => {
           e.preventDefault();
           const code = new FormData(e.target).get('code').trim();
           if (code.length < 4) { toast('קוד של 4 תווים לפחות', { kind: 'err' }); return; }
@@ -1457,18 +1583,19 @@ export function mountLive(view, ctx) {
           try { await S.admin('clearLiveControl'); sh.close('done'); toast('שליטת ההורים בוטלה'); }
           catch (err) { toast(esc(err.message), { kind: 'err' }); }
         });
-        el.querySelector('[data-m="finish"]')?.addEventListener('click', () => { sh.close('next'); finish(); });
-        el.querySelector('[data-m="shape"]')?.addEventListener('click', () => { sh.close('next'); shapeSheet(); });
-        el.querySelector('[data-m="stream"]')?.addEventListener('click', () => { if (setStream(el.querySelector('[data-stream]').value)) sh.close('done'); });
-        el.querySelector('[data-m="hide"]')?.addEventListener('click', async () => {
-          try { await S.admin('publishLive', { hidden: true }); sh.close('done'); toast('המשחק מוסתר מההורים עד שתפרסמו'); }
-          catch (err) { toast(esc(err.message), { kind: 'err' }); }
-        });
-        el.querySelector('[data-m="cancel"]')?.addEventListener('click', async () => {
-          sh.close('next');
-          if (!(await confirmSheet({ title: 'לבטל את המשחק החי?', text: `המשחק יוסר מהמסך של כולם, ושום דבר ממנו לא יישמר — גם לא שערים, בישולים או חילופים שכבר תועדו.${st.fixture ? ' הוא יחזור ללוח המשחקים בתאריך המקורי.' : ''}`, ok: 'ביטול המשחק', cancel: 'חזרה', danger: true }))) return;
-          try { await S.admin('clearLive', { discard: true }); toast('המשחק החי בוטל'); } catch (err) { toast(esc(err.message), { kind: 'err' }); }
-        });
+      },
+    });
+  }
+
+  function streamSheet() {
+    const st = state();
+    const sh = openSheet({
+      title: 'שידור Veo',
+      body: `${streamField(st).replace('<label class="field span-2">', '<label class="field">')}
+        <p class="note">מי שצופה במשחק רואה כפתור "צפייה בשידור חי". משאירים ריק כדי להסיר.</p>
+        <div class="sheet-actions"><button type="button" class="btn" data-m="stream">שמירה</button></div>`,
+      onMount: ({ el }) => {
+        el.querySelector('[data-m="stream"]').addEventListener('click', () => { if (setStream(el.querySelector('[data-stream]').value)) sh.close('done'); });
       },
     });
   }
@@ -1595,7 +1722,7 @@ export function mountLive(view, ctx) {
       // A result saved against a blank opponent is a row nobody can read.
       if (st.status === 'setup' && !String(st.opponent || '').trim()) {
         toast('חסר שם היריבה', { kind: 'err' });
-        view.querySelector('[data-meta="opponent"]')?.focus();
+        detailsSheet({ focus: 'opponent' });
         return;
       }
       if (st.status === 'setup' && !st.lineup.length
@@ -1603,13 +1730,8 @@ export function mountLive(view, ctx) {
       act({ t: 'start', at: now() });
       return;
     }
-    if (a === 'pause') { act({ t: 'pause', at: now() }); return; }
-    if (a === 'resume') { act({ t: 'resume', at: now() }); return; }
-    if (a === 'end') {
-      if (!(await confirmSheet({ title: `סיום ${M.periodName(st.format, st.period)}?`, text: 'השעון ייעצר ויתאפס לקראת החלק הבא.', ok: `סיום ${M.periodWord(st.format)}`, cancel: 'ביטול' }))) return;
-      act({ t: 'end', period: st.period, at: now() });
-      return;
-    }
+    if (a === 'clock' && control() && st.status === 'running') { clockSheet(); return; }
+    if (a === 'details' && control() && st.status === 'setup') { detailsSheet(); return; }
     if (a === 'goal-us') { goalSheet(); return; }
     if (a === 'penalty') { penaltySheet(); return; }
     if (a === 'goal-them') {
@@ -1653,15 +1775,6 @@ export function mountLive(view, ctx) {
     const el = e.target;
     const st = state();
     if (st && tab === 'minutes' && ctx.canMinutes() && coachFormEvent(el, st, ctx.coachCfg(st.id), (patch) => saveCoach(st, patch))) return;
-    if (!st || !control()) return;
-    if (el.matches('[data-stream]')) { setStream(el.value); return; }
-    if (el.dataset.lupos) {
-      act({ t: 'lineup', lineup: st.lineup.map((l) => (l.pid === el.dataset.lupos ? { ...l, pos: el.value } : l)) });
-    } else if (el.dataset.meta) {
-      const k = el.dataset.meta;
-      const v = k === 'home' ? el.value === 'true' : el.value.trim();
-      act({ t: 'meta', patch: { [k]: v } });
-    }
   };
 
   view.addEventListener('click', onClick);
@@ -1697,6 +1810,7 @@ export function mountLive(view, ctx) {
   return () => {
     alive = false;
     clearInterval(timer);
+    document.body.classList.remove('with-dock');
     unsub();
     view.removeEventListener('click', onClick);
     view.removeEventListener('change', onChange);

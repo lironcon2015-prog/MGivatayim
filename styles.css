@@ -1030,35 +1030,114 @@ body.with-nav .toast { bottom: calc(var(--nav-space) + 10px); }
 .sc-clock [data-clock] { font-size: 1.8rem; font-weight: 600; letter-spacing: .02em; transition: opacity .2s; }
 .sc-clock [data-clock].paused { opacity: .4; }
 .sc-extra { font-size: 1.05rem; font-weight: 800; color: var(--gold); }
+.sc-extra:empty { display: none; }
+.sc-clock-p { font-size: .8rem; font-weight: 700; color: var(--muted); }
+/* Whoever controls the match taps the clock for pause, a correction and
+   the end of the period: it reads as a control, in the scoreboard's well. */
+.sc-clock-btn {
+  display: inline-flex; align-items: center; gap: .6rem; padding: .3rem .85rem .3rem .45rem; cursor: pointer;
+  font: inherit; color: var(--text); border-radius: 18px; background: var(--well); border: 1px solid var(--line-strong);
+  -webkit-tap-highlight-color: transparent; touch-action: manipulation; transition: border-color .2s, box-shadow .2s;
+}
+.sc-clock-btn:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.sc-clock-btn.over { border-color: var(--gold-line); box-shadow: 0 0 18px -8px var(--gold-glow); }
+.sc-clock-ic { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: var(--surface-2); color: var(--gold); flex: none; }
+.sc-clock-ic svg { width: 14px; height: 14px; stroke-width: 2; }
+.sc-stopped { font-size: .72rem; font-weight: 800; color: var(--gold); border: 1px solid var(--gold-line); border-radius: var(--r-pill); padding: 0 .5rem; }
+/* "Everyone sees it", beside the status: quiet, it is the normal case. */
+.sc-sync { display: inline-flex; align-items: center; gap: .25rem; font-size: .74rem; font-weight: 600; color: var(--faint); white-space: nowrap; }
+.sc-sync svg { width: 13px; height: 13px; color: var(--gold); }
+.sc-head > .sc-sync { margin-inline-start: -.15rem; }
+/* Before kick-off: the match in one line, and whether parents see it. */
+.sc-meta { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: .1rem .4rem; margin: .8rem 0 0; font-size: .8rem; color: var(--muted); text-align: center; }
+.sc-meta .linkish { display: inline-flex; align-items: center; gap: .25rem; font-weight: 700; color: var(--gold); text-decoration: none; }
+.sc-meta .linkish svg { width: 14px; height: 14px; }
+.sc-strip {
+  display: flex; align-items: center; gap: .5rem; margin-top: .7rem; padding: .45rem .5rem .45rem .8rem;
+  border-radius: 16px; background: var(--well); border: 1px dashed var(--line-strong); font-size: .8rem; color: var(--muted);
+}
+.sc-strip > svg { width: 16px; height: 16px; flex: none; }
+.sc-strip > span { flex: 1; min-width: 0; }
+.sc-strip-btn {
+  flex: none; font: inherit; font-size: .8rem; font-weight: 800; cursor: pointer; color: var(--gold);
+  padding: .3rem .95rem; border-radius: var(--r-pill); background: var(--gold-soft); border: 1px solid var(--gold-line);
+}
+.sc-strip-btn:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 
 /* ═══ Live: controls ═══════════════════════════════════════════════════ */
-.ctl-wrap { margin-top: 1rem; }
-.ctl { display: grid; gap: 10px; }
-.ctl button { -webkit-tap-highlight-color: transparent; transition: transform .08s ease, filter .15s; }
-.ctl button:active { transform: scale(.965); }
-.ctl button:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
-.ctl-goals { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 10px; }
+/* The goal choice in the penalty sheet. */
 .ctl-goal {
   min-height: 84px; border-radius: 26px; border: 0; cursor: pointer; font: inherit; font-weight: 800; font-size: 1.05rem;
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .3rem;
   background: var(--gold-fill); color: var(--on-gold); box-shadow: 0 12px 32px -8px rgba(232, 185, 49, .6);
+  -webkit-tap-highlight-color: transparent; transition: transform .08s ease;
 }
+.ctl-goal:active { transform: scale(.965); }
 .ctl-goal svg { width: 26px; height: 26px; }
 .ctl-goal.them { background: var(--surface); color: var(--text); border: 1px solid var(--line-strong); box-shadow: none; font-size: .95rem; }
 .ctl-goal.them svg { color: var(--muted); }
-.ctl-row { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 8px; }
-.ctl-btn {
-  min-height: 66px; border-radius: 20px; cursor: pointer; font: inherit; font-size: .78rem; font-weight: 700;
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .3rem;
-  background: var(--surface); border: 1px solid var(--line); color: var(--text);
+
+/* The controls of the moment, in a glass bar right above the nav: always
+   under the thumb, also with the page scrolled to the pitch or the events. */
+.live-dock {
+  position: fixed; z-index: 39; inset-inline: 12px; bottom: calc(var(--nav-space) + 8px);
+  max-width: calc(var(--shell) - 8px); margin: 0 auto; display: grid; gap: 7px; padding: 8px;
+  border-radius: 26px; background: rgba(12, 20, 33, .86); border: 1px solid rgba(255, 255, 255, .11);
+  -webkit-backdrop-filter: blur(18px) saturate(1.2); backdrop-filter: blur(18px) saturate(1.2);
+  box-shadow: var(--shadow-lift);
 }
-.ctl-btn svg { width: 21px; height: 21px; color: var(--gold); }
-.ctl-main {
-  min-height: 66px; border-radius: var(--r-pill); border: 0; cursor: pointer; font: inherit; font-size: 1.08rem; font-weight: 800;
-  display: flex; align-items: center; justify-content: center; gap: .55rem;
-  background: var(--gold-fill); color: var(--on-gold); box-shadow: 0 12px 32px -8px rgba(232, 185, 49, .6);
+.dk-row { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 7px; }
+.dk-row.goals { grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); grid-auto-flow: row; }
+.dk-row.main { grid-template-columns: minmax(0, 1fr) auto; grid-auto-flow: row; }
+.dk-btn {
+  min-height: 52px; border-radius: 18px; cursor: pointer; font: inherit; font-size: .95rem; font-weight: 800; white-space: nowrap;
+  display: flex; align-items: center; justify-content: center; gap: .45rem; padding: 0 .6rem;
+  background: var(--surface-2); border: 1px solid var(--line-strong); color: var(--text);
+  -webkit-tap-highlight-color: transparent; touch-action: manipulation; transition: transform .08s ease;
 }
-.ctl-main svg { width: 20px; height: 20px; }
+.dk-btn svg { width: 19px; height: 19px; stroke-width: 1.7; color: var(--gold); }
+.dk-btn.gold { background: var(--gold-fill); color: var(--on-gold); border: 0; box-shadow: 0 8px 24px -10px rgba(232, 185, 49, .7); }
+.dk-btn.gold svg { color: var(--on-gold); stroke-width: 2; }
+.dk-btn.sm { min-height: 44px; font-size: .84rem; font-weight: 700; border-radius: 15px; }
+.dk-btn.icon-only { width: 52px; padding: 0; }
+.dk-btn:active { transform: scale(.97); }
+.dk-btn:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+/* What has to clear the bar: the page end, the toasts, the update bar. */
+body.with-dock { padding-bottom: calc(var(--nav-space) + var(--dock-h, 7.5rem) + 1rem); }
+body.with-dock .toast { bottom: calc(var(--nav-space) + var(--dock-h, 7.5rem) + 16px); }
+body.with-dock .update-bar { bottom: calc(var(--nav-space) + var(--dock-h, 7.5rem) + 16px); }
+html:has(body.with-dock) { scroll-padding-bottom: calc(var(--nav-space) + var(--dock-h, 7.5rem) + 1rem); }
+
+/* The rare things ("עוד", after the match): rows in groups. */
+.m-head { margin: 1rem .2rem .4rem; font-size: .72rem; font-weight: 800; color: var(--faint); letter-spacing: .02em; }
+.m-head:first-child { margin-top: .2rem; }
+.m-list { border-radius: 18px; overflow: hidden; background: var(--surface-2); }
+.m-row {
+  display: flex; align-items: center; gap: .75rem; width: 100%; min-height: 56px; padding: .55rem .9rem;
+  font: inherit; color: var(--text); text-align: start; cursor: pointer; background: none; border: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+.m-row + .m-row { border-top: 1px solid var(--line); }
+.m-row:active { background: rgba(255, 255, 255, .04); }
+.m-row:focus-visible { outline: 2px solid var(--gold); outline-offset: -2px; }
+.m-ic { flex: none; width: 34px; height: 34px; border-radius: 11px; display: grid; place-items: center; background: var(--gold-soft); color: var(--gold); }
+.m-ic svg { width: 17px; height: 17px; stroke-width: 1.7; }
+.m-tx { flex: 1; min-width: 0; font-weight: 700; font-size: .92rem; }
+.m-tx small { display: block; font-size: .76rem; font-weight: 600; color: var(--faint); margin-top: 1px; }
+.m-go { flex: none; color: var(--faint); }
+.m-go svg { width: 16px; height: 16px; }
+.m-row.quiet .m-ic { background: rgba(255, 255, 255, .05); color: var(--muted); }
+.m-row.quiet .m-tx { color: var(--muted); font-weight: 600; }
+.ended { margin-top: 1rem; }
+.ended .m-list { margin-top: .6rem; }
+
+/* The clock sheet. */
+.ck-sub { text-align: center; margin: 0; }
+.ck-big { text-align: center; font-size: 3.4rem; font-weight: 600; line-height: 1.1; margin-top: .4rem; letter-spacing: .02em; }
+.ck-state { text-align: center; margin: 0 0 1rem; font-size: .8rem; font-weight: 700; color: var(--muted); }
+.ck-actions { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; margin-top: .8rem; }
+.ck-actions .btn { margin-top: 0; }
+
 .sync { display: flex; justify-content: center; align-items: center; gap: .35rem; margin: .6rem 0 0; font-size: .76rem; font-weight: 600; color: var(--faint); text-align: center; }
 .sync svg { width: 14px; height: 14px; }
 .sync.off { color: var(--gold); }
@@ -1163,31 +1242,27 @@ button.ev:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
   color: var(--muted); font: inherit; font-size: .86rem; cursor: pointer; text-align: start;
 }
 .format-line b { color: var(--text); }
-.lu { padding: .25rem var(--pad); margin-top: .75rem; }
-.lu-row { display: flex; align-items: center; gap: .5rem; }
-.lu-row + .lu-row { border-top: 1px solid var(--line); }
-.lu-toggle {
-  flex: 1; min-width: 0; display: flex; align-items: center; gap: .7rem; min-height: 56px; padding: 0;
-  background: none; border: 0; color: inherit; font: inherit; text-align: start; cursor: pointer;
-}
-.lu-toggle:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; border-radius: 10px; }
-.lu-name { flex: 1; min-width: 0; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.lu-row:not(.on) .lu-name { color: var(--muted); }
-.lu-row:not(.on) .pick-num { color: var(--faint); }
-.lu-check {
-  flex: none; width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center;
-  border: 2px solid var(--line-strong); color: transparent; transition: background .12s, border-color .12s;
-}
-.lu-check svg { width: 16px; height: 16px; }
-.lu-row.on .lu-check { background: var(--gold); border-color: var(--gold); color: var(--on-gold); }
-.lu-name small { display: block; font-size: .72rem; font-weight: 600; color: var(--faint); }
-/* The slot a starter holds in the formation, beside his name. */
-.lu-slot {
-  flex: none; font-size: .74rem; font-weight: 700; color: var(--gold); white-space: nowrap;
-  padding: .15rem .55rem; border-radius: var(--r-pill); background: var(--gold-soft); border: 1px solid var(--gold-line);
-}
 /* Formation: the base the players go into. */
 .formation-seg button { font-size: 1rem; letter-spacing: .04em; }
+.formation-tools { display: flex; gap: 8px; align-items: center; }
+.formation-tools .seg { flex: 1; min-width: 0; margin: 0; }
+.icon-btn {
+  flex: none; width: 44px; height: 44px; display: grid; place-items: center; cursor: pointer; touch-action: manipulation;
+  border-radius: 14px; border: 1px solid var(--line-strong); background: var(--surface-2); color: var(--gold);
+}
+.icon-btn svg { width: 19px; height: 19px; stroke-width: 1.7; }
+.icon-btn:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+/* Before kick-off: what is ready, in a row of quiet ticks. */
+.checks { display: flex; flex-wrap: wrap; gap: 6px; margin: 1rem 0 .7rem; }
+.ck {
+  display: inline-flex; align-items: center; gap: .3rem; font-size: .76rem; font-weight: 700; color: var(--gold);
+  padding: .2rem .7rem; border-radius: var(--r-pill); border: 1px dashed var(--gold-line);
+}
+.ck.done { color: var(--text); border: 1px solid transparent; background: var(--surface-2); }
+.ck svg { width: 13px; height: 13px; color: var(--gold); stroke-width: 2; }
+/* Who is not in the lineup, under the pitch: a tap puts him in. */
+.lu-out .bench-p.add { border-style: dashed; color: var(--text); }
+.lu-out .bench-p.away { opacity: .45; text-decoration: line-through; }
 .formation-note { margin: .45rem 0 .8rem; text-align: center; font-size: .76rem; color: var(--faint); }
 .lu-hint { margin: .6rem 0 0; }
 .slot-out { margin: 0 0 .7rem; }
@@ -1309,7 +1384,6 @@ button.match:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px
 .imp-kind { flex: none; font-size: .7rem; font-weight: 800; padding: .15rem .5rem; border-radius: 999px; background: rgba(255, 255, 255, .07); color: var(--muted); }
 .imp-kind.k-new { background: var(--gold-soft); color: var(--gold); }
 .imp-kind.k-upd { background: rgba(255, 255, 255, .1); color: var(--text); }
-.lu-paste { width: 100%; margin-bottom: .7rem; }
 .lu-imp { cursor: default; padding: .45rem 0; }
 .lu-imp select { width: 100%; margin-top: .25rem; font: inherit; font-size: .9rem; font-weight: 700; color: var(--text); background: var(--well); border: 1px solid var(--line); border-radius: 10px; padding: .4rem .5rem; }
 .imp-missing { margin-top: .9rem; font-weight: 600; font-size: .86rem; }

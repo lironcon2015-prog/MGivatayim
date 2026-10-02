@@ -427,6 +427,41 @@ await step('a next match stored the old way folds into the schedule on the manag
 // ---- live match ----
 const liveFile = () => JSON.parse(bridge.driveFile('live.json') || '{}').state;
 const seasonFile = () => JSON.parse(bridge.driveFile('season.json')).season;
+// The live screen's routines. A sheet that closes takes its history step
+// off; a navigation sent before that landed would be undone by it.
+const sheetGone = async (page) => {
+  await page.locator('.sheet').waitFor({ state: 'detached' });
+  await page.waitForFunction(() => !history.state?.mgLayer);
+};
+// Time lives in the clock: a tap on it, then the end of the period.
+const endPeriod = async (page) => {
+  await page.click('[data-act="clock"]');
+  await page.click('.sheet [data-ck-end]');
+  await sheetGone(page);
+};
+// At a break the early finish is in "עוד", as it always was.
+const finishNow = async (page) => {
+  await page.click('[data-act="more"]');
+  await page.click('.sheet [data-m="finish"]');
+  await page.click('[data-ok]');
+};
+// The match details, before kick-off, are a sheet from the scoreboard.
+const setOpponent = async (page, name, { open = true } = {}) => {
+  if (open) await page.click('[data-act="details"]');
+  await page.fill('.sheet [data-meta="opponent"]', name);
+  await page.click('.sheet [data-done]');
+  await sheetGone(page);
+};
+// Into the lineup from "not in the lineup" under the pitch, by number or name.
+const addToLineup = async (page, keys) => {
+  for (const k of keys) {
+    const p = liveFile().players.find((x) => String(x.number) === k) || liveFile().players.find((x) => x.name.includes(k));
+    const n = liveFile().lineup.length;
+    await page.click(`[data-lineup="${p.id}"]`);
+    for (let i = 0; i < 50 && liveFile().lineup.length === n; i++) await new Promise((r) => setTimeout(r, 100));
+  }
+};
+const onPitch = (page) => page.locator('.pitch .pl:not(.open)').count();
 
 await step('players are imported by pasting cells from a spreadsheet', async () => {
   await adminTab(admin, 'players');
@@ -487,17 +522,30 @@ await step('a season read that brings nothing new redraws nothing', async () => 
 await step('the manager opens a live match and picks a lineup', async () => {
   await admin.goto(APP + '#/live');
   await admin.click('[data-act="new"]');
-  await waitText(admin, 'הרכב פותח');
+  await admin.locator('.formation-seg').waitFor();
   await admin.click('[data-act="start"]');
   await admin.locator('.toast', { hasText: 'חסר שם היריבה' }).waitFor();
-  await admin.fill('[data-meta="opponent"]', 'מכבי נחלים');
-  await admin.locator('[data-meta="opponent"]').blur();
-  for (const n of ['1', '9', '10', 'איתי']) {
-    await admin.locator('.lu-row', { hasText: n }).first().locator('.lu-toggle').click();
-  }
-  await admin.waitForFunction(() => document.querySelectorAll('.lu-row.on').length === 4);
+  // The details sheet opens by itself, at the missing name.
+  await setOpponent(admin, 'מכבי נחלים', { open: false });
+  for (let i = 0; i < 50 && liveFile().opponent !== 'מכבי נחלים'; i++) await new Promise((r) => setTimeout(r, 100));
+  await addToLineup(admin, ['1', '9', '10', 'איתי']);
+  await admin.waitForFunction(() => document.querySelectorAll('.pitch .pl:not(.open)').length === 4);
   await admin.click('[data-act="start"]');
-  await admin.locator('.ctl-goal').first().waitFor();
+  await admin.locator('.live-dock [data-act="goal-us"]').waitFor();
+  // The controls stay under the thumb, at the top of the page and at its
+  // bottom, clear of the nav; and the page end clears them.
+  const vh = admin.viewportSize().height;
+  for (const y of ['0', 'document.body.scrollHeight']) {
+    await admin.evaluate((to) => window.scrollTo(0, eval(to)), y);
+    await admin.waitForTimeout(300);
+    const box = await admin.locator('.live-dock [data-act="goal-us"]').boundingBox();
+    const nav = await admin.locator('.nav').boundingBox();
+    expect(box && box.y >= 0 && box.y + box.height <= nav.y, `the goal button left the screen or sits under the nav (scrolled to ${y}): ` + JSON.stringify(box));
+  }
+  const last = await admin.locator('#view > *:last-child').evaluate((el) => el.previousElementSibling?.getBoundingClientRect().bottom ?? 0);
+  const dockTop = (await admin.locator('.live-dock').boundingBox()).y;
+  expect(last <= dockTop + 1 && dockTop < vh, `the page end hides under the bar (${last} > ${dockTop})`);
+  await admin.evaluate(() => window.scrollTo(0, 0));
 });
 
 await step('a goal with scorer and assist is recorded exactly once', async () => {
@@ -516,7 +564,7 @@ await step('a watching parent sees the goal, with the scorer, without reloading'
   await parent.locator('.sc-score .ours', { hasText: '1' }).waitFor({ timeout: 8000 });
   await waitText(parent, 'גיא פרץ');
   await parent.locator('.sc-scorers .us', { hasText: 'גיא פרץ' }).waitFor();
-  expect(await parent.locator('.ctl-goal').count() === 0, 'a watching parent sees controls');
+  expect(await parent.locator('.live-dock, [data-act="clock"]').count() === 0, 'a watching parent sees controls');
 });
 
 await step('the match screen switches between the pitch and the events, without scrolling', async () => {
@@ -686,6 +734,7 @@ await step('the substitutions mode: numbers marked off and on in any order, reco
 
 await step('a wrong live code is refused; the right one hands the parent control', async () => {
   await admin.click('[data-act="more"]');
+  await admin.click('.sheet [data-m="code"]');
   await admin.fill('[data-code-form] input', '4821');
   await admin.locator('[data-code-form] button').click();
   await admin.locator('.toast', { hasText: '4821' }).waitFor();
@@ -695,7 +744,7 @@ await step('a wrong live code is refused; the right one hands the parent control
   await parent.locator('[data-msg]', { hasText: 'נותרו' }).waitFor();
   await parent.fill('[data-claim] input', '4821');
   await parent.locator('[data-claim] button').click();
-  await parent.locator('.ctl-goal').first().waitFor({ timeout: 8000 });
+  await parent.locator('.live-dock [data-act="goal-us"]').waitFor({ timeout: 8000 });
 });
 
 await step('the parent in control records a goal against; the manager sees it', async () => {
@@ -728,11 +777,11 @@ await step('a double tap is one tap: one goal against, and a sheet that stays op
 await step('a controlling phone reopened with no reception still shows the match and can record', async () => {
   await parent.context().setOffline(true);
   await parent.reload();
-  await parent.locator('.ctl-goal').first().waitFor({ timeout: 8000 });
+  await parent.locator('.live-dock [data-act="goal-us"]').waitFor({ timeout: 8000 });
   await parent.locator('.sync.off').waitFor();
   expect((await parent.locator('.sc-score [data-them]').innerText()).trim() === '1', 'the reopened board lost the score');
   await parent.context().setOffline(false);
-  await parent.locator('.sync.ok').waitFor({ timeout: 15000 });
+  await parent.locator('.sc-sync.ok').waitFor({ timeout: 15000 });
 });
 
 // Control lets a device write the whole live state, and nothing obliges it
@@ -760,7 +809,7 @@ await step('Veo is hidden until the manager turns it on; then the stream link re
   await admin.reload();
   await admin.click('[data-act="more"]');
   await admin.locator('.sheet [data-m="finish"], .sheet [data-m="cancel"]').first().waitFor();
-  expect(await admin.locator('.sheet [data-stream]').count() === 0, 'a Veo field before the setting is on');
+  expect(await admin.locator('.sheet [data-m="stream"], .sheet [data-stream]').count() === 0, 'a Veo field before the setting is on');
   await admin.locator('.sheet-x').click();
   // A closed sheet takes its history step off: a navigation sent before
   // that step landed was undone by it (no hand is that fast).
@@ -776,6 +825,8 @@ await step('Veo is hidden until the manager turns it on; then the stream link re
   // A bad link is refused; the real one reaches the parent's screen.
   await admin.goto(APP + '#/live');
   await admin.click('[data-act="more"]');
+  await admin.click('.sheet [data-m="stream"]');
+  await admin.locator('.sheet [data-stream]').waitFor();
   await admin.fill('.sheet [data-stream]', 'javascript:alert(1)');
   await admin.click('.sheet [data-m="stream"]');
   await admin.locator('.toast', { hasText: 'לא נראה כמו קישור' }).waitFor();
@@ -790,10 +841,8 @@ await step('Veo is hidden until the manager turns it on; then the stream link re
 });
 
 await step('finishing saves the result and the scorers into the season', async () => {
-  await parent.click('[data-act="end"]');
-  await parent.click('[data-ok]');
-  await parent.locator('[data-act="finish"]').first().click();
-  await parent.click('[data-ok]');
+  await endPeriod(parent);
+  await finishNow(parent);
   await waitText(parent, 'נשמר בתוצאות');
   await parent.waitForFunction(() => true);
   await new Promise((r) => setTimeout(r, 800));
@@ -809,7 +858,7 @@ await step('after the match the manager puts the filmed match into the videos', 
   await admin.locator('[data-act="veo-video"]').click({ timeout: 8000 });
   expect(await admin.locator('.sheet [data-vv-url]').inputValue() === liveFile().stream, 'the stream link is not the starting point');
   await admin.click('.sheet [data-vv-go]');
-  await admin.locator('.ended-card', { hasText: 'המשחק המצולם בסרטונים' }).waitFor({ timeout: 8000 });
+  await admin.locator('.ended', { hasText: 'המשחק המצולם בסרטונים' }).waitFor({ timeout: 8000 });
   const v = seasonFile().videos.find((x) => x.url === liveFile().stream);
   expect(v && v.title.includes('מכבי נחלים'), 'video not in the season: ' + JSON.stringify(seasonFile().videos));
 });
@@ -923,11 +972,11 @@ await step('the next live match opens with the last starting lineup, capped at t
   await admin.locator('[data-act="clear"]').click();
   await admin.locator('[data-ok]').click();
   await admin.locator('[data-act="new"]').click();
-  await waitText(admin, 'הרכב פותח');
-  await admin.waitForFunction(() => document.querySelectorAll('.lu-row.on').length === 4);
+  await admin.locator('.formation-seg').waitFor();
+  await admin.waitForFunction(() => document.querySelectorAll('.pitch .pl:not(.open)').length === 4);
   const text = await admin.locator('#view').innerText();
-  expect(text.includes('4 מתוך 9'), 'size counter missing');
-  expect(text.includes('תשיעיות'), 'size not shown in the format line');
+  expect(/הרכב\s*4\s*\/\s*9/.test(text), 'size counter missing: ' + text.slice(0, 400));
+  expect(text.includes('תשיעיות'), 'size not shown in the match line');
 });
 
 await step('a lineup pasted from WhatsApp is matched by first names and placed', async () => {
@@ -947,7 +996,7 @@ await step('a lineup pasted from WhatsApp is matched by first names and placed',
   await admin.locator('.lu-imp .imp-kind', { hasText: 'לא זוהה' }).waitFor();
   expect(JSON.stringify(liveFile().lineup) === JSON.stringify(before), 'the preview changed the lineup');
   await admin.click('[data-lu-apply]');
-  await admin.waitForFunction(() => document.querySelectorAll('.lu-row.on').length === 3);
+  await admin.waitForFunction(() => document.querySelectorAll('.pitch .pl:not(.open)').length === 3);
   const byId = Object.fromEntries(liveFile().players.map((p) => [p.id, p.name]));
   for (let i = 0; i < 80 && liveFile().lineup.length !== 3; i++) await new Promise((r) => setTimeout(r, 100));
   const got = liveFile().lineup.map((l) => `${byId[l.pid]}:${l.pos}`).join(',');
@@ -1292,8 +1341,8 @@ await step('a later fixture can go live now; finishing dates it today and takes 
   }
   await admin.click('[data-act="pick"]');
   await admin.locator('.pick', { hasText: 'בני לוח' }).click();
-  await admin.locator('[data-meta="opponent"]').waitFor();
-  expect(await admin.inputValue('[data-meta="opponent"]') === 'בני לוח', 'opponent not taken from the fixture');
+  await admin.locator('[data-act="details"]').waitFor();
+  expect(liveFile().opponent === 'בני לוח', 'opponent not taken from the fixture');
   await admin.click('[data-act="start"]');
 
   // A penalty scored by us, one of theirs missed, and an own goal.
@@ -1313,10 +1362,8 @@ await step('a later fixture can go live now; finishing dates it today and takes 
   expect(await admin.locator('.sc-score [data-them]').innerText() === '0', 'a miss changed the score');
   expect(await admin.locator('.ev.us .tl-pen').count() === 1 && await admin.locator('.ev.them.miss').count() === 1, 'timeline: penalty tag, or their miss on their side, missing');
 
-  await admin.click('[data-act="end"]');
-  await admin.click('[data-ok]');
-  await admin.locator('[data-act="finish"]').first().click();
-  await admin.click('[data-ok]');
+  await endPeriod(admin);
+  await finishNow(admin);
   await waitText(admin, 'נשמר בתוצאות');
   await new Promise((r) => setTimeout(r, 600));
   const m = JSON.parse(bridge.driveFile('season.json')).season.matches.find((x) => x.opponent === 'בני לוח');
@@ -1450,9 +1497,8 @@ await step('before kick-off the coach sets the minimum and who came; a parent se
   await admin.goto(APP + '#/live');
   await admin.reload();
   await admin.locator('[data-act="new"]').click();
-  await waitText(admin, 'הרכב פותח');
-  await admin.fill('[data-meta="opponent"]', 'הפועל מבחן');
-  await admin.locator('[data-meta="opponent"]').blur();
+  await admin.locator('.formation-seg').waitFor();
+  await setOpponent(admin, 'הפועל מבחן');
   await until(() => liveFile().opponent === 'הפועל מבחן', 'the opponent to be saved');
   const id = liveFile().id;
   await coach.goto(APP + '#/live');
@@ -1507,9 +1553,10 @@ await step('a field being typed in keeps its caret and its text when the screen 
   // manager already types the opponent's name. The keyboard closed and the
   // letters went nowhere.
   const slow = async (r) => { await new Promise((ok) => setTimeout(ok, 800)); await r.continue().catch(() => {}); };
+  await admin.click('[data-act="details"]');
   await admin.route(BRIDGE, slow);
-  await admin.fill('[data-meta="date"]', '2026-10-04');
-  const opp = admin.locator('[data-meta="opponent"]');
+  await admin.fill('.sheet [data-meta="date"]', '2026-10-04');
+  const opp = admin.locator('.sheet [data-meta="opponent"]');
   await opp.click();
   await opp.press('End');
   await admin.keyboard.type(' ב', { delay: 250 });
@@ -1522,6 +1569,8 @@ await step('a field being typed in keeps its caret and its text when the screen 
   expect(typed === 'הפועל מבחן בית', 'typing was lost to a redraw: ' + typed);
   await opp.blur();
   await until(() => liveFile().opponent === 'הפועל מבחן בית', 'the name to be sent on leaving the field');
+  await admin.click('.sheet [data-done]');
+  await sheetGone(admin);
 });
 
 await step('a match opened ahead is hidden from parents until the manager publishes it', async () => {
@@ -1536,10 +1585,10 @@ await step('a match opened ahead is hidden from parents until the manager publis
   await parent.locator('.sheet-x').click();
   await parent.locator('.sheet').waitFor({ state: 'detached' });
   await parent.waitForFunction(() => !history.state?.mgLayer);
-  await coach.locator('.hidden-live').waitFor();
-  expect(await coach.locator('.hidden-live [data-act="publish"]').count() === 0, 'the coach can publish');
-  await admin.click('.hidden-live [data-act="publish"]');
-  await admin.locator('.hidden-live').waitFor({ state: 'detached', timeout: 8000 });
+  await coach.locator('.sc-strip').waitFor();
+  expect(await coach.locator('.sc-strip [data-act="publish"]').count() === 0, 'the coach can publish');
+  await admin.click('.sc-strip [data-act="publish"]');
+  await admin.locator('.sc-strip').waitFor({ state: 'detached', timeout: 8000 });
   await parent.locator('.score-card').waitFor({ timeout: 8000 });
   expect(await parent.locator('[data-tab="minutes"]').count() === 0, 'a parent sees the minutes tab');
   expect(await parent.locator('.live-recent').count() === 0, 'the recent matches stay while a match is live');
@@ -1554,8 +1603,7 @@ await step('at the break before the last period the coach is alerted once, where
     await admin.locator('[data-act="start"]').first().click();
     if (s.status === 'setup' && await admin.locator('[data-ok]').count()) await admin.click('[data-ok]');
     await until(() => st().status === 'running', 'the period to start');
-    await admin.click('[data-act="end"]');
-    await admin.click('[data-ok]');
+    await endPeriod(admin);
     await until(() => st().status === 'break' || st().status === 'fulltime', 'the period to end');
   }
   const toastEl = coach.locator('.toast', { hasText: 'בספסל מתחת' });

@@ -802,4 +802,92 @@ console.log('gallery:');
   });
 }
 
+// The player: a child's own phone. It sees what a parent sees, less what ranks
+// children (the leaderboard's base, the manager's analysis) and the parents'
+// links, with its own card; it uploads nothing, hides nothing, records nothing.
+{
+  const C = createBridge({ adminCode: ADMIN });
+  C.setProp('CLOUDINARY_CLOUD', 'mg-demo');
+  C.setProp('CLOUDINARY_KEY', '123456');
+  C.setProp('CLOUDINARY_SECRET', 'shh-secret');
+  const kid = 'k'.repeat(64), parent = 'm'.repeat(64);
+  const approve = (key, name) => {
+    C.post({ action: 'requestAccess', deviceKey: key, name });
+    const id = C.post({ action: 'listUsers', adminCode: ADMIN }).result.find((u) => u.name === name).id;
+    C.post({ action: 'setStatus', adminCode: ADMIN, id, status: 'approved' });
+    return id;
+  };
+  const kidId = approve(kid, 'דניאל');
+  approve(parent, 'אבא של איתי');
+  C.post({ action: 'putSeason', adminCode: ADMIN, baseVersion: 0, season: {
+    players: [{ id: 'p10', name: 'דניאל', goals: 2, assists: 1, minutes: 90 }, { id: 'p9', name: 'איתי', goals: 5, assists: 0 }],
+    analysis: { items: [{ label: 'הגנה', text: 'חלשה' }] },
+    links: [{ title: 'תשלום', url: 'https://pay.example', icon: 'card' }, { title: 'אינסטגרם', url: 'https://instagram.com/x', icon: 'instagram' }],
+    matches: [
+      { liveId: 'L1', date: '2026-09-20', opponent: 'א', gf: 1, ga: 0, lineup: [{ pid: 'p10', pos: 'CM' }], events: [] },
+      { liveId: 'L2', date: '2026-09-27', opponent: 'ב', gf: 1, ga: 1, lineup: [{ pid: 'p9', pos: 'ST' }], events: [{ type: 'sub', in: 'p10', out: 'p9' }] },
+      { liveId: 'L3', date: '2026-10-01', opponent: 'ג', gf: 2, ga: 0, friendly: true, lineup: [{ pid: 'p10', pos: 'CM' }], events: [] },
+      { date: '2026-09-13', opponent: 'ד', gf: 1, ga: 0, goals: [{ scorer: 'p9', assist: 'p10' }] },
+    ] } });
+
+  test('only the manager marks a player, linked to one child of the squad', () => {
+    assert.equal(err(C.post({ action: 'setRole', deviceKey: kid, id: kidId, role: 'player', pid: 'p10' })), 'bad_code');
+    const r = C.post({ action: 'setRole', adminCode: ADMIN, id: kidId, role: 'player', pid: 'p10' }).result;
+    assert.equal(r.role, 'player');
+    assert.equal(r.pid, 'p10');
+    const u = C.post({ action: 'listUsers', adminCode: ADMIN }).result.find((x) => x.id === kidId);
+    assert.equal(u.role, 'player');
+    assert.equal(u.pid, 'p10');
+  });
+
+  test('a player gets the parents\' season, less the rankings and the parents\' links, with his own count', () => {
+    const r = C.post({ action: 'getSeason', deviceKey: kid }).result;
+    assert.equal(r.role, 'player');
+    const s = r.season;
+    const me = s.players.find((p) => p.id === 'p10'), other = s.players.find((p) => p.id === 'p9');
+    assert.equal(me.goals, 2, 'his own base went missing');
+    assert.ok(!('goals' in other) && !('assists' in other), 'another child\'s totals reached a player');
+    assert.ok(!('minutes' in me), 'minutes reached a player');
+    assert.ok(s.matches.every((m) => !m.lineup), 'a past lineup reached a player');
+    assert.ok(!s.analysis, 'the manager\'s analysis reached a player');
+    assert.deepEqual(s.links.map((l) => l.icon), ['instagram'], 'a parents\' link reached a player');
+    // Started one, came on in one, assisted in a typed result; the friendly is not counted.
+    assert.deepEqual(r.me, { pid: 'p10', games: 3 });
+    const p = C.post({ action: 'getSeason', deviceKey: parent }).result;
+    assert.equal(p.role, 'parent');
+    assert.ok(!p.me && p.season.analysis && p.season.links.length === 2, 'a parent lost what is theirs');
+  });
+
+  test('a player uploads nothing, hides nothing and takes no control', () => {
+    assert.equal(err(C.post({ action: 'signUpload', deviceKey: kid, kind: 'image' })), 'player');
+    assert.equal(err(C.post({ action: 'addGalleryItem', deviceKey: kid, pid: 'mg/x' })), 'player');
+    assert.equal(err(C.post({ action: 'hideGalleryItem', deviceKey: kid, id: 'x', why: 'mine' })), 'player');
+    assert.equal(err(C.post({ action: 'claimLive', deviceKey: kid, code: '1234' })), 'player');
+  });
+
+  test('a player not linked yet sees everything but a card', () => {
+    C.post({ action: 'setRole', adminCode: ADMIN, id: kidId, role: 'player' });
+    const r = C.post({ action: 'getSeason', deviceKey: kid }).result;
+    assert.deepEqual(r.me, { pid: null, games: 0 });
+    assert.ok(r.season.players.every((p) => !('goals' in p)), 'an unlinked player got a child\'s totals');
+    C.post({ action: 'setRole', adminCode: ADMIN, id: kidId, role: 'parent' });
+    assert.ok(!('pid' in C.post({ action: 'listUsers', adminCode: ADMIN }).result.find((x) => x.id === kidId)), 'a parent kept a child link');
+  });
+
+  test('the team message: the coach and the manager write it, everyone reads it', () => {
+    assert.equal(err(C.post({ action: 'setMessage', deviceKey: parent, text: 'שלום' })), 'not_coach');
+    assert.equal(C.post({ action: 'getSeason', deviceKey: parent }).result.message, null);
+    const m = C.post({ action: 'setMessage', adminCode: ADMIN, text: '  מחר   חולצה לבנה ' }).result.message;
+    assert.equal(m.text, 'מחר חולצה לבנה');
+    assert.equal(C.post({ action: 'getSeason', deviceKey: parent }).result.message.text, 'מחר חולצה לבנה');
+    assert.ok(C.post({ action: 'setMessage', adminCode: ADMIN, text: 'x'.repeat(400) }).result.message.text.length === 300);
+    assert.equal(C.post({ action: 'setMessage', adminCode: ADMIN, text: '' }).result.message, null);
+    assert.equal(C.post({ action: 'getSeason', deviceKey: parent }).result.message, null);
+  });
+
+  test('who is in a photo: the manager only', () => {
+    assert.equal(err(C.post({ action: 'tagGalleryItem', deviceKey: parent, id: 'x', players: ['p10'] })), 'bad_code');
+  });
+}
+
 console.log(`\nbridge: ${passed} passed`);

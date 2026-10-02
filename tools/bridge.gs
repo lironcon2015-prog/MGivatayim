@@ -45,6 +45,7 @@ const SEASON_FILE = 'season.json';
 const ACCESS_FILE = 'access.json';
 const LIVE_FILE = 'live.json';
 const COACH_FILE = 'coach.json';
+const MESSAGE_FILE = 'message.json';
 
 const MIN_ADMIN_CODE = 12;
 const MIN_DEVICE_KEY = 32;
@@ -72,7 +73,9 @@ const MAX_CODE_ATTEMPTS = 5;
 const DEFAULT_MIN_MINUTES = 20;
 const MAX_MIN_MINUTES = 200;
 const MAX_ABSENT = 80;
-const ROLES = ['parent', 'coach'];
+const ROLES = ['parent', 'coach', 'player'];
+/* קישורים להורים — תשלום, טופס, אישור רפואי, הסעות, חנות — לא נשלחים לשחקן. */
+const PARENT_LINK_ICONS = ['card', 'doc', 'medical', 'bus', 'cart'];
 const GALLERY_FILE = 'gallery.json';
 const GALLERY_MODES = ['open', 'review', 'closed'];
 const HIDE_WHY = ['mine', 'unfit'];
@@ -119,6 +122,7 @@ function handle_(req) {
     // מאמן או מנהל
     case 'setCoachMatch': return setCoachMatch_(req);
     case 'setTrainingChange': return setTrainingChange_(req);
+    case 'setMessage':    return setMessage_(req);
     // שולט במשחק (מנהל או מכשיר שמימש קוד)
     case 'putLive':       return putLive_(req);
     case 'finishLive':    return finishLive_(req);
@@ -140,6 +144,7 @@ function handle_(req) {
     case 'clearLive':     return clearLive_(req);
     case 'restoreGalleryItem': return restoreGalleryItem_(req);
     case 'setGallery':    return setGallery_(req);
+    case 'tagGalleryItem': return tagGalleryItem_(req);
     case 'blockUploader': return blockUploader_(req);
     case 'grantQuota': return grantQuota_(req);
     default: throw fail_('פעולה לא מוכרת: ' + req.action, 'bad_action');
@@ -205,10 +210,16 @@ function viewer_(req) {
   const id = deviceId_(req);
   const u = access_().users[id];
   if (!u || u.status !== 'approved') throw fail_('אין גישה', 'not_approved');
-  return { admin: false, coach: u.role === 'coach', id: id, name: u.name, user: u };
+  return { admin: false, coach: u.role === 'coach', player: u.role === 'player', id: id, name: u.name, user: u };
 }
 
 /* דקות המשחק ונתוני המאמן: למנהל ולמכשיר שהמנהל סימן כמאמן. */
+/* שחקן (ילד בן 11) צופה — לא מעלה לגלריה, לא מסתיר בה ולא מתעד משחק. */
+function notPlayer_(who) {
+  if (who.player) throw fail_('אין הרשאה', 'player');
+  return who;
+}
+
 function requireCoach_(req) {
   const who = viewer_(req);
   if (!who.coach) throw fail_('אין הרשאה', 'not_coach');
@@ -399,12 +410,16 @@ function getSeason_(req) {
       } catch (e) { /* "נראה לאחרונה" לא שווה כישלון של קריאה */ }
     }
   }
-  const role = who.admin ? 'admin' : who.coach ? 'coach' : 'parent';
+  const role = who.admin ? 'admin' : who.coach ? 'coach' : who.player ? 'player' : 'parent';
   const s = readJson_(SEASON_FILE, null) || { version: 0, updatedAt: null, season: null };
+  const message = message_();
+  /* שחקן: מה שהורה מקבל, בלי מה שמדרג ילדים ובלי מה שנכתב להורים, ועם
+     הנתונים שלו בלבד (me). */
+  if (who.player) return Object.assign(forPlayers_(s, who.user.pid || null), { role: role, message: message });
   /* מאמן מקבל את העונה המלאה, עם הדקות, ואת נתוני המאמן. הורה לא מקבל
      אף אחד מהם. */
-  if (!who.coach) return Object.assign(forParents_(s), { role: role });
-  return Object.assign({}, s, { role: role, coach: coach_() });
+  if (!who.coach) return Object.assign(forParents_(s), { role: role, message: message });
+  return Object.assign({}, s, { role: role, coach: coach_(), message: message });
 }
 
 /* דקות משחק לשחקן — למנהל בלבד. ההסתרה כאן ולא בממשק: מה שמגיע לטלפון
@@ -417,6 +432,51 @@ function forParents_(s) {
   (season.players || []).forEach((p) => { delete p.minutes; });
   (season.matches || []).forEach((m) => { delete m.lineup; });
   return out;
+}
+
+/* לשחקן (בקשת בעל הריפו): בלי טבלת מובילים — הבסיס הידני של שערים ובישולים
+   יורד לכל שחקן חוץ ממנו; בלי "תמונת מצב" (טקסט שהמנהל כותב להורים); בלי
+   קישורי ההורים. מי הבקיע בכל משחק נשאר — אלה האירועים, המשחק עצמו. מספר
+   המשחקים שלו נספר כאן, מההרכבים, לפני שהם יורדים: רק הספירה שלו יוצאת,
+   בלי הרכבים ובלי דקות. משחק אימון לא נספר, כמו בכל נתון אחר. */
+function forPlayers_(s, pid) {
+  let games = 0;
+  ((s.season || {}).matches || []).forEach((m) => {
+    if (!pid || m.friendly === true) return;
+    const inLineup = (m.lineup || []).some((l) => l && l.pid === pid);
+    const cameOn = (m.events || []).some((e) => e && e.type === 'sub' && e.in === pid);
+    const named = (m.goals || []).some((g) => g && (g.scorer === pid || g.assist === pid));
+    const scored = (m.events || []).some((e) => e && e.type === 'goal' && (e.scorer === pid || e.assist === pid));
+    if (inLineup || cameOn || named || scored) games++;
+  });
+  const out = forParents_(s);
+  const season = out.season || {};
+  (season.players || []).forEach((p) => {
+    const key = p.id || 'n:' + String(p.name || '').trim();
+    if (key !== pid) { delete p.goals; delete p.assists; }
+  });
+  delete season.analysis;
+  season.links = (season.links || []).filter((l) => PARENT_LINK_ICONS.indexOf(String((l && l.icon) || '')) < 0);
+  out.me = { pid: pid, games: games };
+  return out;
+}
+
+/* ---------- הודעה לקבוצה ----------
+   שורה אחת שהמאמן או המנהל כותבים, וכולם רואים (בקשת בעל הריפו). קובץ משלה
+   ולא בעונה: המאמן לא כותב לעונה, ושמירה שלה לא צריכה להתנגש בעריכה של המנהל. */
+function message_() {
+  const m = readJson_(MESSAGE_FILE, null);
+  return m && m.text ? { text: String(m.text), at: m.at || null } : null;
+}
+
+function setMessage_(req) {
+  requireCoach_(req);
+  const text = String(req.text == null ? '' : req.text).replace(/\s+/g, ' ').trim().slice(0, 300);
+  return withLock_(() => {
+    const next = text ? { text: text, at: new Date().toISOString() } : { text: '', at: null };
+    writeJson_(MESSAGE_FILE, next);
+    return { message: next.text ? next : null };
+  });
 }
 
 /* ---------- תמונות לסרטונים ----------
@@ -781,7 +841,7 @@ function setLiveCode_(req) {
 }
 
 function claimLive_(req) {
-  const who = viewer_(req);
+  const who = notPlayer_(viewer_(req));
   const code = String(req.code || '').trim();
   return withLock_(() => {
     const l = live_();
@@ -1026,6 +1086,7 @@ function publicItem_(it, me, admin) {
   const out = {
     id: it.id, kind: it.kind, pid: it.pid, w: it.w || null, h: it.h || null, dur: it.dur || null,
     match: it.match || null, byName: it.byName, at: it.at, mine: it.by === me, status: it.status,
+    players: Array.isArray(it.players) ? it.players : [],
   };
   if (admin) {
     out.by = it.by;
@@ -1064,7 +1125,7 @@ function getGallery_(req) {
 }
 
 function signUpload_(req) {
-  const who = viewer_(req);
+  const who = notPlayer_(viewer_(req));
   const c = cloudinary_();
   if (!c) throw fail_('הגלריה עוד לא הופעלה', 'no_gallery');
   const kind = req.kind === 'video' ? 'video' : 'image';
@@ -1096,7 +1157,7 @@ function cleanMatchRef_(m) {
 const num_ = (v, max) => (isFinite(v) && Number(v) > 0 ? Math.min(max, Math.round(Number(v))) : null);
 
 function addGalleryItem_(req) {
-  const who = viewer_(req);
+  const who = notPlayer_(viewer_(req));
   const me = uploader_(req, who);
   const cache = CacheService.getScriptCache();
   const sig = JSON.parse(cache.get('sig:' + String(req.pid || '')) || 'null');
@@ -1129,7 +1190,7 @@ function findItem_(g, id) {
 }
 
 function hideGalleryItem_(req) {
-  const who = viewer_(req);
+  const who = notPlayer_(viewer_(req));
   if (HIDE_WHY.indexOf(req.why) < 0) throw fail_('סיבה לא מוכרת', 'bad_why');
   const me = uploader_(req, who);
   return withLock_(() => {
@@ -1186,6 +1247,20 @@ function restoreGalleryItem_(req) {
     delete it.hiddenBy;
     saveGallery_(g);
     return { ok: true };
+  });
+}
+
+/* מי בתמונה (תשתית, בלי ממשק עדיין — בעל הריפו): מזהי שחקנים מהסגל, בידי המנהל. */
+function tagGalleryItem_(req) {
+  requireAdmin_(req);
+  const players = (Array.isArray(req.players) ? req.players : [])
+    .map((x) => String(x || '').slice(0, 120)).filter(Boolean).slice(0, 30);
+  return withLock_(() => {
+    const g = gallery_();
+    const it = findItem_(g, req.id);
+    if (players.length) it.players = players; else delete it.players;
+    saveGallery_(g);
+    return { ok: true, players: players };
   });
 }
 
@@ -1283,10 +1358,14 @@ function setRole_(req) {
     const a = access_();
     const u = a.users[String(req.id || '')];
     if (!u) throw fail_('המשתמש לא נמצא', 'not_found');
-    if (role === 'coach') u.role = 'coach';
-    else delete u.role;
+    delete u.pid;
+    if (role === 'parent') delete u.role;
+    else u.role = role;
+    // A player's phone is linked to one child of the squad, by id; none yet
+    // is "not linked" — the app shows everything but the child's own card.
+    if (role === 'player' && req.pid) u.pid = String(req.pid).slice(0, 120);
     writeJson_(ACCESS_FILE, a);
-    return { id: req.id, role: role };
+    return { id: req.id, role: role, pid: u.pid || null };
   });
 }
 

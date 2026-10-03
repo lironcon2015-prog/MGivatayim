@@ -1523,6 +1523,19 @@ await step('the access holders sort by last seen, or by joining', async () => {
   const joined = holders.map((u) => u.name);
   expect(JSON.stringify(await names()) === JSON.stringify(joined), 'holders are not in joining order: ' + (await names()).join(', '));
   expect(JSON.stringify(seen) !== JSON.stringify(joined), 'the test data does not tell the two orders apart');
+  // The role filter: each role shows its own, with its count; a coach or a player is tagged.
+  const roleOf = (u) => (u.role === 'coach' || u.role === 'player' ? u.role : 'parent');
+  expect(new Set(holders.map(roleOf)).size >= 2, 'the test data has one role only: ' + holders.map(roleOf).join(', '));
+  for (const k of ['parent', 'player', 'coach', 'all']) {
+    await admin.click(`[data-holders-role="${k}"]`);
+    const want = holders.filter((u) => k === 'all' || roleOf(u) === k).map((u) => u.name);
+    const got = want.length ? await names() : [];
+    expect(JSON.stringify(got) === JSON.stringify(want), `role ${k}: ${got.join(', ')} instead of ${want.join(', ')}`);
+    const n = await admin.locator(`[data-holders-role="${k}"] .n`).innerText();
+    expect(n === String(want.length), `role ${k} counts ${n}, expected ${want.length}`);
+  }
+  const tagged = await admin.locator('.holders-sort + .card .role-tag').count();
+  expect(tagged === holders.filter((u) => roleOf(u) !== 'parent').length, 'coach / player tags: ' + tagged);
 });
 
 await step('before kick-off the coach sets the minimum and who came; a parent sees no minutes tab', async () => {

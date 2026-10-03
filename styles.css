@@ -799,6 +799,9 @@ input[type="checkbox"]:focus-visible { outline: 2px solid var(--gold); outline-o
 .crest-tile:focus-within { outline: 2px solid var(--gold); outline-offset: 4px; border-radius: 12px; }
 .invite-kind { margin-bottom: .8rem; }
 .invite-kind button { font-size: .8rem; }
+.holders-role { margin-bottom: .45rem; }
+.holders-role button { font-size: .78rem; padding-inline: .2rem; }
+.holders-role .n { margin-inline-start: 3px; font-size: .68rem; font-weight: 500; opacity: .8; }
 .holders-sort { margin-bottom: .6rem; }
 .holders-sort button { font-size: .8rem; }
 .invite-more summary { cursor: pointer; font-size: .82rem; font-weight: 700; color: var(--gold); margin-top: .6rem; }
@@ -825,6 +828,9 @@ input[type="checkbox"]:focus-visible { outline: 2px solid var(--gold); outline-o
 .user-row .who-name { display: flex; width: fit-content; align-items: center; gap: .35rem; max-width: 100%; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: start; cursor: pointer; }
 .user-row .who-name b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .user-row .who-name svg { width: 13px; height: 13px; flex: none; color: var(--faint); }
+.role-tag { flex: none; display: inline-flex; align-items: center; gap: 3px; padding: 1px 7px; border-radius: var(--r-pill); font-size: .66rem; font-weight: 800; border: 1px solid var(--gold-line); color: var(--gold); }
+.role-tag.player { border-color: color-mix(in srgb, var(--blue) 45%, transparent); color: var(--blue); }
+.user-row .who-name .role-tag svg { width: 11px; height: 11px; color: currentColor; }
 .user-row .who span { font-size: .75rem; color: var(--faint); }
 .user-row .acts { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; flex: none; max-width: 62%; }
 

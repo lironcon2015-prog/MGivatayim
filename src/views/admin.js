@@ -376,6 +376,7 @@ const expanded = new Set();
 const toolsOpen = new Set();
 let inviteKind = 'app';   // what the access tab's copy / WhatsApp send
 let holdersSort = 'seen'; // access holders: last seen first, or by joining (oldest first)
+let holdersRole = 'all';  // access holders shown: everyone, or one role
 
 /* The screen is split by how often a part is touched: the weekly work
    (next match, results) first, the roster, the rarely edited content, and
@@ -832,14 +833,18 @@ export function mountAdmin(view, ctx) {
       const p = squadList().find((x) => x.key === u.pid);
       return p ? `<span>${icon('shirt')} ${esc(p.name)}${p.number != null ? ` <span class="num">${esc(p.number)}</span>` : ''}</span>` : `<span class="role-unlinked">${icon('shirt')} שחקן — עוד לא נבחר מהסגל</span>`;
     };
+    // A coach or a player is marked beside the name, so the list reads at a glance.
+    const roleTag = (u) => (u.status !== 'approved' ? ''
+      : u.role === 'coach' ? `<span class="role-tag coach">${icon('whistle')}מאמן</span>`
+      : u.role === 'player' ? `<span class="role-tag player">${icon('shirt')}שחקן</span>` : '');
     const row = (u, actions) => `<div class="user-row">
-        <span class="who"><button type="button" class="who-name" data-rename="${esc(u.id)}" aria-label="${esc(`שינוי השם של ${u.name}`)}"><b>${esc(u.name)}</b>${icon('edit')}</button><span>ביקש ${esc(stamp(u.requestedAt))}${u.lastSeen ? ` · נראה ${esc(stamp(u.lastSeen))}` : ''}</span>${playerOf(u)}</span>
+        <span class="who"><button type="button" class="who-name" data-rename="${esc(u.id)}" aria-label="${esc(`שינוי השם של ${u.name}`)}"><b>${esc(u.name)}</b>${roleTag(u)}${icon('edit')}</button><span>ביקש ${esc(stamp(u.requestedAt))}${u.lastSeen ? ` · נראה ${esc(stamp(u.lastSeen))}` : ''}</span>${playerOf(u)}</span>
         <span class="acts">${u.status === 'approved' ? roleSwitch(u) : ''}${actions.map(([st, label, cls]) =>
           `<button type="button" class="btn small ${cls || ''}" data-user="${esc(u.id)}" data-set="${st}">${label}</button>`).join('')}</span>
       </div>`;
-    const block = (title, glyph, list, actions, empty, note = '', top = '') => `<section>
-        <div class="sec-head">${icon(glyph)}<h2>${title}</h2>${list.length ? `<span class="h-count num">${list.length}</span>` : ''}</div>
-        ${list.length > 1 ? top : ''}
+    const block = (title, glyph, list, actions, empty, note = '', top = '', total = list.length) => `<section>
+        <div class="sec-head">${icon(glyph)}<h2>${title}</h2>${total ? `<span class="h-count num">${total}</span>` : ''}</div>
+        ${total > 1 ? top : ''}
         <div class="card rows">${list.length ? list.map((u) => row(u, actions)).join('') : `<div class="empty">${empty}</div>`}</div>
         ${note && list.length ? `<p class="note">${note}</p>` : ''}
       </section>`;
@@ -849,13 +854,21 @@ export function mountAdmin(view, ctx) {
     const holders = by(['approved']).sort(holdersSort === 'seen'
       ? (a, b) => String(b.lastSeen || '').localeCompare(String(a.lastSeen || ''))
       : (a, b) => String(a.requestedAt).localeCompare(String(b.requestedAt)));
+    // Holders by role (the owner's pick from a mockup): parents, players, coaches.
+    const roleOf = (u) => (u.role === 'coach' || u.role === 'player' ? u.role : 'parent');
+    const roles = [['all', 'הכל'], ['parent', 'הורים'], ['player', 'שחקנים'], ['coach', 'מאמנים']];
+    const shown = holdersRole === 'all' ? holders : holders.filter((u) => roleOf(u) === holdersRole);
+    const roleSeg = `<div class="seg holders-role" role="group" aria-label="סינון בעלי הגישה">
+        ${roles.map(([k, l]) => `<button type="button" data-holders-role="${k}" aria-selected="${holdersRole === k}" aria-pressed="${holdersRole === k}">${l}<span class="n num">${
+          k === 'all' ? holders.length : holders.filter((u) => roleOf(u) === k).length}</span></button>`).join('')}
+      </div>`;
     const sortSeg = `<div class="seg holders-sort" role="group" aria-label="סדר בעלי הגישה">
         ${[['seen', 'נראה לאחרונה'], ['joined', 'לפי הצטרפות']].map(([k, l]) =>
           `<button type="button" data-holders-sort="${k}" aria-selected="${holdersSort === k}" aria-pressed="${holdersSort === k}">${l}</button>`).join('')}
       </div>`;
     return block('ממתינים לאישור', 'user', by(['pending']), [['approved', 'אישור'], ['rejected', 'דחייה', 'secondary']], 'אין בקשות חדשות.')
-      + block('בעלי גישה', 'check', holders, [['revoked', 'ביטול', 'danger']], 'עוד לא אושר אף אחד.',
-        'מאמן רואה גם דקות משחק. שחקן — הטלפון של הילד: רואה את הנתונים שלו בלי טבלת מובילים, ולא מעלה תמונות. התפקיד שייך למכשיר ולא לאדם: מאמן עם טלפון ומחשב מסומן בכל אחד מהם.', sortSeg)
+      + block('בעלי גישה', 'check', shown, [['revoked', 'ביטול', 'danger']], holders.length ? 'אין כאלה ברשימה.' : 'עוד לא אושר אף אחד.',
+        'מאמן רואה גם דקות משחק. שחקן — הטלפון של הילד: רואה את הנתונים שלו בלי טבלת מובילים, ולא מעלה תמונות. התפקיד שייך למכשיר ולא לאדם: מאמן עם טלפון ומחשב מסומן בכל אחד מהם.', roleSeg + sortSeg, holders.length)
       + inviteHtml()
       + (gone.length ? block('נדחו / בוטלו', 'shield', gone, [['approved', 'אישור'], ['remove', 'מחיקה', 'secondary']], '') : '');
   }
@@ -1489,6 +1502,7 @@ export function mountAdmin(view, ctx) {
       return;
     }
     if (t.dataset.holdersSort) { holdersSort = t.dataset.holdersSort; paint(); return; }
+    if (t.dataset.holdersRole) { holdersRole = t.dataset.holdersRole; paint(); return; }
     if (t.dataset.inviteKind) { inviteKind = t.dataset.inviteKind; paint(); return; }
     if (t.dataset.import === 'fixtures-file') { view.querySelector('[data-import-fixtures]')?.click(); return; }
     if (t.dataset.import === 'fixtures-paste') { pasteSheet('fixtures'); return; }

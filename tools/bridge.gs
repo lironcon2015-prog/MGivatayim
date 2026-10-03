@@ -349,6 +349,10 @@ function requestAccess_(req) {
   const id = deviceId_(req);
   const name = String(req.name || '').replace(/\s+/g, ' ').trim().slice(0, MAX_NAME);
   if (!name) throw fail_('צריך למלא שם', 'bad_name');
+  // Who the requester says they are (the owner's request): a coach or a player,
+  // else a parent. Only asked — the role applies when the manager approves,
+  // and the manager sees it on the request first (setStatus_).
+  const asked = req.role === 'coach' || req.role === 'player' ? req.role : null;
 
   return withLock_(() => {
     const a = access_();
@@ -356,14 +360,16 @@ function requestAccess_(req) {
     if (u && u.status === 'approved') return { status: 'approved', name: u.name };
     if (u && u.status === 'pending') {
       u.name = name;
+      if (asked) u.asked = asked; else delete u.asked;
       writeJson_(ACCESS_FILE, a);
       return { status: 'pending', name: name };
     }
     const pending = Object.keys(a.users).filter((k) => a.users[k].status === 'pending').length;
     if (pending >= MAX_PENDING) throw fail_('יש יותר מדי בקשות ממתינות. פנו למנהל.', 'too_many');
     a.users[id] = { name: name, status: 'pending', requestedAt: new Date().toISOString() };
+    if (asked) a.users[id].asked = asked;
     writeJson_(ACCESS_FILE, a);
-    notifyRequest_(name, pending + 1);
+    notifyRequest_(name + (asked ? ' (' + (asked === 'coach' ? 'מאמן' : 'שחקן') + ')' : ''), pending + 1);
     return { status: 'pending', name: name };
   });
 }
@@ -1344,6 +1350,12 @@ function setStatus_(req) {
     if (!u) throw fail_('המשתמש לא נמצא', 'not_found');
     u.status = status;
     u.decidedAt = new Date().toISOString();
+    // Approving a request takes the role it asked for; a player's link to the
+    // squad is still the manager's to pick.
+    if (status === 'approved' && u.asked) {
+      if (!u.role) u.role = u.asked;
+      delete u.asked;
+    }
     writeJson_(ACCESS_FILE, a);
     return { id: req.id, status: status };
   });

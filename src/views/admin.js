@@ -834,7 +834,10 @@ export function mountAdmin(view, ctx) {
       return p ? `<span>${icon('shirt')} ${esc(p.name)}${p.number != null ? ` <span class="num">${esc(p.number)}</span>` : ''}</span>` : `<span class="role-unlinked">${icon('shirt')} שחקן — עוד לא נבחר מהסגל</span>`;
     };
     // A coach or a player is marked beside the name, so the list reads at a glance.
-    const roleTag = (u) => (u.status !== 'approved' ? ''
+    // A request shows the role it asks for: approving applies it.
+    const roleTag = (u) => (u.status === 'pending' ? (u.asked === 'coach' ? `<span class="role-tag coach">${icon('whistle')}מבקש כמאמן</span>`
+        : u.asked === 'player' ? `<span class="role-tag player">${icon('shirt')}מבקש כשחקן</span>` : '')
+      : u.status !== 'approved' ? ''
       : u.role === 'coach' ? `<span class="role-tag coach">${icon('whistle')}מאמן</span>`
       : u.role === 'player' ? `<span class="role-tag player">${icon('shirt')}שחקן</span>` : '');
     const row = (u, actions) => `<div class="user-row">
@@ -850,10 +853,10 @@ export function mountAdmin(view, ctx) {
       </section>`;
     const gone = by(['rejected', 'revoked']);
     // Holders: who was around lately (never seen at the bottom), or the order
-    // they joined in, oldest first.
+    // they joined in, newest first (the owner).
     const holders = by(['approved']).sort(holdersSort === 'seen'
       ? (a, b) => String(b.lastSeen || '').localeCompare(String(a.lastSeen || ''))
-      : (a, b) => String(a.requestedAt).localeCompare(String(b.requestedAt)));
+      : (a, b) => String(b.requestedAt).localeCompare(String(a.requestedAt)));
     // Holders by role (the owner's pick from a mockup): parents, players, coaches.
     const roleOf = (u) => (u.role === 'coach' || u.role === 'player' ? u.role : 'parent');
     const roles = [['all', 'הכל'], ['parent', 'הורים'], ['player', 'שחקנים'], ['coach', 'מאמנים']];

@@ -27,11 +27,20 @@ export function requestGated(skipInstall) {
   return !isStandalone() && platform() !== 'other' && !skipInstall;
 }
 
-export function requestScreen(name = '', error = '', { skipInstall = false } = {}) {
+// Who is asking (the owner's request): parent, player or coach. It only asks —
+// the manager sees it on the request, and approving applies it.
+const ASK_ROLES = [['parent', 'הורה'], ['player', 'שחקן'], ['coach', 'מאמן']];
+
+export function requestScreen(name = '', error = '', { skipInstall = false, role = 'parent' } = {}) {
   const form = `<p class="gate-lead">הנתונים של הקבוצה פתוחים להורים ולשחקנים באישור המנהל. שלחו בקשה פעם אחת מהמכשיר הזה.</p>
      <form id="request-form" class="form-stack" novalidate>
+       <div class="field"><span>מי אתם?</span>
+         <div class="seg ask-role" role="group" aria-label="מי מבקש">
+           ${ASK_ROLES.map(([k, l]) => `<button type="button" data-ask-role="${k}" aria-pressed="${role === k}">${l}</button>`).join('')}
+         </div>
+       </div>
        <label class="field"><span>איך המנהל יזהה אתכם?</span>
-         <input name="name" required maxlength="40" autocomplete="name" placeholder="למשל: אבא של איתי" value="${esc(name)}" />
+         <input name="name" required maxlength="40" autocomplete="name" placeholder="${role === 'player' ? 'למשל: איתי כהן' : role === 'coach' ? 'למשל: יוסי המאמן' : 'למשל: אבא של איתי'}" value="${esc(name)}" />
        </label>
        ${error ? `<p class="form-error" role="alert">${esc(error)}</p>` : ''}
        <button class="btn" type="submit">שליחת בקשה</button>

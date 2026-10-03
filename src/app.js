@@ -41,6 +41,7 @@ const state = {
   season: null,           // buildSeason(payload.season), ready for the views
   stale: false,           // showing the device cache because the bridge was unreachable
   skipInstall: false,     // a phone that cannot install chose to ask from the browser (this visit only)
+  askRole: 'parent',      // who the request says is asking: parent, player or coach
   pending: 0,             // access requests waiting for the manager (manager only)
   galleryWaiting: 0,      // gallery items hidden (or held for review), for the manager
 };
@@ -205,11 +206,11 @@ async function checkAccess() {
   render();
 }
 
-async function requestAccess(name) {
+async function requestAccess(name, role = 'parent') {
   store.setName(name);
   state.name = name;
   try {
-    const r = await call('requestAccess', { name });
+    const r = await call('requestAccess', { name, role });
     state.access = r.status;
     state.formError = '';
     if (r.status === 'approved') return refresh();
@@ -439,14 +440,19 @@ function draw() {
       view.querySelector('#retry').addEventListener('click', () => { state.access = 'loading'; render(); start(); });
       return;
     case 'none':
-      view.innerHTML = gate.requestScreen(state.name, state.formError, { skipInstall: state.skipInstall });
+      view.innerHTML = gate.requestScreen(state.name, state.formError, { skipInstall: state.skipInstall, role: state.askRole });
       view.querySelector('[data-skip-install]')?.addEventListener('click', () => { state.skipInstall = true; render(); });
+      view.querySelectorAll('[data-ask-role]').forEach((b) => b.addEventListener('click', () => {
+        state.name = view.querySelector('#request-form [name="name"]')?.value ?? state.name;
+        state.askRole = b.dataset.askRole;
+        render();
+      }));
       view.querySelector('#request-form')?.addEventListener('submit', (e) => {
         e.preventDefault();
         const name = new FormData(e.target).get('name').trim();
         if (!name) { state.formError = 'צריך למלא שם.'; render(); return; }
-        e.target.querySelector('button').disabled = true;
-        requestAccess(name);
+        e.target.querySelector('button[type=submit]').disabled = true;
+        requestAccess(name, state.askRole);
       });
       return;
     case 'pending': {

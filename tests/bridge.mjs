@@ -175,6 +175,31 @@ test('another device is unaffected by the first one\'s approval', () => {
   assert.equal(b.post({ action: 'hello', deviceKey: devB }).result.status, 'none');
 });
 
+test('a request says who is asking; the role applies only when the manager approves', () => {
+  const c = createBridge({ adminCode: ADMIN });
+  const key = (i) => String(i).padStart(64, 'r');
+  c.post({ action: 'requestAccess', deviceKey: key(1), name: 'המאמן', role: 'coach' });
+  c.post({ action: 'requestAccess', deviceKey: key(2), name: 'עידו', role: 'player' });
+  c.post({ action: 'requestAccess', deviceKey: key(3), name: 'מתחזה', role: 'admin' });
+  const users = () => c.post({ action: 'listUsers', adminCode: ADMIN }).result;
+  const by = (n) => users().find((u) => u.name === n);
+  assert.equal(by('המאמן').asked, 'coach');
+  assert.equal(by('המאמן').role, undefined, 'a request granted its role before approval');
+  assert.equal(by('מתחזה').asked, undefined, 'an unknown role was kept');
+  assert.equal(err(c.post({ action: 'getSeason', deviceKey: key(1) })), 'not_approved');
+  c.post({ action: 'setStatus', adminCode: ADMIN, id: by('המאמן').id, status: 'approved' });
+  c.post({ action: 'setStatus', adminCode: ADMIN, id: by('עידו').id, status: 'approved' });
+  assert.equal(by('המאמן').role, 'coach');
+  assert.equal(by('עידו').role, 'player');
+  assert.equal(by('עידו').pid, undefined, 'a player was linked without the manager');
+  assert.equal(by('המאמן').asked, undefined);
+  assert.equal(c.post({ action: 'getSeason', deviceKey: key(1) }).result.role, 'coach');
+  // Changing one's mind before the answer: the request carries the new choice.
+  c.post({ action: 'requestAccess', deviceKey: key(4), name: 'גל', role: 'coach' });
+  c.post({ action: 'requestAccess', deviceKey: key(4), name: 'גל' });
+  assert.equal(by('גל').asked, undefined);
+});
+
 test('a new access request mails the owner, at most once in a while', () => {
   const c = createBridge({ adminCode: ADMIN });
   const key = (i) => String(i).padStart(64, 'm');

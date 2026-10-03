@@ -144,13 +144,13 @@ await step('the first screen explains installing on iPhone and Android', async (
 });
 
 await step('an empty name is refused on the page', async () => {
-  await parent.locator('#request-form button').click();
+  await parent.locator('#request-form button[type=submit]').click();
   await waitText(parent, 'צריך למלא שם');
 });
 
 await step('sending a request shows the pending screen', async () => {
   await parent.fill('input[name=name]', 'אבא של איתי');
-  await parent.locator('#request-form button').click();
+  await parent.locator('#request-form button[type=submit]').click();
   await waitText(parent, 'ממתינה לאישור');
 });
 
@@ -1469,8 +1469,11 @@ const until = async (fn, what, ms = 8000) => {
 await step('a device the manager marks as coach sees playing time; a parent does not', async () => {
   coach = await device('coach');
   await coach.goto(APP);
+  // The request says who is asking; the name typed before the choice stays.
   await coach.fill('input[name=name]', 'המאמן');
-  await coach.locator('#request-form button').click();
+  await coach.click('[data-ask-role="coach"]');
+  expect(await coach.inputValue('input[name=name]') === 'המאמן', 'picking a role lost the name');
+  await coach.locator('#request-form button[type=submit]').click();
   await waitText(coach, 'ממתינה לאישור');
   // The manager's tab carries a dot while a request waits, on any screen.
   const dot = admin.locator('#nav a[href="#/admin"] .nav-dot');
@@ -1481,9 +1484,10 @@ await step('a device the manager marks as coach sees playing time; a parent does
   await admin.click('[data-tab="access"]');
   // By the exact name: every row's role switch reads "הורה מאמן".
   const row = admin.locator('.user-row').filter({ has: admin.locator('.who b', { hasText: /^המאמן$/ }) });
+  expect((await row.locator('.role-tag').innerText()).includes('מבקש כמאמן'), 'the request does not show the role it asks for');
   await row.locator('[data-set="approved"]').click();
   await dot.waitFor({ state: 'detached', timeout: 8000 });
-  await row.locator('[data-role="coach"]').click();
+  // Approving takes the role the request asked for.
   await row.locator('[data-role="coach"][aria-pressed="true"]').waitFor();
   await coach.click('#recheck');
   await coach.goto(APP + '#/stats');
@@ -1515,8 +1519,11 @@ await step('the access holders sort by last seen, or by joining', async () => {
   const acc = JSON.parse(file.text);
   const holders = Object.values(acc.users).filter((u) => u.status === 'approved')
     .sort((a, b) => a.requestedAt.localeCompare(b.requestedAt));
-  holders.forEach((u, i) => { u.lastSeen = new Date(Date.UTC(2026, 0, 1 + (i === holders.length - 1 ? 20 : 10 - i))).toISOString(); });
+  // The oldest was seen last: last seen first reads oldest first, newest-joined first the other way.
+  // Dates ahead of now: the bridge rewrites a past lastSeen whenever a phone of the test calls it.
+  holders.forEach((u, i) => { u.lastSeen = new Date(Date.UTC(2030, 0, 1 + (i === 0 ? 20 : 10 - i))).toISOString(); });
   file.setContent(JSON.stringify(acc));
+  bridge.clearCache();   // the bridge reads access.json through its cache, not from Drive
   await admin.goto(APP + '#/admin');
   await admin.reload();
   await admin.click('[data-tab="access"]');
@@ -1525,7 +1532,7 @@ await step('the access holders sort by last seen, or by joining', async () => {
   await admin.locator('.holders-sort [data-holders-sort="seen"][aria-selected="true"]').waitFor({ timeout: 8000 });
   expect(JSON.stringify(await names()) === JSON.stringify(seen), 'holders are not in last-seen order: ' + (await names()).join(', '));
   await admin.click('[data-holders-sort="joined"]');
-  const joined = holders.map((u) => u.name);
+  const joined = holders.map((u) => u.name).reverse();   // newest first (the owner)
   expect(JSON.stringify(await names()) === JSON.stringify(joined), 'holders are not in joining order: ' + (await names()).join(', '));
   expect(JSON.stringify(seen) !== JSON.stringify(joined), 'the test data does not tell the two orders apart');
   // The role filter: each role shows its own, with its count; a coach or a player is tagged.
@@ -1533,7 +1540,7 @@ await step('the access holders sort by last seen, or by joining', async () => {
   expect(new Set(holders.map(roleOf)).size >= 2, 'the test data has one role only: ' + holders.map(roleOf).join(', '));
   for (const k of ['parent', 'player', 'coach', 'all']) {
     await admin.click(`[data-holders-role="${k}"]`);
-    const want = holders.filter((u) => k === 'all' || roleOf(u) === k).map((u) => u.name);
+    const want = [...holders].reverse().filter((u) => k === 'all' || roleOf(u) === k).map((u) => u.name);   // still by joining, newest first
     const got = want.length ? await names() : [];
     expect(JSON.stringify(got) === JSON.stringify(want), `role ${k}: ${got.join(', ')} instead of ${want.join(', ')}`);
     const n = await admin.locator(`[data-holders-role="${k}"] .n`).innerText();
@@ -1741,7 +1748,7 @@ await step('a parent uploads a photo; it is in the gallery at once, under their 
   other = await device('parent-2');
   await other.goto(APP);
   await other.fill('input[name=name]', 'אמא של דניאל');
-  await other.locator('#request-form button').click();
+  await other.locator('#request-form button[type=submit]').click();
   await waitText(other, 'ממתינה לאישור');
   const id = bridge.post({ action: 'listUsers', adminCode: ADMIN }).result.find((u) => u.name === 'אמא של דניאל').id;
   bridge.post({ action: 'setStatus', adminCode: ADMIN, id, status: 'approved' });
@@ -2031,7 +2038,7 @@ await step('a player sees his own card and no leaderboard; the coach\'s message 
   const kid = await device('player');
   await kid.goto(APP);
   await kid.fill('input[name=name]', 'הילד');
-  await kid.locator('#request-form button').click();
+  await kid.locator('#request-form button[type=submit]').click();
   await waitText(kid, 'ממתינה לאישור');
   await admin.goto(APP + '#/admin');
   await admin.reload();

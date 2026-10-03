@@ -264,6 +264,9 @@ export function openMatchSheet(match, coach = null, team = null, logo = null) {
         : '<p class="sheet-text">למשחק הזה לא תועדו אירועים — רק התוצאה.</p>'}
       <div data-ms-minutes>${minutesHtml()}</div>`,
     onMount: ({ el }) => {
+      // A sheet is not the view: app.js hydrates only the view, so the
+      // opponent's crest stayed initials here.
+      hydratePosters(el);
       if (!minutes) return;
       const host = el.querySelector('[data-ms-minutes]');
       host.onclick = (e) => {

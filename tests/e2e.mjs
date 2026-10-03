@@ -950,6 +950,13 @@ await step('a result on the home screen opens its match; every game is on the st
   await parent.reload();
   await parent.locator('#stats-schedule .fixture, #stats-schedule [data-fold] > *').first().waitFor();
   await parent.locator('#stats-matches .match').first().waitFor();
+  // A fresh visit straight to the stats screen: nothing has fetched the
+  // opponent's crest, and the match sheet must fetch it itself.
+  await parent.locator('#stats-matches .match', { hasText: 'הפועל כוכבים' }).first().click();
+  await parent.locator('.sheet .ms-board .opp-logo[src]').waitFor({ timeout: 8000 });
+  await parent.locator('.sheet-x').click();
+  await parent.locator('.sheet').waitFor({ state: 'detached' });
+  await parent.waitForFunction(() => !history.state?.mgLayer);
   const lists = () => parent.evaluate(() => [...document.querySelectorAll('#view [data-fold], #board')].map((l) => {
     const rows = [...l.children].filter((r) => !r.matches('[data-fold-btn]'));
     return { id: l.dataset.fold || l.id, total: rows.length, shown: rows.filter((r) => !r.hidden).length, btn: !!l.querySelector('[data-fold-btn]') };

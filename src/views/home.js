@@ -92,7 +92,7 @@ function weekInner(s) {
       <span class="t num">${esc(it.start || '—')}</span>`;
     if (it.kind === 'game') {
       // A played game shows its score where the time was, ours first.
-      const at = it.gf != null ? `<span class="t num" dir="ltr">${it.gf}-${it.ga}</span>` : `<span class="t num">${esc(it.start || '—')}</span>`;
+      const at = it.gf != null ? `<span class="t num" dir="ltr">${it.home ? `${it.ga}-${it.gf}` : `${it.gf}-${it.ga}`}</span>` : `<span class="t num">${esc(it.start || '—')}</span>`;
       return `<div class="wk-day ${cls}">${flag}<span class="l">${day}</span><span class="n num">${dayMonth(it.date)}</span>${at}<span class="v">משחק</span></div>`;
     }
     const where = it.change === 'cancelled' ? 'בוטל' : it.change === 'away' ? `ל${DAYS[weekday(it.movedTo)]}` : it.venue.name || it.venue.address;

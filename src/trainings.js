@@ -107,7 +107,7 @@ export function trainingWeek(season, games, now = new Date(), ahead = 0) {
     seen.add(key);
     const played = Number.isInteger(g.gf) && Number.isInteger(g.ga);
     items.push({ kind: 'game', date: g.date, start: time(g.time), opponent: text(g.opponent),
-      ...(played ? { gf: g.gf, ga: g.ga } : {}), past: played || g.date < today, today: g.date === today });
+      ...(played ? { gf: g.gf, ga: g.ga, home: g.home !== false } : {}), past: played || g.date < today, today: g.date === today });
   }
   items.sort((a, b) => a.date.localeCompare(b.date) || (a.kind === 'game') - (b.kind === 'game'));
   return { start, end, ahead, trainings: days.length, items };

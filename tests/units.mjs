@@ -890,6 +890,18 @@ await test('a result entered by hand credits its scorers and assists; a friendly
   assert.deepEqual(s.recent.find((m) => m.opponent === 'א').goals[1], { og: true, scorer: null, assist: null });
 });
 
+await test('a result reads by home and away: the home side on the right, ours gold', async () => {
+  const { scoreEl, formPill, scoreSides } = await import('../src/components.js');
+  const text = (h) => h.replace(/<[^>]+>/g, '');
+  const home = { opponent: 'א', home: true, gf: 3, ga: 1 }, away = { opponent: 'ב', home: false, gf: 3, ga: 1 };
+  assert.equal(text(scoreEl(home)), '1:3');
+  assert.equal(text(scoreEl(away)), '3:1');
+  assert.match(text(formPill(home, 0)), /^\s*1:3/);
+  assert.match(text(formPill(away, 0)), /^\s*3:1/);
+  assert.deepEqual(scoreSides(away).map(text), ['3', '1']);
+  assert.ok(scoreSides(home)[1].includes('class="ours"') && scoreSides(away)[0].includes('class="ours"'), 'ours is not marked');
+});
+
 await test('a player\'s card: his matches but a live one he missed, where he played, counted once a match', async () => {
   const { buildSeason, playerCard, cardMe } = await import('../src/season.js');
   const live = (liveId, date, lineup, events = [], extra = {}) => ({ liveId, date, opponent: 'יריבה ' + liveId, home: true, gf: 1, ga: 0,

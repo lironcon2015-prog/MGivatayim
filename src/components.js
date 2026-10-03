@@ -140,8 +140,19 @@ export const COACH_ONLY = '<span class="coach-only">(רק למאמן)</span>';
 // to the first slot, never from a "2:1" string in the data. Which side of the
 // colon belongs to whom is ambiguous in Hebrew, and getting it backwards is
 // the one mistake in a team app that everyone notices immediately.
+// A result reads by home and away (the owner's pick): the home side on the
+// right, where a Hebrew reader starts — ours at home, the opponent's away.
+// Ours stays gold, and the outcome's colour says the rest. The live board is
+// not this: there we are always on the right, beside our crest. Drawn in an
+// LTR box, so [left, right] is the order written.
+export function scoreSides(m, tag = 'span') {
+  const ours = `<${tag} class="ours">${m.gf}</${tag}>`, theirs = `<span>${m.ga}</span>`;
+  return m.home === false ? [ours, theirs] : [theirs, ours];
+}
+
 export function scoreEl(match) {
-  return `<span class="score num"><span class="ours">${match.gf}</span><span class="sep">:</span><span>${match.ga}</span></span>`;
+  const [l, r] = scoreSides(match);
+  return `<span class="score num">${l}<span class="sep">:</span>${r}</span>`;
 }
 
 // A result pill on the home screen opens its match (`i`, its place in
@@ -153,7 +164,7 @@ export function scoreEl(match) {
 export function formPill(match, i) {
   const o = outcomeOf(match);
   return `<button type="button" class="form-pill ${CLASS_OF[o]}${match.friendly ? ' friendly' : ''}" data-match="${i}" aria-label="${match.friendly ? 'משחק אימון, ' : ''}${esc(OUTCOMES[o])} מול ${esc(match.opponent)}, ${match.gf}:${match.ga}">
-    <b class="num">${match.gf}:${match.ga}</b>${match.friendly ? 'אימון' : esc(OUTCOMES[o])}</button>`;
+    <b class="num">${match.home === false ? `${match.gf}:${match.ga}` : `${match.ga}:${match.gf}`}</b>${match.friendly ? 'אימון' : esc(OUTCOMES[o])}</button>`;
 }
 
 export function matchRow(match, i) {
@@ -314,7 +325,7 @@ export function myCardHtml(s, { limit = Infinity, card = s.card } = {}) {
         r.goals.length ? `<span class="my-mark g" aria-label="שערים: ${r.goals.length}">${icon('ball')}${many(r.goals)}</span>` : ''}${
         r.assists.length ? `<span class="my-mark a" aria-label="בישולים: ${r.assists.length}">${icon('boot')}${many(r.assists)}</span>` : ''}${
         r.friendly ? '<span class="my-tag">אימון</span>' : ''}</span></span>
-      <span class="my-res ${CLASS_OF[o]}${r.friendly ? ' friendly' : ''} num"><b>${m.gf}</b>:${m.ga}</span>
+      <span class="my-res ${CLASS_OF[o]}${r.friendly ? ' friendly' : ''} num">${scoreSides(m, 'b').join(':')}</span>
     </button>`;
   }).join('');
   return `<div class="card my-card">

@@ -2,7 +2,7 @@ import * as M from '../live/model.js';
 import { serverNow } from '../live/sync.js';
 import { esc, splitKickoff, shortName, shortDate, byNumber } from '../format.js';
 import { icon } from '../icons.js';
-import { crestImg, keepImages, keepFocus, oppLogo, roundText, matchRow, sectionHead, COACH_ONLY } from '../components.js';
+import { crestImg, keepImages, keepFocus, oppLogo, roundText, matchRow, sectionHead, COACH_ONLY, scoreSides } from '../components.js';
 import { hydratePosters } from '../posters.js';
 import { posLabel, isKeeper, layout, subGroups, formationsFor, freeSlots, fitFormation, refit, pairWave } from '../positions.js';
 import { openSheet, confirmSheet, toast, buzz } from '../ui/sheet.js';
@@ -250,9 +250,9 @@ export function openMatchSheet(match, coach = null, us = '') {
     title: `${match.home ? 'בית' : 'חוץ'} · מול ${match.opponent}`,
     subtitle: `<span class="num">${esc(shortDate(match.date))}</span>${roundText(match.round, match.friendly) ? ` · ${esc(roundText(match.round, match.friendly))}` : ''}`,
     tall: hasEvents || hasGoals || minutes,
-    body: `<div class="ms-score num"><span class="ours">${match.gf}</span><span class="sep">:</span><span>${match.ga}</span></div>
-      ${hasEvents ? `<div class="ms-scorers">${scorersHtml(state, { all: true })}</div>${timelineHtml(state, { us })}`
-        : hasGoals ? `<div class="ms-scorers">${goalsHtml(state)}</div><p class="sheet-text ms-note">למשחק הזה לא תועדו דקות — רק התוצאה והכובשים.</p>`
+    body: `<div class="ms-score num">${scoreSides(match).join('<span class="sep">:</span>')}</div>
+      ${hasEvents ? `<div class="ms-scorers${match.home === false ? ' away' : ''}">${scorersHtml(state, { all: true })}</div>${timelineHtml(state, { us })}`
+        : hasGoals ? `<div class="ms-scorers${match.home === false ? ' away' : ''}">${goalsHtml(state)}</div><p class="sheet-text ms-note">למשחק הזה לא תועדו דקות — רק התוצאה והכובשים.</p>`
         : '<p class="sheet-text">למשחק הזה לא תועדו אירועים — רק התוצאה.</p>'}
       <div data-ms-minutes>${minutesHtml()}</div>`,
     onMount: ({ el }) => {

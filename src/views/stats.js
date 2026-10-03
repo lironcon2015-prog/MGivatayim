@@ -72,8 +72,6 @@ export function renderStats(s) {
 function teamHtml(s) {
   const o = s.overall;
   const maxPoints = Math.max(s.splits.home.points, s.splits.away.points, 1);
-  const best = topBy(s.players, 'goals', 1)[0];
-  const share = best && s.overall.gf ? pct(best.goals / s.overall.gf) : '—';
 
   return `
   <section>
@@ -126,16 +124,7 @@ function teamHtml(s) {
     ${sectionHead('כל המשחקים', `${s.recent.length} משחקים`, 'trophy')}
     ${s.recent.length ? sampleNote(s, RESULTS_SAMPLE) : ''}
     <div class="card rows" data-fold="matches">${s.recent.length ? s.recent.map(matchRow).join('') : '<div class="empty">טרם נוספו משחקים.</div>'}</div>
-  </section>
-
-  ${s.isPlayer ? '' : `<section>
-    ${sectionHead('תרומת המוביל', '', 'bulb')}
-    <div class="card">
-      ${best
-        ? `<div class="insight"><span class="dot"></span><span><b>${esc(best.name)}</b> כבש ${best.goals} מתוך ${s.overall.gf} שערי הקבוצה — ${share} מהתפוקה.</span></div>`
-        : `<div class="empty">${esc(s.emptyScorers)}</div>`}
-    </div>
-  </section>`}`;
+  </section>`;
 }
 
 export function wireStats(root, s) {

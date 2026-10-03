@@ -123,7 +123,7 @@ const LISTS = [
     order: (a, b) => gameKey(b).localeCompare(gameKey(a)),   // latest first
     blank: () => ({ date: today(), opponent: '', home: true, round: null, gf: 0, ga: 0 }),
     label: (m) => `${m.opponent || 'משחק חדש'} · ${m.gf ?? '?'}:${m.ga ?? '?'}`,
-    sum: (m) => ({ title: m.opponent || 'משחק חדש', sub: [m.date && shortDate(m.date), m.home === false ? 'חוץ' : 'בית', roundText(m.round, m.friendly)].filter(Boolean).join(' · '), score: [m.gf, m.ga] }),
+    sum: (m) => ({ title: m.opponent || 'משחק חדש', sub: [m.date && shortDate(m.date), m.home === false ? 'חוץ' : 'בית', roundText(m.round, m.friendly)].filter(Boolean).join(' · '), score: [m.gf, m.ga], away: m.home === false }),
     fields: [
       { key: 'date', label: 'תאריך', type: 'date', required: true },
       { key: 'opponent', label: 'יריבה', required: true },
@@ -610,7 +610,7 @@ export function mountAdmin(view, ctx) {
     compute();
     const have = new Set((draft.matches || []).map((m) => m.date));
     const row = (f, res) => `<div class="imp-row"><span class="imp-name"><b>${esc(shortDate(f.date))} · ${esc(f.opponent)}</b>
-        <small>${f.home ? 'בית' : 'חוץ'}${roundText(f.round, f.friendly) ? ` · ${esc(roundText(f.round, f.friendly))}` : ''}${res ? ` · תוצאה <span class="num" dir="ltr">${f.gf}:${f.ga}</span>` : f.time ? ` · ${esc(f.time)}` : ' · שעה טרם נקבעה'}${f.venue?.name ? ` · ${esc(f.venue.name)}` : ''}</small></span>
+        <small>${f.home ? 'בית' : 'חוץ'}${roundText(f.round, f.friendly) ? ` · ${esc(roundText(f.round, f.friendly))}` : ''}${res ? ` · תוצאה <span class="num" dir="ltr">${f.home === false ? `${f.gf}:${f.ga}` : `${f.ga}:${f.gf}`}</span>` : f.time ? ` · ${esc(f.time)}` : ' · שעה טרם נקבעה'}${f.venue?.name ? ` · ${esc(f.venue.name)}` : ''}</small></span>
         <span class="imp-kind ${res ? (have.has(f.date) ? 'k-same' : 'k-new') : 'k-upd'}">${res ? (have.has(f.date) ? 'יש כבר' : 'תוצאה') : 'בלוח'}</span></div>`;
     const body = () => {
       const newRes = out.results.filter((r) => !have.has(r.date)).length;
@@ -1090,7 +1090,8 @@ export function mountAdmin(view, ctx) {
     return `${m.lead !== undefined ? `<span class="ei-lead num">${esc(m.lead ?? '')}</span>` : ''}${crest}`
       + `<span class="ei-main"><b>${esc(m.title)}${next}</b>${m.sub ? `<small>${esc(m.sub)}</small>` : ''}</span>`
       + (m.side ? `<span class="ei-side">${esc(m.side)}</span>` : '')
-      + (m.score ? `<span class="ei-score num"><b>${esc(m.score[0] ?? '?')}</b>:${esc(m.score[1] ?? '?')}</span>` : '');
+      // By home and away, like every result: the home side on the right.
+      + (m.score ? `<span class="ei-score num">${m.away ? `<b>${esc(m.score[0] ?? '?')}</b>:${esc(m.score[1] ?? '?')}` : `${esc(m.score[1] ?? '?')}:<b>${esc(m.score[0] ?? '?')}</b>`}</span>` : '');
   }
 
   function toolsHtml(kind) {

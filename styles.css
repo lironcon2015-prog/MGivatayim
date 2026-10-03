@@ -1467,6 +1467,10 @@ button.ev:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
    with the assists under each name, and no rule above them. */
 .ms-scorers .sc-scorers { margin: -.4rem 0 1rem; padding-top: 0; border-top: 0; }
 .ms-note { text-align: center; }
+/* An away result: the opponent's score on the right (home and away, like
+   every result), and the scorers' columns under their own number. */
+.ms-scorers.away .sc-scorers { direction: ltr; }
+.ms-scorers.away .sc-scorers ul { direction: rtl; }
 .scr-ast { display: block; font-size: .7rem; color: var(--faint); }
 .ended-card p { display: flex; align-items: center; gap: .5rem; margin: 0; font-weight: 700; }
 .ended-card svg { width: 18px; height: 18px; color: var(--gold); flex: none; }

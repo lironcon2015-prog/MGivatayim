@@ -379,7 +379,9 @@ await step('the manager edits a score; the parent sees it after reopening', asyn
   await admin.click('#save');
   await waitText(admin, 'גרסה 2');
   await parent.reload();
-  await parent.locator('.form-pill[aria-label*="בני לוד"]', { hasText: '3:1' }).waitFor({ timeout: 5000 });
+  // Results read by home and away (the owner): the home side on the right — a
+  // home win of 3 to 1 is written 1:3, ours last (away: tests/units.mjs).
+  await parent.locator('.form-pill[aria-label*="בני לוד"]', { hasText: '1:3' }).waitFor({ timeout: 5000 });
 });
 
 await step('a save over a version changed elsewhere is refused, not merged', async () => {

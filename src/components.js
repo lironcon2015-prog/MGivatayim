@@ -140,14 +140,12 @@ export const COACH_ONLY = '<span class="coach-only">(רק למאמן)</span>';
 // to the first slot, never from a "2:1" string in the data. Which side of the
 // colon belongs to whom is ambiguous in Hebrew, and getting it backwards is
 // the one mistake in a team app that everyone notices immediately.
-// A result reads by home and away (the owner's pick): the home side on the
-// right, where a Hebrew reader starts — ours at home, the opponent's away.
-// Ours stays gold, and the outcome's colour says the rest. The live board is
-// not this: there we are always on the right, beside our crest. Drawn in an
-// LTR box, so [left, right] is the order written.
+// We are always on the right (the owner, after a round of home-and-away that
+// left a match sheet half one way and half the other): in every result, as on
+// the live board beside our crest, in the match sheet and its timeline. Ours
+// is gold. Drawn in an LTR box, so [left, right] is the order written.
 export function scoreSides(m, tag = 'span') {
-  const ours = `<${tag} class="ours">${m.gf}</${tag}>`, theirs = `<span>${m.ga}</span>`;
-  return m.home === false ? [ours, theirs] : [theirs, ours];
+  return [`<span>${m.ga}</span>`, `<${tag} class="ours">${m.gf}</${tag}>`];
 }
 
 export function scoreEl(match) {
@@ -164,7 +162,7 @@ export function scoreEl(match) {
 export function formPill(match, i) {
   const o = outcomeOf(match);
   return `<button type="button" class="form-pill ${CLASS_OF[o]}${match.friendly ? ' friendly' : ''}" data-match="${i}" aria-label="${match.friendly ? 'משחק אימון, ' : ''}${esc(OUTCOMES[o])} מול ${esc(match.opponent)}, ${match.gf}:${match.ga}">
-    <b class="num">${match.home === false ? `${match.gf}:${match.ga}` : `${match.ga}:${match.gf}`}</b>${match.friendly ? 'אימון' : esc(OUTCOMES[o])}</button>`;
+    <b class="num">${match.ga}:${match.gf}</b>${match.friendly ? 'אימון' : esc(OUTCOMES[o])}</button>`;
 }
 
 export function matchRow(match, i) {

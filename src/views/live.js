@@ -2,7 +2,7 @@ import * as M from '../live/model.js';
 import { serverNow } from '../live/sync.js';
 import { esc, splitKickoff, shortName, shortDate, byNumber } from '../format.js';
 import { icon } from '../icons.js';
-import { crestImg, keepImages, keepFocus, oppLogo, roundText, matchRow, sectionHead, COACH_ONLY, scoreSides } from '../components.js';
+import { crestImg, keepImages, keepFocus, oppLogo, roundText, matchRow, sectionHead, COACH_ONLY } from '../components.js';
 import { hydratePosters } from '../posters.js';
 import { posLabel, isKeeper, layout, subGroups, formationsFor, freeSlots, fitFormation, refit, pairWave } from '../positions.js';
 import { openSheet, confirmSheet, toast, buzz } from '../ui/sheet.js';
@@ -77,7 +77,8 @@ export function timelineHtml(state, { interactive = false, us: usName = '' } = {
     }
     if (e.type === 'shape') for (const m of e.moves || []) if (slot.has(m.pid)) slot.set(m.pid, m.pos);
   }
-  const scoreHtml = ([a, b]) => `<b>${a}</b>-${b}`;
+  // Ours on the right, in gold, like every score (written LTR: theirs first).
+  const scoreHtml = ([a, b]) => `${b}-<b>${a}</b>`;
   const opp = esc(state.opponent || 'היריבה');
   const lastPeriod = state.format.length - 1;
 
@@ -90,7 +91,7 @@ export function timelineHtml(state, { interactive = false, us: usName = '' } = {
       const extra = Math.floor((e.atMs - len) / 60000);
       const label = e.period >= lastPeriod ? 'סיום' : state.format.length === 2 ? 'מחצית' : `סיום ${M.periodName(state.format, e.period)}`;
       const [a, b] = atEnd.get(e);
-      return `<li class="ev-mark"><span class="mk-pill">${esc(label)}</span><span class="mk-sc num" dir="ltr"><b>${a}</b> - ${b}</span>${
+      return `<li class="ev-mark"><span class="mk-pill">${esc(label)}</span><span class="mk-sc num" dir="ltr">${b} - <b>${a}</b></span>${
         extra >= 1 ? `<small>+${extra} ${extra === 1 ? 'דקת' : 'דקות'} תוספת</small>` : ''}</li>`;
     }
     // The minute column always holds a minute. An interval change is shown
@@ -240,7 +241,8 @@ function goalsHtml(state) {
 
 // `coach` — the coach's view of a live match's minutes, or null: its
 // minimum and attendance (coachCfg) and how to change them (saveCoach).
-export function openMatchSheet(match, coach = null, us = '') {
+export function openMatchSheet(match, coach = null, team = null, logo = null) {
+  const us = team?.name || '';
   const state = { ...match, format: match.format || M.DEFAULT_FORMAT, events: match.events || [], players: match.players || [], lineup: match.lineup || [] };
   const hasEvents = state.events.some((e) => M.EDITABLE.includes(e.type));
   const hasGoals = (state.goals || []).some((g) => g.og || g.scorer);
@@ -250,9 +252,15 @@ export function openMatchSheet(match, coach = null, us = '') {
     title: `${match.home ? 'בית' : 'חוץ'} · מול ${match.opponent}`,
     subtitle: `<span class="num">${esc(shortDate(match.date))}</span>${roundText(match.round, match.friendly) ? ` · ${esc(roundText(match.round, match.friendly))}` : ''}`,
     tall: hasEvents || hasGoals || minutes,
-    body: `<div class="ms-score num">${scoreSides(match).join('<span class="sep">:</span>')}</div>
-      ${hasEvents ? `<div class="ms-scorers${match.home === false ? ' away' : ''}">${scorersHtml(state, { all: true })}</div>${timelineHtml(state, { us })}`
-        : hasGoals ? `<div class="ms-scorers${match.home === false ? ' away' : ''}">${goalsHtml(state)}</div><p class="sheet-text ms-note">למשחק הזה לא תועדו דקות — רק התוצאה והכובשים.</p>`
+    // Both teams' names over the score (the owner: so it is clear whose number
+    // is whose) — the live board's row, smaller; we are on the right.
+    body: `<div class="sc-row ms-board">
+        <div class="sc-team us"><span class="sc-crest">${team ? crestImg(team) : ''}</span><b>${esc(us || 'אנחנו')}</b></div>
+        <div class="sc-score num" aria-label="${match.gf} : ${match.ga}"><span class="ours">${match.gf}</span><span class="sep">:</span><span>${match.ga}</span></div>
+        <div class="sc-team"><span class="sc-disc">${esc(String(match.opponent || '?').slice(0, 2))}${oppLogo(logo?.(match.opponent), match.opponent || 'יריבה')}</span><b>${esc(match.opponent || 'יריבה')}</b></div>
+      </div>
+      ${hasEvents ? `<div class="ms-scorers">${scorersHtml(state, { all: true })}</div>${timelineHtml(state, { us })}`
+        : hasGoals ? `<div class="ms-scorers">${goalsHtml(state)}</div><p class="sheet-text ms-note">למשחק הזה לא תועדו דקות — רק התוצאה והכובשים.</p>`
         : '<p class="sheet-text">למשחק הזה לא תועדו אירועים — רק התוצאה.</p>'}
       <div data-ms-minutes>${minutesHtml()}</div>`,
     onMount: ({ el }) => {

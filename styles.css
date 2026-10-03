@@ -900,9 +900,9 @@ input[type="checkbox"]:focus-visible { outline: 2px solid var(--gold); outline-o
 .user-row .who { flex: 1; min-width: 0; }
 .user-row .who b { display: block; font-size: .95rem; }
 .user-row .who > span { display: block; }
-.user-row .who-name { display: flex; width: fit-content; align-items: center; gap: .35rem; max-width: 100%; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: start; cursor: pointer; }
-.user-row .who-name b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.user-row .who-name svg { width: 13px; height: 13px; flex: none; color: var(--faint); }
+.user-row .who-name { display: flex; flex-wrap: wrap; width: fit-content; align-items: center; gap: .35rem; max-width: 100%; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: start; cursor: pointer; }
+/* The whole name, wrapped if long — a tap on it renames (no pencil, the owner). */
+.user-row .who-name b { overflow-wrap: anywhere; }
 .role-tag { flex: none; display: inline-flex; align-items: center; gap: 3px; padding: 1px 7px; border-radius: var(--r-pill); font-size: .66rem; font-weight: 800; border: 1px solid var(--gold-line); color: var(--gold); }
 .role-tag.player { border-color: color-mix(in srgb, var(--blue) 45%, transparent); color: var(--blue); }
 .user-row .who-name .role-tag svg { width: 11px; height: 11px; color: currentColor; }

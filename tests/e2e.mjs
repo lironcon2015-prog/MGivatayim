@@ -326,7 +326,7 @@ await step('the manager renames an approved device from the access list', async 
     await admin.locator('.sheet').waitFor({ state: 'detached' });
     await admin.locator('.user-row .who-name', { hasText: new RegExp('^' + to + '$') }).waitFor({ timeout: 5000 });
   };
-  // The name (with its pencil) on one line, when they asked and were last seen on the next.
+  // The name on one line, when they asked and were last seen on the next.
   const lines = await admin.locator('.user-row .who').first().evaluate((w) => {
     const name = w.querySelector('.who-name').getBoundingClientRect();
     const meta = w.querySelector(':scope > span').getBoundingClientRect();
@@ -1592,8 +1592,8 @@ await step('the access holders sort by last seen, or by joining', async () => {
     const n = await admin.locator(`[data-holders-role="${k}"] .n`).innerText();
     expect(n === String(want.length), `role ${k} counts ${n}, expected ${want.length}`);
   }
-  const tagged = await admin.locator('.holders-sort + .card .role-tag').count();
-  expect(tagged === holders.filter((u) => roleOf(u) !== 'parent').length, 'coach / player tags: ' + tagged);
+  // A holder's role is in its switch: no tag, and no pencil beside the name.
+  expect(await admin.locator('.holders-sort + .card .role-tag, .holders-sort + .card .who-name svg').count() === 0, 'a holder carries a tag or a pencil');
 });
 
 await step('before kick-off the coach sets the minimum and who came; a parent sees no minutes tab', async () => {

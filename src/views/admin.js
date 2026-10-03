@@ -835,15 +835,13 @@ export function mountAdmin(view, ctx) {
       const p = squadList().find((x) => x.key === u.pid);
       return p ? `<span>${icon('shirt')} ${esc(p.name)}${p.number != null ? ` <span class="num">${esc(p.number)}</span>` : ''}</span>` : `<span class="role-unlinked">${icon('shirt')} שחקן — עוד לא נבחר מהסגל</span>`;
     };
-    // A coach or a player is marked beside the name, so the list reads at a glance.
-    // A request shows the role it asks for: approving applies it.
-    const roleTag = (u) => (u.status === 'pending' ? (u.asked === 'coach' ? `<span class="role-tag coach">${icon('whistle')}מבקש כמאמן</span>`
-        : u.asked === 'player' ? `<span class="role-tag player">${icon('shirt')}מבקש כשחקן</span>` : '')
-      : u.status !== 'approved' ? ''
-      : u.role === 'coach' ? `<span class="role-tag coach">${icon('whistle')}מאמן</span>`
-      : u.role === 'player' ? `<span class="role-tag player">${icon('shirt')}שחקן</span>` : '');
+    // A request shows the role it asks for: approving applies it. A holder's
+    // role is in its switch, so it carries no tag (the owner).
+    const roleTag = (u) => (u.status !== 'pending' ? ''
+      : u.asked === 'coach' ? `<span class="role-tag coach">${icon('whistle')}מבקש כמאמן</span>`
+      : u.asked === 'player' ? `<span class="role-tag player">${icon('shirt')}מבקש כשחקן</span>` : '');
     const row = (u, actions) => `<div class="user-row">
-        <span class="who"><button type="button" class="who-name" data-rename="${esc(u.id)}" aria-label="${esc(`שינוי השם של ${u.name}`)}"><b>${esc(u.name)}</b>${roleTag(u)}${icon('edit')}</button><span>ביקש ${esc(stamp(u.requestedAt))}${u.lastSeen ? ` · נראה ${esc(stamp(u.lastSeen))}` : ''}</span>${playerOf(u)}</span>
+        <span class="who"><button type="button" class="who-name" data-rename="${esc(u.id)}" aria-label="${esc(`שינוי השם של ${u.name}`)}"><b>${esc(u.name)}</b>${roleTag(u)}</button><span>ביקש ${esc(stamp(u.requestedAt))}${u.lastSeen ? ` · נראה ${esc(stamp(u.lastSeen))}` : ''}</span>${playerOf(u)}</span>
         <span class="acts">${u.status === 'approved' ? roleSwitch(u) : ''}${actions.map(([st, label, cls]) =>
           `<button type="button" class="btn small ${cls || ''}" data-user="${esc(u.id)}" data-set="${st}">${label}</button>`).join('')}</span>
       </div>`;

@@ -716,7 +716,7 @@ await test('a training match is listed with the results but counts in no figure'
   const { formPill } = await import('../src/components.js');
   const pills = s.recent.slice(0, 5).map((m, i) => formPill(m, i)).join('');
   assert.equal((pills.match(/class="form-pill/g) || []).length, 3, 'a pill per result, the training match included');
-  assert.match(pills, /form-pill is-loss friendly"[^>]*aria-label="משחק אימון,[^"]*">\s*<b class="num">0:5<\/b>אימון/);
+  assert.match(pills, /form-pill is-loss friendly"[^>]*aria-label="משחק אימון,[^"]*">\s*<b class="num">5:0<\/b>אימון/);
   // The flag is a boolean whatever arrived, in the season and in live state.
   assert.equal(cleanPlayedMatch({ date: '2026-01-01', friendly: '<b>' }).friendly, false);
   assert.equal(cleanLive({ id: 'm', friendly: true }).friendly, true);
@@ -890,16 +890,16 @@ await test('a result entered by hand credits its scorers and assists; a friendly
   assert.deepEqual(s.recent.find((m) => m.opponent === 'א').goals[1], { og: true, scorer: null, assist: null });
 });
 
-await test('a result reads by home and away: the home side on the right, ours gold', async () => {
+await test('a result has us on the right, home or away, ours gold', async () => {
   const { scoreEl, formPill, scoreSides } = await import('../src/components.js');
   const text = (h) => h.replace(/<[^>]+>/g, '');
   const home = { opponent: 'א', home: true, gf: 3, ga: 1 }, away = { opponent: 'ב', home: false, gf: 3, ga: 1 };
+  // Written in an LTR box: theirs first, ours last — on the right.
   assert.equal(text(scoreEl(home)), '1:3');
-  assert.equal(text(scoreEl(away)), '3:1');
+  assert.equal(text(scoreEl(away)), '1:3');
   assert.match(text(formPill(home, 0)), /^\s*1:3/);
-  assert.match(text(formPill(away, 0)), /^\s*3:1/);
-  assert.deepEqual(scoreSides(away).map(text), ['3', '1']);
-  assert.ok(scoreSides(home)[1].includes('class="ours"') && scoreSides(away)[0].includes('class="ours"'), 'ours is not marked');
+  assert.match(text(formPill(away, 0)), /^\s*1:3/);
+  assert.ok(scoreSides(away)[1].includes('class="ours"') && scoreSides(home)[1].includes('class="ours"'), 'ours is not the right one');
 });
 
 await test('a player\'s card: his matches but a live one he missed, where he played, counted once a match', async () => {

@@ -103,6 +103,21 @@ const waitText = (page, s, timeout = 5000) => page.locator('#view').getByText(s,
 // A save of the manager's screen, done: its message, not the text "נשמר" —
 // "יש שינויים שלא נשמרו." has it too, and the wait passed before the save.
 const waitSaved = (page, timeout = 5000) => page.locator('#view .save-msg.ok').waitFor({ timeout });
+// We are always on the right (the owner): in an open match sheet, our crest and
+// name over the score, our score, our scorers' column and our side of the
+// timeline, and in each running score of the timeline ours is the last number.
+const usOnRight = (page) => page.evaluate(() => {
+  const x = (sel) => { const el = document.querySelector('.sheet ' + sel); return el ? el.getBoundingClientRect().x : null; };
+  const bad = [];
+  if (!(x('.ms-board .sc-team.us') > x('.ms-board .sc-team:not(.us)'))) bad.push('team names');
+  if (!(x('.ms-board .sc-score .ours') > x('.ms-board .sc-score span:last-child'))) bad.push('score');
+  if (x('.ms-scorers .them') != null && !(x('.ms-scorers .us') > x('.ms-scorers .them'))) bad.push('scorers');
+  document.querySelectorAll('.sheet .mk-sc, .sheet .ev-sc').forEach((sc) => {
+    const b = sc.querySelector('b'), r = sc.getBoundingClientRect();
+    if (b && b.getBoundingClientRect().right < r.right - 12) bad.push('running score: ' + sc.textContent.trim());
+  });
+  return bad;
+});
 
 const parent = await device('parent');
 const IPHONE = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1';
@@ -340,6 +355,8 @@ await step('after approval the parent sees the season on returning to the app, w
   const st = await sheet.innerText();
   const cols = await sheet.locator('.ms-scorers .us').innerText();
   expect(cols.includes('איתי') && cols.includes('גול עצמי'), 'hand-entered scorers missing under the score: ' + st);
+  const wrongSide = await usOnRight(parent);
+  expect(!wrongSide.length, 'not on the right in the match sheet: ' + wrongSide.join(', '));
   await parent.locator('.sheet-x').click();
   await parent.locator('.sheet').waitFor({ state: 'detached' });
   await parent.waitForFunction(() => !history.state?.mgLayer);
@@ -915,6 +932,8 @@ await step('a result on the home screen opens its match; every game is on the st
   const scorers = await parent.locator('.sheet .ms-scorers .us').innerText();
   expect(scorers.includes('גיא פרץ') && /\d+'/.test(scorers), 'scorers under the score: ' + scorers);
   expect(await parent.locator('.sheet .ms-scorers + .ev-sides').count() === 1, 'the scorers are not right above the timeline');
+  const liveSide = await usOnRight(parent);
+  expect(!liveSide.length, 'not on the right in a live match\'s sheet: ' + liveSide.join(', '));
   // Every sub names a position: a parent has no past lineup, so the slot's
   // is unknown here and the incoming player's own stands in.
   const sub = await parent.locator('.sheet .ev.sub .ev-txt .out').first().innerText();

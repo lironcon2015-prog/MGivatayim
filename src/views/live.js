@@ -1134,7 +1134,7 @@ export function mountLive(view, ctx) {
         if (b.dataset.res === 'goal') {
           const line = side === 'us'
             ? `שער מפנדל! ${esc(scorer ? whoText(st, scorer) : ctx.team.name)} · <span class="num">${sc.us + 1}:${sc.them}</span>`
-            : `שער מפנדל ל${esc(st.opponent || 'יריבה')} · <span class="num">${sc.us}:${sc.them + 1}</span>`;
+            : `שער מפנדל ל${esc(st.opponent || 'יריבה')} · <span class="num" dir="ltr">${sc.them + 1}:${sc.us}</span>`;
           act({ t: 'goal', id: uid(), side, scorer, pen: true, ...stamp }, line);
         } else {
           act({ t: 'miss', id: uid(), side, scorer, ...stamp }, side === 'us' ? 'פנדל מוחמץ' : `פנדל ל${esc(st.opponent || 'יריבה')} לא נכנס`);
@@ -1674,7 +1674,7 @@ export function mountLive(view, ctx) {
     const early = st.status !== 'fulltime';
     if (!(await confirmSheet({
       title: `לסיים ${early ? 'עכשיו' : 'את המשחק'}?`,
-      text: `התוצאה <b class="num">${sc.us}:${sc.them}</b> תישמר בתוצאות העונה, והמבקיעים והדקות ייכנסו לנתוני השחקנים.`,
+      text: `התוצאה <b class="num" dir="ltr">${sc.them}:${sc.us}</b> תישמר בתוצאות העונה, והמבקיעים והדקות ייכנסו לנתוני השחקנים.`,
       ok: 'סיום ושמירה', cancel: 'עוד לא',
     }))) return;
     act({ t: 'finish', at: now() });
@@ -1812,7 +1812,7 @@ export function mountLive(view, ctx) {
     if (a === 'goal-them') {
       const stamp = M.stampNow(st, now());
       const sc = M.score(st);
-      act({ t: 'goal', id: uid(), side: 'them', ...stamp }, `שער ל${esc(st.opponent || 'יריבה')} · <span class="num">${sc.us}:${sc.them + 1}</span>`);
+      act({ t: 'goal', id: uid(), side: 'them', ...stamp }, `שער ל${esc(st.opponent || 'יריבה')} · <span class="num" dir="ltr">${sc.them + 1}:${sc.us}</span>`);
       return;
     }
     if (a === 'sub') { waveSheet(); return; }

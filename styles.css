@@ -390,6 +390,9 @@ section { margin-top: 1.9rem; }
 .qr-pass img { width: min(100%, 320px); height: auto; display: block; }
 .qr-pass .empty { color: var(--on-gold); }
 .qr-admin { display: flex; align-items: center; gap: var(--gap); }
+/* The switch under the picture or the upload button: the same divider the
+   settings' switches have between them (the owner: it sat tight against it). */
+#entry-qr .opt { margin-top: 1.1rem; padding-top: 1rem; border-top: 1px solid var(--line); }
 .qr-admin .row-btns { flex: 1; flex-direction: column; margin-top: 0; }
 .qr-thumb { width: 112px; flex: none; background: #fff; border-radius: 12px; padding: 8px; }
 .qr-thumb img { width: 100%; display: block; }

@@ -1678,7 +1678,7 @@ await step('a match opened ahead is hidden from parents until the manager publis
   const recent = parent.locator('.live-recent button[data-match]');
   expect(await recent.count() > 0, 'no recent matches under "nothing live"');
   await recent.first().click();
-  await parent.locator('.sheet .ms-score').waitFor({ timeout: 8000 });
+  await parent.locator('.sheet .ms-board').waitFor({ timeout: 8000 });
   await parent.locator('.sheet-x').click();
   await parent.locator('.sheet').waitFor({ state: 'detached' });
   await parent.waitForFunction(() => !history.state?.mgLayer);

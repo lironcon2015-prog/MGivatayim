@@ -1473,6 +1473,10 @@ await step('a device the manager marks as coach sees playing time; a parent does
   await coach.fill('input[name=name]', 'המאמן');
   await coach.click('[data-ask-role="coach"]');
   expect(await coach.inputValue('input[name=name]') === 'המאמן', 'picking a role lost the name');
+  // The choice shows: the switch marked it by aria-pressed, which only
+  // aria-selected lit up, and nothing on screen moved (the owner).
+  const lit = (k) => coach.locator(`[data-ask-role="${k}"]`).evaluate((b) => getComputedStyle(b).color);
+  expect(await lit('coach') !== await lit('parent'), 'the chosen role is not marked');
   await coach.locator('#request-form button[type=submit]').click();
   await waitText(coach, 'ממתינה לאישור');
   // The manager's tab carries a dot while a request waits, on any screen.

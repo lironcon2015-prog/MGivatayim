@@ -676,7 +676,7 @@ button.form-pill:focus-visible { outline: 2px solid var(--gold); outline-offset:
   border: 1px solid transparent; border-radius: var(--r-pill); padding: .55rem .3rem;
   background: transparent; color: var(--muted); transition: background .15s, color .15s, border-color .15s;
 }
-.seg button[aria-selected="true"] { background: var(--gold-soft); color: var(--gold); border-color: var(--gold-line); }
+.seg button[aria-selected="true"], .seg button[aria-pressed="true"] { background: var(--gold-soft); color: var(--gold); border-color: var(--gold-line); }
 .seg button:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 
 .empty { text-align: center; color: var(--faint); padding: 1.6rem .5rem; font-size: .9rem; }

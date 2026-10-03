@@ -89,6 +89,9 @@ function prepare(payload) {
   s.card = s.isPlayer ? playerCard(s, payload.me) : null;
   // The manager and the coach see any player's card as his phone does
   // (stats → "כרטיסי שחקן"): they have the lineups, so it is worked out here.
+  // The entry QR for the training ground: the players' (the owner's ask),
+  // the parents' too when the manager turns it on; the manager always sees it.
+  s.showQr = !!s.entryQr && (s.isPlayer || s.isAdmin || s.settings?.entryQrParents === true);
   s.cardFor = canMinutes() ? (pid) => playerCard(s, cardMe(s, pid)) : null;
   // The team message: one line from the coach or the manager, on everyone's
   // home screen; written by them (setMessage).

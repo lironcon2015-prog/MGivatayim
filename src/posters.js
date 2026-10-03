@@ -151,6 +151,37 @@ export async function uploadLogo(file) {
   return ref;
 }
 
+// The training ground's entry QR (settings.entryQr, the owner's ask): kept as
+// it is — no background keyed out (its white margin is what a scanner looks
+// for) and no sharpening — only scaled down to QR_EDGE. PNG, which a QR packs
+// small; a photo that will not fit what the bridge takes goes as JPEG, then
+// smaller. Stored like a crest (putLogo), read like one (getPoster): each
+// phone keeps it in IndexedDB, so it opens at the gate with no signal.
+const QR_EDGE = 1024;
+export async function uploadQr(file) {
+  if (!String(file?.type).startsWith('image/')) throw new Error('צריך לבחור קובץ תמונה');
+  let bmp;
+  try { bmp = await createImageBitmap(file); } catch { throw new Error('לא הצלחנו לקרוא את התמונה'); }
+  let edge = Math.min(QR_EDGE, Math.max(bmp.width, bmp.height));
+  let url;
+  for (;;) {
+    const k = edge / Math.max(bmp.width, bmp.height);
+    const c = canvasOf(Math.max(1, Math.round(bmp.width * k)), Math.max(1, Math.round(bmp.height * k)));
+    const ctx = smooth(c);
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, c.width, c.height);
+    ctx.drawImage(bmp, 0, 0, c.width, c.height);
+    url = c.toDataURL('image/png');
+    if (url.length - url.indexOf(',') - 1 > MAX_LOGO_B64) url = c.toDataURL('image/jpeg', 0.92);
+    if (url.length - url.indexOf(',') - 1 <= MAX_LOGO_B64 || edge <= LOGO_MIN_EDGE) break;
+    edge = Math.max(LOGO_MIN_EDGE, Math.round(edge * 0.75));
+  }
+  bmp.close?.();
+  const [mime, data] = url.match(/^data:([^;]+);base64,(.*)$/).slice(1);
+  const { ref } = await call('putLogo', { mime, data }, { asAdmin: true });
+  return ref;
+}
+
 // Manager's save: every video whose link has no poster yet (or changed)
 // gets one made by the bridge. Best effort — a link with no image just keeps
 // the plain card, and never blocks the save.

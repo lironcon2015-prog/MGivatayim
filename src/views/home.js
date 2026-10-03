@@ -5,6 +5,7 @@ import { myCardHtml, crestImg, oppLogo, roundText, sectionHead, formPill, fixtur
 import { DAYS, weekday } from '../trainings.js';
 import { openSheet, toast } from '../ui/sheet.js';
 import { call } from '../bridge.js';
+import { posterUrl } from '../posters.js';
 import { sortedVideos } from './media.js';
 
 // Videos and links are left off the home screen while there are none: a
@@ -102,14 +103,16 @@ function weekInner(s) {
   return `<div class="wk-label">${week.ahead ? 'אימוני השבוע הבא' : 'אימוני השבוע'}
       <span class="aside num">${ltr(`${dayMonth(week.start)}–${dayMonth(week.end)}`)}</span>${toggle}</div>
     ${week.trainings
-      ? `<div class="week" style="--n:${Math.max(4, week.items.length)}">${week.items.map(square).join('')}</div>`
-      : `<div class="card wk-empty">${week.ahead ? 'אין אימונים בשבוע הבא.' : 'אין אימונים השבוע.'}</div>`}`;
+      ? `<div class="week" style="--n:${Math.max(4, week.items.length + (s.showQr ? 1 : 0))}">${week.items.map(square).join('')}${qrSquare(s)}</div>`
+      : `<div class="card wk-empty${s.showQr ? ' with-qr' : ''}"><p>${week.ahead ? 'אין אימונים בשבוע הבא.' : 'אין אימונים השבוע.'}</p>${qrSquare(s)}</div>`}`;
 }
 
 function weekHtml(s) {
   // No strip for a week without trainings, unless the next week's button
   // is on offer and that week has some.
-  if (!s.week?.trainings && !(s.offersNextWeek && s.nextWeek?.trainings)) return '';
+  // The entry QR keeps the strip on screen in a week without trainings too
+  // (the owner's pick): it is where a child looks for it.
+  if (!s.week?.trainings && !(s.offersNextWeek && s.nextWeek?.trainings) && !s.showQr) return '';
   return `<section class="week-sec" aria-label="אימוני השבוע" data-week>${weekInner(s)}</section>`;
 }
 
@@ -246,7 +249,36 @@ function editTrainingSheet(t, s) {
   }
 }
 
+/* ── The entry QR for the training ground ─────────────────────────────
+   One for the whole team, uploaded by the manager (settings.entryQr; the
+   owner's pick against a mockup): a square at the end of the week's strip,
+   dashed like a game's, opening the QR on white, as large as the screen
+   takes. It comes from the phone's own copy (posterUrl keeps it in
+   IndexedDB, fetched when home is drawn), so it opens at the gate with no
+   signal; the screen stays on while it is up. */
+const qrSquare = (s) => (s.showQr ? `<button type="button" class="wk-day qr-day" data-qr>${icon('qr')}<span>כניסה</span></button>` : '');
+
+async function qrSheet(s) {
+  let lock = null;
+  const sh = openSheet({
+    title: 'כניסה למתחם האימונים',
+    subtitle: esc([s.team.name, s.team.league].filter(Boolean).join(' · ')),
+    body: '<div class="qr-pass"><div class="empty">טוען…</div></div>',
+    onClose: () => { lock?.release?.().catch(() => {}); },
+  });
+  try { lock = await navigator.wakeLock?.request('screen'); } catch { /* the screen may sleep: no harm */ }
+  const url = await posterUrl(s.entryQr);
+  const box = sh.el.querySelector('.qr-pass');
+  if (!sh.el.isConnected || !box) { lock?.release?.().catch(() => {}); return; }
+  box.innerHTML = url
+    ? `<img src="${esc(url)}" alt="QR כניסה למתחם האימונים" />`
+    : '<div class="empty">ה-QR עוד לא ירד לטלפון. פותחים פעם אחת עם קליטה, ומאז הוא נשמר.</div>';
+  if (url && !navigator.onLine) box.insertAdjacentHTML('afterend', '<span class="qr-off">אין קליטה · מוצג מהטלפון</span>');
+}
+
 function wireWeek(host, s) {
+  const qr = host.querySelector('[data-qr]');
+  if (qr) qr.onclick = () => qrSheet(s);
   host.querySelectorAll('[data-wk]').forEach((b) => {
     b.onclick = () => { const t = shownWeek(s)?.items[Number(b.dataset.wk)]; if (t) trainingSheet(t, s); };
   });
@@ -304,6 +336,8 @@ function messageSheet(s) {
 export function wireHome(root, s) {
   const host = root.querySelector('[data-week]');
   if (host) wireWeek(host, s);
+  // Fetched now, while there is signal, so the QR is on the phone at the gate.
+  if (s.showQr) posterUrl(s.entryQr);
   root.querySelectorAll('[data-msg]').forEach((b) => { b.onclick = () => messageSheet(s); });
   return startCountdown(root);
 }

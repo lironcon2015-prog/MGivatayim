@@ -96,6 +96,9 @@ export function buildSeason(input, now = new Date()) {
     trainingChanges: input.trainingChanges ?? [],
     analysis: { items: [], ...(input.analysis ?? {}) },
     opponentLogos: cleanLogos(input.opponentLogos),
+    // The training ground's entry QR (settings.entryQr): a Drive id in the
+    // posters folder, like a crest — it lands in an attribute too.
+    entryQr: /^[\w-]{10,100}$/.test(String(input.settings?.entryQr || '')) ? String(input.settings.entryQr) : null,
   };
   const chronological = [...raw.matches].sort((a, b) => a.date.localeCompare(b.date));
   const recent = [...chronological].reverse();

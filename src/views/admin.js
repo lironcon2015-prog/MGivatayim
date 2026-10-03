@@ -8,7 +8,7 @@ import { videoOrder } from './media.js';
 import { openSheet, toast } from '../ui/sheet.js';
 import { icon } from '../icons.js';
 import { roundText, oppLogo, keepFocus } from '../components.js';
-import { preparePosters, uploadLogo, hydratePosters } from '../posters.js';
+import { preparePosters, uploadLogo, uploadQr, hydratePosters } from '../posters.js';
 import { logoKey } from '../season.js';
 import { thumbUrl } from '../gallery.js';
 import { detectFixtureColumns, rowsToFixtures, applyFixtureImport, upcomingFixtures, fixtureKey, mergeNextMatch, playedTest, FIXTURE_FIELDS, todayInIsrael } from '../fixtures.js';
@@ -75,6 +75,7 @@ const SETTINGS_FIELDS = [
   { key: 'veo', label: 'יש לקבוצה מצלמת Veo', type: 'check' },
   { key: 'sampleSchedule', label: 'הלוח עוד לא רשמי', type: 'check' },
   { key: 'showRoster', label: 'סגל הקבוצה', type: 'check' },
+  { key: 'entryQrParents', label: 'גם ההורים רואים את ה-QR', type: 'check' },
 ];
 const HOME_VENUE_FIELDS = [
   { key: 'name', label: 'שם המגרש', wide: true },
@@ -522,6 +523,7 @@ export function mountAdmin(view, ctx) {
   };
   let saving = false;
   let logoBusy = false;
+  let qrBusy = false;
   let gallery = null;        // the team gallery, as the manager sees it (bridge, not the season draft)
   let modeSaving = false;    // the uploads switch moved; the bridge has not answered yet
 
@@ -1232,6 +1234,10 @@ export function mountAdmin(view, ctx) {
           <div class="card" data-format-editor>${formatEditorHtml(cleanFormat(draft.settings?.format), cleanSize(draft.settings?.size))}
             <p class="note">ברירת המחדל לכל משחק חי. אפשר לשנות גם בפתיחת משחק מסוים.</p></div>
         </section>
+        <section id="entry-qr">
+          <div class="sec-head">${icon('qr')}<h2>QR כניסה למתחם</h2></div>
+          <div class="card">${qrAdminHtml()}</div>
+        </section>
         <section>
           <div class="sec-head">${icon('eye')}<h2>מה ההורים רואים</h2></div>
           <div class="card">
@@ -1321,6 +1327,32 @@ export function mountAdmin(view, ctx) {
     saving = false; paint();
   }
 
+  // The entry QR for the training ground (the owner's ask): one for the team,
+  // a square at the end of the week on the players' home screens. Saved with
+  // the season (settings.entryQr), the picture in the posters folder.
+  function qrAdminHtml() {
+    const ref = draft.settings?.entryQr;
+    const pick = (label) => `<label class="btn small secondary">${qrBusy ? 'מעלה…' : label}<input type="file" accept="image/*" data-qr-file hidden${qrBusy ? ' disabled' : ''} /></label>`;
+    return `${ref ? `<div class="qr-admin"><div class="qr-thumb"><img data-poster="${esc(ref)}" alt="ה-QR שהועלה" /></div>
+        <div class="row-btns">${pick('החלפת התמונה')}<button type="button" class="btn small secondary" data-qr-del>מחיקה</button></div></div>`
+      : `<p class="note">צילום מסך של ה-QR, חתוך סביבו. השחקנים יראו ריבוע "כניסה" בסוף פס האימונים במסך הבית.</p><div class="row-btns">${pick('העלאת תמונה')}</div>`}
+      <div class="opt">${fieldHtml(SETTINGS_FIELDS[3], 'settings.entryQrParents', draft.settings?.entryQrParents === true)}
+        <p class="note">השחקנים ואתם רואים אותו תמיד. כל טלפון מוריד אותו פעם אחת ושומר אצלו — הוא נפתח גם בלי קליטה.</p></div>`;
+  }
+
+  async function onQrFile(el) {
+    const file = el.files?.[0];
+    el.value = '';
+    if (!file) return;
+    qrBusy = true; paint();
+    try {
+      const ref = await uploadQr(file);
+      draft.settings = { ...(draft.settings || {}), entryQr: ref };
+      touch();
+    } catch (err) { toast(esc(err.message || 'ההעלאה נכשלה'), { kind: 'err', ms: 7000 }); }
+    qrBusy = false; paint();
+  }
+
   /* ---- events ---- */
 
   async function onLogoFile(el) {
@@ -1339,6 +1371,10 @@ export function mountAdmin(view, ctx) {
 
   const onInput = (e) => {
     const el = e.target;
+    if (el.dataset.qrFile != null) {
+      if (e.type === 'change') onQrFile(el);
+      return;
+    }
     if (el.dataset.logoFile != null) {
       if (e.type === 'change') onLogoFile(el);
       return;
@@ -1503,6 +1539,11 @@ export function mountAdmin(view, ctx) {
     if (t.dataset.import === 'file') { view.querySelector('[data-import-file]')?.click(); return; }
     if (t.dataset.clearGames !== undefined) { clearGamesSheet(); return; }
     if (t.dataset.inviteCopy !== undefined) { copyInvite(); return; }
+    if (t.dataset.qrDel !== undefined) {
+      draft.settings = { ...(draft.settings || {}), entryQr: null };
+      touch(); paint();
+      return;
+    }
     if (t.dataset.crestPrompt !== undefined) {
       copyText(CREST_PROMPT).then((ok) => toast(ok ? 'ההנחיה הועתקה — הדביקו אותה בגמיני עם הסמל.' : 'ההעתקה לא הצליחה.', ok ? {} : { kind: 'err' }));
       return;

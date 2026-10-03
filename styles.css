@@ -376,6 +376,24 @@ section { margin-top: 1.9rem; }
 }
 .wk-next:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 .wk-empty { padding: .9rem var(--pad); font-size: .85rem; color: var(--muted); text-align: center; }
+.wk-empty p { margin: 0; }
+/* The entry QR: a square at the end of the week, dashed like a game's; in a
+   week without trainings it sits in the "no trainings" card. On white in
+   its sheet — a scanner wants dark on light. */
+.wk-day.qr-day { justify-content: center; gap: .3rem; background: transparent; border-style: dashed; color: var(--gold); }
+.wk-day.qr-day svg { width: 24px; height: 24px; }
+.wk-day.qr-day span { font-size: .72rem; font-weight: 700; }
+.wk-empty.with-qr { display: flex; align-items: center; gap: .8rem; padding: .6rem; text-align: start; }
+.wk-empty.with-qr p { flex: 1; padding-inline-start: .4rem; }
+.wk-empty.with-qr .qr-day { width: 84px; flex: none; }
+.qr-pass { background: #fff; border-radius: var(--r-tile); padding: 18px; display: grid; place-items: center; min-height: 200px; }
+.qr-pass img { width: min(100%, 320px); height: auto; display: block; }
+.qr-pass .empty { color: var(--on-gold); }
+.qr-admin { display: flex; align-items: center; gap: var(--gap); }
+.qr-admin .row-btns { flex: 1; flex-direction: column; margin-top: 0; }
+.qr-thumb { width: 112px; flex: none; background: #fff; border-radius: 12px; padding: 8px; }
+.qr-thumb img { width: 100%; display: block; }
+.qr-off { display: block; width: max-content; max-width: 100%; margin: .7rem auto 0; font-size: .78rem; color: var(--muted); border: 1px dashed var(--line-strong); border-radius: var(--r-pill); padding: .15rem .7rem; }
 .week { display: grid; grid-template-columns: repeat(var(--n, 4), minmax(0, 1fr)); gap: 7px; padding-top: 8px; }
 .wk-day {
   position: relative; min-width: 0; min-height: 84px; padding: .5rem .3rem; border-radius: var(--r-field);

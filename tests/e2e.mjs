@@ -2106,6 +2106,44 @@ await step('a player sees his own card and no leaderboard; the coach\'s message 
   await kid.locator('#view .card').first().waitFor({ timeout: 8000 });
   expect(await kid.locator('[data-act="claim"]').count() === 0, 'the player is offered a control code');
 
+  // The entry QR: the manager uploads one; it stays whole (no margin cut
+  // away, no background keyed out — the white edge is what a scanner wants),
+  // the player gets a square at the end of the week, a parent none until the
+  // manager says so, and it opens from the phone's copy when the bridge is out.
+  await admin.goto(APP + '#/admin');
+  await admin.reload();
+  await admin.click('[data-tab="team"]');
+  await admin.setInputFiles('#entry-qr [data-qr-file]', { name: 'qr.png', mimeType: 'image/png', buffer: rgbaPng(40, 40, (x, y) => (x >> 3) % 2 === (y >> 3) % 2, [255, 255, 255]) });
+  const qrThumb = admin.locator('#entry-qr .qr-thumb img[src]');
+  await qrThumb.waitFor({ timeout: 8000 });
+  const qrDims = await qrThumb.evaluate(async (i) => { await i.decode(); return `${i.naturalWidth}x${i.naturalHeight}`; });
+  expect(qrDims === '40x40', 'the QR was cropped or keyed: ' + qrDims);
+  await admin.click('#save');
+  await waitSaved(admin);
+  await kid.goto(APP + '#/');
+  await kid.reload();
+  await kid.locator('.week-sec [data-qr]').waitFor({ timeout: 8000 });
+  await parent.goto(APP + '#/');
+  await parent.reload();
+  await parent.locator('.week-sec, .next-card, .card').first().waitFor({ timeout: 8000 });
+  expect(await parent.locator('[data-qr]').count() === 0, 'a parent got the QR with the switch off');
+  await kid.click('[data-qr]');
+  await kid.locator('.sheet .qr-pass img').evaluate((i) => i.decode());
+  await kid.locator('.sheet .sheet-x').click();
+  await kid.waitForFunction(() => !document.querySelector('.sheet'));
+  const noPoster = (r) => {
+    let a = '';
+    try { a = JSON.parse(r.request().postData() || '{}').action; } catch {}
+    return a === 'getPoster' ? r.abort() : r.fallback();
+  };
+  await kid.route(BRIDGE, noPoster);
+  await kid.reload();
+  await kid.locator('[data-qr]').click();
+  await kid.locator('.sheet .qr-pass img').evaluate((i) => i.decode());
+  await kid.unroute(BRIDGE, noPoster);
+  await kid.locator('.sheet .sheet-x').click();
+  await kid.waitForFunction(() => !document.querySelector('.sheet'));
+
   // The message: written on the home screen (the coach's device is revoked by
   // now; the manager writes it the same way), read by all.
   try {

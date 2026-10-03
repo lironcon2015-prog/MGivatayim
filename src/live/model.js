@@ -461,6 +461,69 @@ export function minutesPlayed(state, now = null) {
   }
 }
 
+// Where each player of a finished match played, in the order he first stood
+// there: the lineup, subs and formation changes walked like minutesPlayed. A
+// position held for less than `minMs` is left out (a formation change undone
+// at once, a swap for the last minute — the owner's pick); a player who held
+// none that long keeps the one he held longest. Only the names leave here,
+// never the time: a player's card must not tell how long he played. The
+// bridge walks the same way (positionsPlayed_), for the player's own phone.
+export const POS_MIN_MS = 5 * 60000;
+export function positionsPlayed(state, minMs = POS_MIN_MS) {
+  const format = state.format || [];
+  const events = state.events || [];
+  const lengths = format.map((_, p) => {
+    const end = events.find((e) => e.type === 'period_end' && e.period === p);
+    return end ? end.atMs : 0;
+  });
+  const held = new Map();
+  const field = new Map();
+  const stand = (pid, pos) => {
+    if (!pid || !pos) return;
+    field.set(pid, pos);
+    const m = held.get(pid) || held.set(pid, new Map()).get(pid);
+    if (!m.has(pos)) m.set(pos, 0);
+  };
+  for (const l of state.lineup || []) stand(l.pid, l.pos);
+  const changes = events.map((e, i) => ({ e, i })).filter(({ e }) => e.type === 'sub' || e.type === 'shape')
+    .sort((a, b) => order(a.e, b.e) || a.i - b.i).map(({ e }) => e);
+  let k = 0;
+  for (let p = 0; p < format.length; p++) {
+    const L = lengths[p];
+    let cursor = 0;
+    while (k < changes.length && changes[k].period < p) apply(changes[k++]);
+    while (k < changes.length && changes[k].period === p) {
+      const at = Math.min(Math.max(changes[k].atMs, 0), L);
+      credit(at - cursor);
+      cursor = at;
+      apply(changes[k++]);
+    }
+    credit(L - cursor);
+  }
+  while (k < changes.length) apply(changes[k++]);
+  const out = {};
+  for (const [pid, m] of held) {
+    const all = [...m];
+    const long = all.filter(([, ms]) => ms >= minMs).map(([pos]) => pos);
+    out[pid] = long.length ? long : [all.reduce((a, b) => (b[1] > a[1] ? b : a))[0]];
+  }
+  return out;
+
+  function credit(d) {
+    if (d > 0) for (const [pid, pos] of field) held.get(pid).set(pos, held.get(pid).get(pos) + d);
+  }
+  function apply(e) {
+    if (e.type === 'shape') {
+      for (const m of e.moves || []) if (field.has(m.pid)) stand(m.pid, m.pos);
+      return;
+    }
+    if (!field.has(e.out)) return;
+    const pos = e.pos || field.get(e.out);
+    field.delete(e.out);
+    stand(e.in, pos);
+  }
+}
+
 // The event's place on the clock when it is entered: "now" while a period
 // runs, or the start of the next period during a break — which is what the
 // "period start" option means for a change made at the interval.

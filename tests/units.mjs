@@ -890,6 +890,33 @@ await test('a result entered by hand credits its scorers and assists; a friendly
   assert.deepEqual(s.recent.find((m) => m.opponent === 'א').goals[1], { og: true, scorer: null, assist: null });
 });
 
+await test('a player\'s card: his matches but a live one he missed, where he played, counted once a match', async () => {
+  const { buildSeason, playerCard, cardMe } = await import('../src/season.js');
+  const live = (liveId, date, lineup, events = [], extra = {}) => ({ liveId, date, opponent: 'יריבה ' + liveId, home: true, gf: 1, ga: 0,
+    format: [30, 30], lineup, events: [...events, { id: 'e0', type: 'period_end', period: 0, atMs: 30 * 60000 }, { id: 'e1', type: 'period_end', period: 1, atMs: 30 * 60000 }], ...extra });
+  const s = buildSeason({
+    players: [{ id: 'p1', name: 'אורי', pos: 'CB' }, { id: 'p2', name: 'דני', pos: 'ST' }],
+    matches: [
+      live('L1', '2026-09-01', [{ pid: 'p1', pos: 'CB' }, { pid: 'p2', pos: 'ST' }],
+        [{ id: 's1', type: 'shape', period: 1, atMs: 0, formation: '', moves: [{ pid: 'p1', pos: 'RB' }] },
+          { id: 'g1', type: 'goal', side: 'us', period: 1, atMs: 60000, scorer: 'p2', assist: 'p1' }]),
+      live('L2', '2026-09-08', [{ pid: 'p2', pos: 'ST' }]),
+      live('L3', '2026-09-15', [{ pid: 'p1', pos: 'RB' }], [], { friendly: true }),
+      { date: '2026-09-22', opponent: 'ידני', home: false, gf: 0, ga: 0 },
+    ],
+  });
+  const me = cardMe(s, 'p1');
+  assert.deepEqual(me, { pid: 'p1', positions: { L1: ['CB', 'RB'], L3: ['RB'] }, missed: ['L2'] });
+  const c = playerCard(s, me);
+  assert.deepEqual(c.journal.map((r) => [r.match.opponent, r.pos]), [['ידני', []], ['יריבה L3', ['RB']], ['יריבה L1', ['CB', 'RB']]]);
+  assert.equal(c.games, 2, 'the friendly is listed, not counted');
+  assert.deepEqual(c.positions, [{ id: 'RB', n: 2 }, { id: 'CB', n: 1 }]);
+  assert.equal(c.journal[2].assists.length, 1);
+  // From the bridge: a position it never knew is dropped before it reaches the page.
+  const odd = playerCard(s, { pid: 'p1', positions: { L1: ['<img>', 'CB'] }, missed: [] });
+  assert.deepEqual(odd.journal.find((r) => r.match.liveId === 'L1').pos, ['CB']);
+});
+
   console.log(`\nunits: ${passed} passed, ${failures.length} failed`);
   process.exit(failures.length ? 1 : 0);
 }

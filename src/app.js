@@ -1,4 +1,4 @@
-import { playerCard, buildSeason, opponentLogo } from './season.js';
+import { playerCard, cardMe, buildSeason, opponentLogo } from './season.js';
 import { esc, seasonLabel, byNumber } from './format.js';
 import { crestImg, keepImages, keepFocus } from './components.js';
 import { icon } from './icons.js';
@@ -6,7 +6,7 @@ import { DEFAULT_CREST } from './config.js';
 import { call, bridgeConfigured } from './bridge.js';
 import * as store from './store.js';
 import { renderHome, wireHome } from './views/home.js';
-import { renderStats, wireStats } from './views/stats.js';
+import { renderStats, wireStats, statsJump } from './views/stats.js';
 import { renderMedia } from './views/media.js';
 import { wireGallery } from './views/gallery.js';
 import * as gate from './views/gate.js';
@@ -87,6 +87,9 @@ function prepare(payload) {
   // no analysis, no uploads, no control code. The bridge strips the rest.
   s.isPlayer = isPlayer();
   s.card = s.isPlayer ? playerCard(s, payload.me) : null;
+  // The manager and the coach see any player's card as his phone does
+  // (stats → "כרטיסי שחקן"): they have the lineups, so it is worked out here.
+  s.cardFor = canMinutes() ? (pid) => playerCard(s, cardMe(s, pid)) : null;
   // The team message: one line from the coach or the manager, on everyone's
   // home screen; written by them (setMessage).
   s.message = payload.message?.text ? payload.message : null;
@@ -640,6 +643,7 @@ let jumpTo = null;
 document.addEventListener('click', (e) => { jumpTo = e.target.closest?.('a[data-jump]')?.dataset.jump || null; }, true);
 window.addEventListener('hashchange', () => {
   state.formError = '';
+  statsJump(jumpTo);
   render();
   const target = jumpTo && document.getElementById(jumpTo);
   jumpTo = null;

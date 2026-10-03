@@ -452,24 +452,80 @@ button.form-pill:focus-visible { outline: 2px solid var(--gold); outline-offset:
 .tile.good b { color: var(--win); }
 
 /* ── The player's own card, the team message ───────────────────────── */
-.my-head { display: flex; align-items: baseline; gap: .55rem; margin-bottom: .8rem; }
-.my-head b { font-size: 1.1rem; }
-.my-num { color: var(--gold); font-size: 1.1rem; font-weight: 600; }
+/* Chosen against a mockup: shirt and name, tiles, where he played (a small
+   pitch and by name), his matches. Gold is his goals, blue his assists. */
+.my-card { display: flex; flex-direction: column; gap: .85rem; }
+.my-head { display: flex; align-items: center; gap: .65rem; }
+.my-head > span:last-child { min-width: 0; }
+.my-head b { display: block; font-size: 1.1rem; }
+.my-head small { display: block; font-size: .8rem; color: var(--muted); }
+.my-num {
+  flex: none; width: 42px; height: 42px; border-radius: 13px; display: grid; place-items: center;
+  background: var(--gold-soft); border: 1px solid var(--gold-line); color: var(--gold); font-size: 1.1rem; font-weight: 600;
+}
 .my-card .tile { background: var(--surface-2); }
-.my-list { margin-top: .6rem; }
+.my-sub { display: flex; align-items: center; gap: .4rem; margin: .2rem 0 0; font-size: .82rem; font-weight: 700; color: var(--muted); }
+.my-sub svg { width: 15px; height: 15px; color: var(--gold); }
+.my-pos { display: grid; grid-template-columns: 84px minmax(0, 1fr); gap: .8rem; align-items: center; }
+.my-pitch {
+  position: relative; height: 110px; border-radius: 10px; overflow: hidden;
+  background: var(--well); border: 1px solid var(--line);
+}
+.my-pitch::before { content: ''; position: absolute; inset: 50% 0 auto; border-top: 1px solid var(--line); }
+.my-pitch::after { content: ''; position: absolute; left: 30%; right: 30%; bottom: 0; height: 15%; border: 1px solid var(--line); border-bottom: 0; }
+.my-pitch span {
+  position: absolute; width: 8px; height: 8px; border-radius: 50%; transform: translate(-50%, -50%);
+  background: var(--gold); opacity: .55; box-shadow: 0 0 0 3px var(--gold-soft);
+}
+.my-pitch span.main { width: 13px; height: 13px; opacity: 1; }
+.my-chips { display: flex; flex-wrap: wrap; gap: .4rem; }
+.my-chip {
+  display: inline-flex; align-items: center; gap: .3rem; padding: .25rem .65rem; border-radius: var(--r-pill);
+  background: var(--surface-2); border: 1px solid var(--line); font-size: .82rem; font-weight: 600;
+}
+.my-chip.main { background: var(--gold-soft); border-color: var(--gold-line); }
+.my-chip .num { color: var(--muted); font-size: .76rem; direction: ltr; unicode-bidi: isolate; }
 .my-row {
-  display: flex; align-items: center; gap: .7rem; width: 100%; padding: .7rem 0; text-align: start;
-  background: none; border: 0; color: inherit; font: inherit; touch-action: manipulation;
+  display: flex; align-items: center; gap: .6rem; width: 100%; padding: .6rem 0; text-align: start;
+  background: none; border: 0; color: inherit; font: inherit; touch-action: manipulation; cursor: pointer;
 }
 .my-row + .my-row { border-top: 1px solid var(--line); }
+.my-date { flex: none; width: 2.6rem; text-align: center; font-size: .78rem; color: var(--faint); }
+.my-row .sc-disc.my-opp { flex: none; position: relative; width: 30px; height: 30px; font-size: .68rem; }
 .my-row .who { flex: 1; min-width: 0; }
-.my-row .who b { display: block; font-size: .95rem; }
-.my-row .who > span { font-size: .78rem; color: var(--faint); }
-.my-ico { width: 32px; height: 32px; flex: none; border-radius: 50%; display: grid; place-items: center; background: var(--surface-2); }
-.my-ico svg { width: 17px; height: 17px; }
-.my-ico.g { color: var(--gold); }
-.my-ico.a { color: var(--blue); }
-.my-tag { flex: none; font-size: .72rem; color: var(--muted); border: 1px dashed var(--faint); border-radius: 999px; padding: .1rem .55rem; }
+.my-row .who b { display: block; font-size: .93rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.my-row .who > span { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; font-size: .78rem; color: var(--muted); }
+.my-at { color: var(--text); }
+.my-mark { display: inline-flex; align-items: center; gap: .15rem; font-weight: 700; }
+.my-mark svg { width: 14px; height: 14px; }
+.my-mark .num { direction: ltr; unicode-bidi: isolate; }
+.my-mark.g { color: var(--gold); }
+.my-mark.a { color: var(--blue); }
+.my-tag { flex: none; font-size: .72rem; color: var(--muted); border: 1px dashed var(--faint); border-radius: 999px; padding: .05rem .5rem; }
+.my-res { flex: none; padding: .2rem .55rem; border-radius: var(--r-pill); border: 1px solid; font-size: .86rem; font-weight: 600; direction: ltr; unicode-bidi: isolate; }
+.my-res b { color: var(--gold); font-weight: 600; }
+.my-res.friendly { border-style: dashed; }
+/* The stats screen's switch, and the manager's and the coach's player cards. */
+.stats-pane { margin-bottom: 1.1rem; }
+.stats-pane button { flex: 1; }
+.pick-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .5rem; margin-top: .6rem; }
+.pick-player {
+  display: flex; align-items: center; gap: .55rem; min-width: 0; padding: .6rem .7rem; text-align: start;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-field); color: inherit; font: inherit;
+  cursor: pointer; touch-action: manipulation;
+}
+.pick-player:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.pick-player > .num { flex: none; width: 1.6rem; text-align: center; color: var(--muted); font-weight: 600; }
+.pick-player > span:last-child { min-width: 0; }
+.pick-player b { display: block; font-size: .88rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pick-player small { display: block; font-size: .74rem; color: var(--faint); }
+.viewing {
+  display: flex; align-items: center; gap: .5rem; padding: .55rem .75rem; border-radius: var(--r-field);
+  background: var(--well); border: 1px dashed var(--line-strong); font-size: .85rem; color: var(--muted);
+}
+.viewing > svg { width: 16px; height: 16px; flex: none; color: var(--gold); }
+.viewing .linkish { margin-inline-start: auto; white-space: nowrap; color: var(--gold); font-weight: 700; }
+.card-step { display: flex; align-items: center; justify-content: space-between; margin: .7rem 0 1rem; font-size: .82rem; color: var(--faint); }
 .msg-card { display: flex; gap: .75rem; align-items: flex-start; }
 .msg-card > svg { width: 20px; height: 20px; flex: none; color: var(--gold); margin-top: .15rem; }
 .msg-card .msg-body { flex: 1; min-width: 0; }

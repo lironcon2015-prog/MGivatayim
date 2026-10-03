@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import * as M from '../src/live/model.js';
 import { subGroups } from '../src/positions.js';
+import { createBridge } from './mock-bridge.mjs';
 
 const P = (id, number, pos, pos2 = '') => ({ id, name: 'שחקן ' + id, number, pos, pos2 });
 const squad = [P('g', 1, 'GK'), P('a', 7, 'LB', 'LW'), P('b', 10, 'AM', 'CM'), P('c', 9, 'ST'), P('d', 12, 'LW', 'LB'), P('e', 14, 'CB', 'DM')];
@@ -312,5 +313,39 @@ export async function run(test) {
     const g = subGroups('LW', field, { second: () => '', also: 'CM', rest: 'שאר המגרש', all: 'על המגרש' })
       .map((x) => [x.label, x.players.map((p) => p.id)]);
     assert.deepEqual(g, [['בעמדה: כנף שמאל', ['f3']], ['בעמדה: קשר מרכזי', ['f4']], ['התקפה', ['f1']], ['הגנה', ['f2']], ['שאר המגרש', ['f5']]]);
+  });
+
+  // Where each player played (the player's card): the lineup, subs and formation
+  // changes in order, five minutes in a position at least, else his longest.
+  const played = {
+    format: [30, 30, 20],
+    lineup: [{ pid: 'a', pos: 'CB' }, { pid: 'b', pos: 'RB' }, { pid: 'c', pos: 'ST' }],
+    events: [
+      { type: 'period_start', period: 0, atMs: 0 },
+      { type: 'sub', period: 0, atMs: 15 * MIN, out: 'b', in: 'd', pos: 'RB' },
+      { type: 'period_end', period: 0, atMs: 31 * MIN },
+      { type: 'shape', period: 1, atMs: 2 * MIN, formation: '', moves: [{ pid: 'a', pos: 'DM' }] },
+      { type: 'shape', period: 1, atMs: 4 * MIN, formation: '', moves: [{ pid: 'a', pos: 'CB' }, { pid: 'zz', pos: 'GK' }] },
+      { type: 'sub', period: 1, atMs: 20 * MIN, out: 'a', in: 'b', pos: 'CB' },
+      { type: 'period_end', period: 1, atMs: 30 * MIN },
+      { type: 'sub', period: 2, atMs: 0, atStart: true, out: 'd', in: 'e' },
+      { type: 'sub', period: 2, atMs: 19 * MIN, out: 'c', in: 'f' },
+      { type: 'period_end', period: 2, atMs: 20 * MIN },
+    ],
+  };
+  const expected = { a: ['CB'], b: ['RB', 'CB'], c: ['ST'], d: ['RB'], e: ['RB'], f: ['ST'] };
+
+  await test('positions played: in order, a short spell left out, a minute-long sub keeps his one position', () => {
+    assert.deepEqual(M.positionsPlayed(played), expected);
+  });
+
+  await test('positions played: the bridge walks the same way as the app', () => {
+    const bridgeFn = createBridge().fn('positionsPlayed_');
+    const norm = (o) => JSON.parse(JSON.stringify(o));
+    assert.deepEqual(norm(bridgeFn(played)), expected);
+    const noEnd = { ...played, events: played.events.filter((e) => e.type !== 'period_end') };
+    assert.deepEqual(norm(bridgeFn(noEnd)), norm(M.positionsPlayed(noEnd)));
+    const shortMatch = { ...played, events: played.events.map((e) => (e.type === 'period_end' ? { ...e, atMs: 3 * MIN } : e)) };
+    assert.deepEqual(norm(bridgeFn(shortMatch)), norm(M.positionsPlayed(shortMatch)));
   });
 }

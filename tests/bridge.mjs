@@ -853,6 +853,7 @@ console.log('gallery:');
       { liveId: 'L2', date: '2026-09-27', opponent: 'ב', gf: 1, ga: 1, lineup: [{ pid: 'p9', pos: 'ST' }], events: [{ type: 'sub', in: 'p10', out: 'p9' }] },
       { liveId: 'L3', date: '2026-10-01', opponent: 'ג', gf: 2, ga: 0, friendly: true, lineup: [{ pid: 'p10', pos: 'CM' }], events: [] },
       { date: '2026-09-13', opponent: 'ד', gf: 1, ga: 0, goals: [{ scorer: 'p9', assist: 'p10' }] },
+      { liveId: 'L4', date: '2026-10-04', opponent: 'ה', gf: 0, ga: 0, lineup: [{ pid: 'p9', pos: 'ST' }], events: [] },
     ] } });
 
   test('only the manager marks a player, linked to one child of the squad', () => {
@@ -877,7 +878,8 @@ console.log('gallery:');
     assert.ok(!s.analysis, 'the manager\'s analysis reached a player');
     assert.deepEqual(s.links.map((l) => l.icon), ['instagram'], 'a parents\' link reached a player');
     // Started one, came on in one, assisted in a typed result; the friendly is not counted.
-    assert.deepEqual(r.me, { pid: 'p10', games: 3 });
+    // Where he played in each live match (names only), and the one he missed.
+    assert.deepEqual(r.me, { pid: 'p10', games: 3, positions: { L1: ['CM'], L2: ['ST'], L3: ['CM'] }, missed: ['L4'] });
     const p = C.post({ action: 'getSeason', deviceKey: parent }).result;
     assert.equal(p.role, 'parent');
     assert.ok(!p.me && p.season.analysis && p.season.links.length === 2, 'a parent lost what is theirs');
@@ -893,7 +895,7 @@ console.log('gallery:');
   test('a player not linked yet sees everything but a card', () => {
     C.post({ action: 'setRole', adminCode: ADMIN, id: kidId, role: 'player' });
     const r = C.post({ action: 'getSeason', deviceKey: kid }).result;
-    assert.deepEqual(r.me, { pid: null, games: 0 });
+    assert.deepEqual(r.me, { pid: null, games: 0, positions: {}, missed: [] });
     assert.ok(r.season.players.every((p) => !('goals' in p)), 'an unlinked player got a child\'s totals');
     C.post({ action: 'setRole', adminCode: ADMIN, id: kidId, role: 'parent' });
     assert.ok(!('pid' in C.post({ action: 'listUsers', adminCode: ADMIN }).result.find((x) => x.id === kidId)), 'a parent kept a child link');

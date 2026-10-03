@@ -1,4 +1,5 @@
-import { outcomeOf, OUTCOMES } from './season.js';
+import { outcomeOf, OUTCOMES, opponentLogo } from './season.js';
+import { position, posLabel } from './positions.js';
 import { esc, safeUrl, shortDate } from './format.js';
 import { icon } from './icons.js';
 import { youtubeThumb, cachedPosterUrl } from './posters.js';
@@ -276,31 +277,50 @@ export function foldRows(list, key, shown = 5) {
 /* ── The player's own card (role 'player') ─────────────────────────────── */
 
 // A child's phone shows his own numbers and never a ranking (the owner: no
-// leaderboard for players). League games, goals and assists — friendlies
-// count in none — and every goal and assist, newest first, a friendly's
-// tagged "אימון". `limit` cuts the list on the home screen.
-const CONTRIB = { goal: ['ball', 'שער'], pen: ['penalty', 'שער בפנדל'], assist: ['boot', 'בישול'] };
-export function myCardHtml(s, { limit = Infinity } = {}) {
-  const c = s.card;
+// leaderboard for players), chosen against a mockup: games, goals, assists —
+// friendlies count in none — then where he played this season, on a small
+// pitch and by name, and his matches, each with where he played and his goals
+// (gold ball) and assists (blue boot). Nothing says what is missing (the
+// owner: a line like "the first goal will come" hurts): with no goal and no
+// assist, the two zero tiles give way to "positions". The manager and the
+// coach see the same card for any player (stats → "כרטיסי שחקן").
+// `limit` cuts the matches on the home screen, without the positions.
+export function myCardHtml(s, { limit = Infinity, card = s.card } = {}) {
+  const c = card;
   if (!c) {
     return `<div class="card my-card"><div class="empty">המנהל צריך לבחור מי אתה מהסגל — אחרי זה יופיעו כאן המשחקים, השערים והבישולים שלך.</div></div>`;
   }
-  const rows = c.list.slice(0, limit).map((r) => {
-    const [glyph, word] = CONTRIB[r.kind];
-    return `<button type="button" class="my-row" data-match="${s.recent.indexOf(r.match)}">
-      <span class="my-ico ${r.kind === 'assist' ? 'a' : 'g'}">${icon(glyph)}</span>
-      <span class="who"><b>${word}${r.minute ? ` <span class="num">${r.minute}</span>` : ''}</b><span>מול ${esc(r.match.opponent)} · <span class="num">${esc(shortDate(r.match.date))}</span></span></span>
-      ${r.friendly ? '<span class="my-tag">אימון</span>' : ''}
+  const short = limit !== Infinity;
+  const zero = !c.goals && !c.assists && c.positions.length;
+  const tiles = zero
+    ? `<div class="tiles">${tile({ value: c.games, label: 'משחקים' })}${tile({ value: c.positions.length, label: 'עמדות', tone: 'accent' })}</div>`
+    : `<div class="tiles three">${tile({ value: c.games, label: 'משחקים' })}${tile({ value: c.goals, label: 'שערים', tone: 'accent' })}${tile({ value: c.assists, label: 'בישולים' })}</div>`;
+  const places = c.positions.length && !short ? `<p class="my-sub">${icon('pin')}העמדות שלי העונה</p>
+    <div class="my-pos">
+      <div class="my-pitch" aria-hidden="true">${c.positions.map(({ id }, i) => {
+        const at = position(id);
+        return `<span class="${i ? '' : 'main'}" style="left:${at.x * 100}%;top:${at.y * 100}%"></span>`;
+      }).join('')}</div>
+      <div class="my-chips">${c.positions.map(({ id, n }, i) => `<span class="my-chip${i ? '' : ' main'}">${esc(posLabel(id))} <span class="num">×${n}</span></span>`).join('')}</div>
+    </div>` : '';
+  const rows = c.journal.slice(0, limit).map((r) => {
+    const m = r.match;
+    const o = outcomeOf(m);
+    const many = (list) => (list.length > 1 ? `<span class="num">×${list.length}</span>` : list[0]?.minute ? `<span class="num">${esc(list[0].minute)}</span>` : '');
+    return `<button type="button" class="my-row" data-match="${s.recent.indexOf(m)}">
+      <span class="my-date num">${esc(shortDate(m.date).slice(0, 5))}</span>
+      <span class="sc-disc my-opp">${esc(String(m.opponent || '').slice(0, 2))}${oppLogo(opponentLogo(s, m.opponent), m.opponent)}</span>
+      <span class="who"><b>${esc(m.opponent)}</b><span>${r.pos.length ? `<span class="my-at">${r.pos.map((x) => esc(posLabel(x))).join(' · ')}</span>` : ''}${
+        r.goals.length ? `<span class="my-mark g" aria-label="שערים: ${r.goals.length}">${icon('ball')}${many(r.goals)}</span>` : ''}${
+        r.assists.length ? `<span class="my-mark a" aria-label="בישולים: ${r.assists.length}">${icon('boot')}${many(r.assists)}</span>` : ''}${
+        r.friendly ? '<span class="my-tag">אימון</span>' : ''}</span></span>
+      <span class="my-res ${CLASS_OF[o]}${r.friendly ? ' friendly' : ''} num"><b>${m.gf}</b>:${m.ga}</span>
     </button>`;
   }).join('');
   return `<div class="card my-card">
-    <div class="my-head"><span class="my-num num">${c.player.number ?? ''}</span><b>${esc(c.player.name)}</b></div>
-    <div class="tiles three">
-      ${tile({ value: c.games, label: 'משחקים' })}
-      ${tile({ value: c.goals, label: 'שערים', tone: 'accent' })}
-      ${tile({ value: c.assists, label: 'בישולים' })}
-    </div>
-    ${rows ? `<div class="rows my-list">${rows}</div>` : '<div class="empty">השער הראשון שלך יופיע כאן.</div>'}
-    ${c.list.some((r) => r.friendly) ? '<p class="note">שערים ובישולים ממשחקי אימון מופיעים ברשימה ולא נספרים במספרים.</p>' : ''}
+    <div class="my-head"><span class="my-num num">${c.player.number ?? ''}</span><span><b>${esc(c.player.name)}</b>${c.pos ? `<small>${esc(posLabel(c.pos))}</small>` : ''}</span></div>
+    ${tiles}
+    ${places}
+    ${rows ? `<p class="my-sub">${icon('calendar')}המשחקים שלי</p><div class="rows my-list"${short ? '' : ' data-fold="mine"'}>${rows}</div>` : '<div class="empty">עוד לא שוחקו משחקים.</div>'}
   </div>`;
 }

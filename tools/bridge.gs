@@ -463,7 +463,69 @@ function forPlayers_(s, pid) {
   });
   delete season.analysis;
   season.links = (season.links || []).filter((l) => PARENT_LINK_ICONS.indexOf(String((l && l.icon) || '')) < 0);
-  out.me = { pid: pid, games: games };
+  /* הכרטיס שלו (בעל הריפו): בכל משחק לייב — באילו עמדות שיחק, ומשחקי לייב
+     שלא שיחק בהם. רק שמות עמדות יוצאים, בלי זמנים ובלי הרכבים. */
+  const positions = {}, missed = [];
+  ((s.season || {}).matches || []).forEach((m) => {
+    if (!pid || !m || !m.liveId || !Array.isArray(m.lineup)) return;
+    const got = positionsPlayed_(m)[pid];
+    if (got) positions[String(m.liveId)] = got; else missed.push(String(m.liveId));
+  });
+  out.me = { pid: pid, games: games, positions: positions, missed: missed };
+  return out;
+}
+
+/* איפה כל שחקן שיחק במשחק שהסתיים, לפי הסדר: ההרכב, החילופים ושינויי המערך.
+   עמדה של פחות מ-5 דקות לא נספרת; מי שלא החזיק אף אחת כך — הארוכה שלו.
+   זהה ל-positionsPlayed ב-src/live/model.js (tests/units.mjs משווה). */
+const POS_MIN_MS = 5 * 60000;
+function positionsPlayed_(m) {
+  const format = Array.isArray(m.format) ? m.format : [];
+  const events = (Array.isArray(m.events) ? m.events : []).filter((e) => e && typeof e === 'object');
+  const lengths = format.map((_, p) => {
+    const end = events.find((e) => e.type === 'period_end' && e.period === p);
+    return end ? Number(end.atMs) || 0 : 0;
+  });
+  const held = {}, order = {}, field = {};
+  const stand = (pid, pos) => {
+    if (!pid || !pos) return;
+    field[pid] = pos;
+    if (!held[pid]) { held[pid] = {}; order[pid] = []; }
+    if (!(pos in held[pid])) { held[pid][pos] = 0; order[pid].push(pos); }
+  };
+  (Array.isArray(m.lineup) ? m.lineup : []).forEach((l) => { if (l) stand(l.pid, l.pos); });
+  const changes = events.map((e, i) => ({ e: e, i: i })).filter((x) => x.e.type === 'sub' || x.e.type === 'shape')
+    .sort((a, b) => a.e.period - b.e.period || a.e.atMs - b.e.atMs || a.i - b.i).map((x) => x.e);
+  const credit = (d) => { if (d > 0) Object.keys(field).forEach((pid) => { held[pid][field[pid]] += d; }); };
+  const apply = (e) => {
+    if (e.type === 'shape') {
+      (e.moves || []).forEach((mv) => { if (mv && field[mv.pid]) stand(mv.pid, mv.pos); });
+      return;
+    }
+    if (!field[e.out]) return;
+    const pos = e.pos || field[e.out];
+    delete field[e.out];
+    stand(e.in, pos);
+  };
+  let k = 0;
+  for (let p = 0; p < format.length; p++) {
+    const L = lengths[p];
+    let cursor = 0;
+    while (k < changes.length && changes[k].period < p) apply(changes[k++]);
+    while (k < changes.length && changes[k].period === p) {
+      const at = Math.min(Math.max(changes[k].atMs, 0), L);
+      credit(at - cursor);
+      cursor = at;
+      apply(changes[k++]);
+    }
+    credit(L - cursor);
+  }
+  while (k < changes.length) apply(changes[k++]);
+  const out = {};
+  Object.keys(held).forEach((pid) => {
+    const long = order[pid].filter((pos) => held[pid][pos] >= POS_MIN_MS);
+    out[pid] = long.length ? long : [order[pid].reduce((a, b) => (held[pid][b] > held[pid][a] ? b : a))];
+  });
   return out;
 }
 

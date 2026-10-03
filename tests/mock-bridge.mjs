@@ -171,6 +171,8 @@ export function createBridge({ adminCode = 'test-admin-code-1234' } = {}) {
     get writes() { return writes; },
     get walks() { return walks; },
     driveFiles: (name) => folders[0]?.files.filter((f) => f.name === name) ?? [],
+    // A function of bridge.gs itself, to hold it to its twin in src/.
+    fn: (name) => sandbox[name],
   };
 }
 

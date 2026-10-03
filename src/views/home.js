@@ -354,7 +354,7 @@ export function renderHome(s) {
   </section>
 
   ${s.isPlayer ? `<section>
-    ${sectionHead('הכרטיס שלי', s.card?.list.length > 3 ? '<a href="#/stats" data-jump="stats-mine">לכרטיס המלא</a>' : '', 'shirt')}
+    ${sectionHead('הכרטיס שלי', s.card?.journal.length > 3 ? '<a href="#/stats" data-jump="stats-mine">לכרטיס המלא</a>' : '', 'shirt')}
     ${myCardHtml(s, { limit: 3 })}
   </section>` : `<section>
     ${sectionHead('מובילי העונה', '<a href="#/stats" data-jump="stats-leaders">לטבלה המלאה</a>', 'trophy')}

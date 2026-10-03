@@ -3,8 +3,8 @@
 // totals drift from the fixtures they summarise, and the mockups this app was
 // built from already disagreed with themselves that way.
 
-import { cleanPlayedMatch, minuteLabel, DEFAULT_FORMAT } from './live/model.js';
-import { primaryPos, posLabel } from './positions.js';
+import { cleanPlayedMatch, minuteLabel, DEFAULT_FORMAT, positionsPlayed } from './live/model.js';
+import { primaryPos, posLabel, position } from './positions.js';
 import { upcomingFixtures, fixtureAsNext } from './fixtures.js';
 import { trainingWeek, nextWeekFrom } from './trainings.js';
 
@@ -212,32 +212,62 @@ export function buildSeason(input, now = new Date()) {
   };
 }
 
-// A player's own card (the player role, payload.me from the bridge): the
-// goals and assists the table would give him — his base plus the league
-// count, both already in season.players — the league games the bridge counted
-// (it alone still sees past lineups), and every goal he scored or set up, newest
-// first. Friendlies are listed, tagged, and counted in no number: the table
-// does not count them either.
+// What the bridge tells a player's phone about his own matches (payload.me):
+// where he played in each live match, and the live matches he missed. The
+// manager and the coach have the lineups, so their "player cards" work it out
+// here, the same walk the bridge does.
+export function cardMe(season, pid) {
+  const positions = {}, missed = [];
+  for (const m of season.recent) {
+    if (!m.liveId || !Array.isArray(m.lineup)) continue;
+    const got = positionsPlayed(m)[pid];
+    if (got) positions[m.liveId] = got; else missed.push(m.liveId);
+  }
+  return { pid, positions, missed };
+}
+
+// A player's own card: the goals and assists the table would give him (his
+// base plus the league count, both already in season.players), and his
+// matches, newest first — every result but a live match he missed (the owner:
+// everyone plays every match, and a result typed by hand has no lineup) — each
+// with where he played (live matches only) and his goals and assists in it.
+// Friendlies are listed, tagged, and counted in no number. The positions are
+// counted once per match he played them in; the main one is the most played,
+// his registered one on a tie. Position ids from the bridge are checked
+// against the known ones: they land in the page.
 export function playerCard(season, me) {
   const pid = me?.pid;
   const p = pid ? season.players.find((x) => x.id === pid) : null;
   if (!p) return null;
-  const list = [];
+  const missed = new Set(Array.isArray(me.missed) ? me.missed.map(String) : []);
+  const known = (list) => (Array.isArray(list) ? list.filter((x) => typeof x === 'string' && position(x)) : []);
+  const journal = [];
   for (const m of season.recent) {
-    const add = (kind, minute) => list.push({ kind, minute, match: m, friendly: m.friendly });
+    if (m.liveId && missed.has(String(m.liveId))) continue;
+    const goals = [], assists = [];
     for (const e of m.events || []) {
       if (e.type !== 'goal' || e.side === 'them' || e.og) continue;
       const minute = e.atStart ? '' : minuteLabel(m.format || DEFAULT_FORMAT, e.period, e.atMs);
-      if (e.scorer === pid) add(e.pen ? 'pen' : 'goal', minute);
-      if (e.assist === pid) add('assist', minute);
+      if (e.scorer === pid) goals.push({ minute, pen: !!e.pen });
+      if (e.assist === pid) assists.push({ minute });
     }
     for (const g of m.goals || []) {
       if (g.og) continue;
-      if (g.scorer === pid) add('goal', '');
-      if (g.assist === pid) add('assist', '');
+      if (g.scorer === pid) goals.push({ minute: '' });
+      if (g.assist === pid) assists.push({ minute: '' });
     }
+    journal.push({ match: m, pos: m.liveId ? known(me.positions?.[m.liveId]) : [], goals, assists, friendly: !!m.friendly });
   }
-  return { player: p, games: Number(me.games) || 0, goals: p.goals, assists: p.assists, list };
+  const count = new Map();
+  for (const r of journal) for (const x of new Set(r.pos)) count.set(x, (count.get(x) || 0) + 1);
+  const mine = primaryPos(p);
+  const positions = [...count].sort((a, b) => b[1] - a[1] || (b[0] === mine) - (a[0] === mine)).map(([id, n]) => ({ id, n }));
+  return {
+    player: p,
+    pos: mine || positions[0]?.id || '',
+    games: journal.filter((r) => !r.friendly).length,
+    goals: p.goals, assists: p.assists, journal, positions,
+  };
 }
 
 export function topBy(players, key, limit = 5) {

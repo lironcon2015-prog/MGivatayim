@@ -1489,6 +1489,20 @@ await step('a device the manager marks as coach sees playing time; a parent does
   await dot.waitFor({ state: 'detached', timeout: 8000 });
   // Approving takes the role the request asked for.
   await row.locator('[data-role="coach"][aria-pressed="true"]').waitFor();
+  // A refused role change says so: it used to vanish in the reload after it,
+  // and the tap read as missed (the owner, a morning the bridge failed writes).
+  const refuse = (r) => {
+    let action = '';
+    try { action = JSON.parse(r.request().postData() || '{}').action; } catch {}
+    return action === 'setRole'
+      ? r.fulfill({ status: 200, headers: { 'Access-Control-Allow-Origin': '*' }, contentType: 'text/plain', body: JSON.stringify({ ok: false, error: 'הגשר עסוק', code: 'busy' }) })
+      : r.fallback();
+  };
+  await admin.route(BRIDGE, refuse);
+  await row.locator('[data-role="parent"]').click();
+  await admin.locator('.toast', { hasText: 'התפקיד לא נשמר' }).waitFor({ timeout: 5000 });
+  await admin.unroute(BRIDGE, refuse);
+  await row.locator('[data-role="coach"][aria-pressed="true"]').waitFor();
   await coach.click('#recheck');
   await coach.goto(APP + '#/stats');
   await coach.locator('#minutes .mn-table').waitFor({ timeout: 8000 });
@@ -2059,6 +2073,28 @@ await step('a player sees his own card and no leaderboard; the coach\'s message 
   expect(await kid.locator('#board-tabs, #board').count() === 0, 'the player got the leaderboard');
   expect(!(await kid.locator('#view').innerText()).includes('תרומת המוביל'), 'the player got "the leader\'s share"');
   expect((await kid.locator('#stats-mine .tile.accent b').innerText()).trim() === goals, `the card's goals are not the table's (${goals})`);
+  expect(await kid.locator('#stats-mine .my-row').count() > 0, 'the card lists no matches');
+  // His card and the team are two panes: the card first, the team a tap away,
+  // and a link from home into a team section opens the team pane on it.
+  expect(await kid.locator('#stats-matches').count() === 0, 'the team\'s sections are under the card');
+  await kid.click('[data-pane="player:team"]');
+  await kid.locator('#stats-matches').waitFor({ timeout: 5000 });
+  expect(await kid.locator('#stats-mine').count() === 0, 'the card stayed on the team pane');
+  await kid.click('[data-pane="player:mine"]');
+  await kid.locator('#stats-mine').waitFor({ timeout: 5000 });
+  await kid.goto(APP + '#/');
+  await kid.locator('a[data-jump="stats-matches"]').click();
+  await kid.locator('#stats-matches').waitFor({ timeout: 5000 });
+  // The manager sees the same card for any player, picked from the squad.
+  await admin.goto(APP + '#/stats');
+  await admin.click('[data-pane="staff:cards"]');
+  await admin.locator('.pick-player', { hasText: name }).first().click();
+  await admin.locator('#stats-cards .my-card').waitFor({ timeout: 5000 });
+  expect((await admin.locator('#stats-cards .tile.accent b').innerText()).trim() === goals, 'the manager\'s card of the player is not his');
+  await admin.click('#stats-cards [data-card=""]');
+  await admin.locator('.pick-grid').waitFor({ timeout: 5000 });
+  await admin.click('[data-pane="staff:team"]');
+  await admin.locator('#board .leader').first().waitFor({ timeout: 5000 });
   await kid.goto(APP + '#/media');
   await kid.locator('[data-gallery] .sec-head').first().waitFor({ timeout: 8000 });
   expect(await kid.locator('.gl-dock, [data-upload]').count() === 0, 'the player can upload');

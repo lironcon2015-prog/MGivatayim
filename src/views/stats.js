@@ -1,6 +1,9 @@
 import { topBy } from '../season.js';
-import { pct, dec, esc } from '../format.js';
+import { pct, dec, esc, byNumber } from '../format.js';
 import { myCardHtml, sectionHead, leaderRow, tile, splitBar, matchRow, fixtureRow, sampleNote, foldRows, SCHEDULE_SAMPLE, RESULTS_SAMPLE } from '../components.js';
+import { posLabel } from '../positions.js';
+import { icon } from '../icons.js';
+import { hydratePosters } from '../posters.js';
 import { seasonMinutesHtml, wireSeasonMinutes } from './minutes.js';
 
 const BOARDS = [
@@ -8,7 +11,65 @@ const BOARDS = [
   { key: 'assists', label: 'בישולים', figs: [{ key: 'assists', label: 'בישולים' }, { key: 'goals', label: 'שערים' }] },
   { key: 'points',  label: 'מעורבות', figs: [{ key: 'points', label: 'סה"כ' }, { key: 'goals', label: 'שערים' }, { key: 'assists', label: 'בישולים' }] },
 ];
+/* A switch at the top of the screen (the owner's pick, against a mockup).
+   A player: "הכרטיס שלי | הקבוצה", his card first — one long screen of both
+   was two and a half screens of scrolling. The manager and the coach:
+   "כרטיס הקבוצה | כרטיסי שחקן", the team first; the second picks a player
+   from the squad and shows his card exactly as his phone does. Everyone else
+   gets the screen as it was. The choices are for the visit. */
+const pane = { player: 'mine', staff: 'team', pid: null };
+
+// A link into a section of this screen ("ללוח המלא" from home) opens the
+// pane that holds it.
+export function statsJump(id) {
+  if (id === 'stats-mine') pane.player = 'mine';
+  else if (id) { pane.player = 'team'; pane.staff = 'team'; }
+}
+
+const switchHtml = (key, opts) => `<div class="seg stats-pane" role="tablist" aria-label="מה מוצג">
+    ${opts.map(([k, l]) => `<button type="button" role="tab" data-pane="${key}:${k}" aria-selected="${pane[key] === k}">${l}</button>`).join('')}
+  </div>`;
+
+function cardsHtml(s) {
+  const squad = [...s.players].sort(byNumber);
+  const i = squad.findIndex((p) => p.id === pane.pid);
+  if (i < 0) {
+    return `<section id="stats-cards">
+      ${sectionHead('כרטיסי שחקן', `${squad.length} שחקנים`, 'user')}
+      <p class="note">בחרו שחקן כדי לראות את הכרטיס שלו, בדיוק כמו בטלפון שלו.</p>
+      ${squad.length ? `<div class="pick-grid">${squad.map((p) => `<button type="button" class="pick-player" data-card="${esc(p.id)}">
+        <span class="num">${p.number ?? ''}</span><span><b>${esc(p.name)}</b>${p.pos ? `<small>${esc(posLabel(p.pos))}</small>` : ''}</span></button>`).join('')}</div>`
+        : '<div class="card"><div class="empty">אין עדיין שחקנים בסגל.</div></div>'}
+    </section>`;
+  }
+  const p = squad[i];
+  return `<section id="stats-cards">
+    <div class="viewing">${icon('user')}<span>כך ${esc(p.name.split(' ')[0])} רואה את הכרטיס</span><button type="button" class="linkish" data-card="">כל השחקנים</button></div>
+    <div class="card-step">
+      <button type="button" class="btn small secondary" data-card="${esc(squad[i - 1]?.id || '')}"${i ? '' : ' disabled'}>› הקודם</button>
+      <span class="num">${i + 1} / ${squad.length}</span>
+      <button type="button" class="btn small secondary" data-card="${esc(squad[i + 1]?.id || '')}"${i < squad.length - 1 ? '' : ' disabled'}>הבא ‹</button>
+    </div>
+    ${sectionHead('הכרטיס שלי', '', 'shirt')}
+    ${myCardHtml(s, { card: s.cardFor(p.id) })}
+  </section>`;
+}
+
 export function renderStats(s) {
+  if (s.isPlayer) {
+    return switchHtml('player', [['mine', 'הכרטיס שלי'], ['team', 'הקבוצה']]) + (pane.player === 'mine'
+      ? `<section id="stats-mine">
+    ${sectionHead('הכרטיס שלי', '', 'shirt')}
+    ${myCardHtml(s)}
+  </section>` : teamHtml(s));
+  }
+  if (s.cardFor) {
+    return switchHtml('staff', [['team', 'כרטיס הקבוצה'], ['cards', 'כרטיסי שחקן']]) + (pane.staff === 'cards' ? cardsHtml(s) : teamHtml(s));
+  }
+  return teamHtml(s);
+}
+
+function teamHtml(s) {
   const o = s.overall;
   const maxPoints = Math.max(s.splits.home.points, s.splits.away.points, 1);
   const best = topBy(s.players, 'goals', 1)[0];
@@ -44,10 +105,7 @@ export function renderStats(s) {
     </div>
   </section>
 
-  ${s.isPlayer ? `<section id="stats-mine">
-    ${sectionHead('הכרטיס שלי', '', 'shirt')}
-    ${myCardHtml(s)}
-  </section>` : `  <section id="stats-leaders">
+  ${s.isPlayer ? '' : `  <section id="stats-leaders">
     ${sectionHead('טבלת מובילים', '', 'trophy')}
     <div class="seg" role="tablist" id="board-tabs">
       ${BOARDS.map((b, i) => `<button role="tab" type="button" data-board="${b.key}" aria-selected="${i === 0}">${esc(b.label)}</button>`).join('')}
@@ -81,6 +139,27 @@ export function renderStats(s) {
 }
 
 export function wireStats(root, s) {
+  let unwire = wirePane(root, s);
+  // A switch or a pick redraws this screen only, from the top of the switch.
+  const onPick = (e) => {
+    const b = e.target.closest('button[data-pane], button[data-card]');
+    if (!b || b.disabled) return;
+    if (b.dataset.pane) {
+      const [key, k] = b.dataset.pane.split(':');
+      if (pane[key] === k) return;
+      pane[key] = k;
+    } else pane.pid = b.dataset.card || null;
+    unwire();
+    root.innerHTML = renderStats(s);
+    hydratePosters(root);
+    unwire = wirePane(root, s);
+    if (window.scrollY > root.offsetTop) window.scrollTo(0, 0);
+  };
+  root.addEventListener('click', onPick);
+  return () => { root.removeEventListener('click', onPick); unwire(); };
+}
+
+function wirePane(root, s) {
   root.querySelectorAll('[data-fold]').forEach((el) => foldRows(el, el.dataset.fold));
   const tabs = root.querySelector('#board-tabs');
   const out = root.querySelector('#board');

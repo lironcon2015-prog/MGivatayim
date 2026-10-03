@@ -991,9 +991,12 @@ export function mountAdmin(view, ctx) {
     });
   }
 
+  // A refusal is said aloud: it used to go into usersError, which the reload
+  // that follows cleared at once — the list came back as it was, with no word,
+  // and a tap read as missed (the owner, a morning the bridge failed writes).
   async function setRole(id, role, pid = '') {
     try { await call('setRole', role === 'player' ? { id, role, pid } : { id, role }, { asAdmin: true }); }
-    catch (e) { usersError = e.message; }
+    catch (e) { toast(`התפקיד לא נשמר: ${esc(e.message)} — נסו שוב.`, { kind: 'err' }); }
     await loadUsers();
   }
 
@@ -1068,7 +1071,7 @@ export function mountAdmin(view, ctx) {
     try {
       if (st === 'remove') await call('removeUser', { id }, { asAdmin: true });
       else await call('setStatus', { id, status: st }, { asAdmin: true });
-    } catch (e) { usersError = e.message; }
+    } catch (e) { toast(`השינוי לא נשמר: ${esc(e.message)} — נסו שוב.`, { kind: 'err' }); }
     await loadUsers();
   }
 

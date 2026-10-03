@@ -338,7 +338,8 @@ await step('after approval the parent sees the season on returning to the app, w
   const sheet = parent.locator('.sheet', { hasText: 'מול בני לוד' });
   await sheet.waitFor();
   const st = await sheet.innerText();
-  expect(st.includes('איתי') && st.includes('גול עצמי'), 'hand-entered scorers missing from the match sheet: ' + st);
+  const cols = await sheet.locator('.ms-scorers .us').innerText();
+  expect(cols.includes('איתי') && cols.includes('גול עצמי'), 'hand-entered scorers missing under the score: ' + st);
   await parent.locator('.sheet-x').click();
   await parent.locator('.sheet').waitFor({ state: 'detached' });
   await parent.waitForFunction(() => !history.state?.mgLayer);
@@ -908,6 +909,10 @@ await step('a result on the home screen opens its match; every game is on the st
   expect(await parent.locator('#view button.match').count() === 0, 'the home screen still lists every game');
   await parent.locator('.form-pill[aria-label*="מכבי נחלים"]').click();
   await parent.locator('.sheet .ev-list', { hasText: 'גיא פרץ' }).waitFor();
+  // The scorers sit under the score, by name and minute, above the timeline.
+  const scorers = await parent.locator('.sheet .ms-scorers .us').innerText();
+  expect(scorers.includes('גיא פרץ') && /\d+'/.test(scorers), 'scorers under the score: ' + scorers);
+  expect(await parent.locator('.sheet .ms-scorers + .ev-sides').count() === 1, 'the scorers are not right above the timeline');
   // Every sub names a position: a parent has no past lineup, so the slot's
   // is unknown here and the incoming player's own stands in.
   const sub = await parent.locator('.sheet .ev.sub .ev-txt .out').first().innerText();
@@ -2068,6 +2073,7 @@ await step('a player sees his own card and no leaderboard; the coach\'s message 
       await pg.reload();
       await pg.locator('.msg-card', { hasText: 'מחר חולצה לבנה' }).waitFor({ timeout: 8000 });
       expect(await pg.locator('[data-msg]').count() === 0, 'a parent or a player can edit the message');
+      expect((await pg.locator('.msg-label').innerText()) === 'הודעות', 'message label: ' + await pg.locator('.msg-label').innerText());
     }
     await admin.locator('.msg-edit').click();
     await admin.locator('[data-msg-clear]').click();

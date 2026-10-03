@@ -1386,6 +1386,11 @@ button.ev:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 .ms-score { display: flex; justify-content: center; align-items: center; gap: .4rem; direction: ltr; margin: .2rem 0 .9rem; font-size: 2.5rem; font-weight: 800; }
 .ms-score .ours { color: var(--gold); }
 .ms-score .sep { color: var(--faint); font-weight: 600; font-size: 1.8rem; }
+/* The match sheet's scorers, under the score: the live scoreboard's columns
+   with the assists under each name, and no rule above them. */
+.ms-scorers .sc-scorers { margin: -.4rem 0 1rem; padding-top: 0; border-top: 0; }
+.ms-note { text-align: center; }
+.scr-ast { display: block; font-size: .7rem; color: var(--faint); }
 .ended-card p { display: flex; align-items: center; gap: .5rem; margin: 0; font-weight: 700; }
 .ended-card svg { width: 18px; height: 18px; color: var(--gold); flex: none; }
 .hidden-live p { display: flex; align-items: flex-start; gap: .5rem; margin: 0; line-height: 1.5; }

@@ -158,16 +158,84 @@ function pitchHtml(state, slots, { interactive, edit = false, swap = false, sele
   </div>`;
 }
 
+// Scorers under each side of the score, each centred under its team, as
+// sports sites print them: a dot, a name, the minutes. Ours are grouped by
+// player — a hat-trick is one line with three minutes — up to
+// MAX_SCORER_LINES. The opponent's goals carry no names: one run of
+// minutes, the same text as ours, wrapping inside its column, up to
+// MAX_THEM. Past either cap "ועוד N" jumps to the first goal not shown in
+// the timeline. A minute run is laid out LTR ("5', 23', 37'"): in the RTL
+// flow the commas between the isolated minutes landed on the wrong side.
+// `all`: every scorer, with the assists under each name (the match sheet);
+// the live scoreboard keeps to a few lines and "ועוד N".
+function scorersHtml(st, { all = false } = {}) {
+  const MAX_SCORER_LINES = all ? Infinity : 4;
+  const MAX_THEM = all ? Infinity : 16;
+  const goals = st.events.filter((e) => e.type === 'goal')
+    .sort((a, b) => a.period - b.period || a.atMs - b.atMs);
+  const misses = st.events.filter((e) => e.type === 'miss')
+    .sort((a, b) => a.period - b.period || a.atMs - b.atMs);
+  if (!goals.length && !misses.length) return '';
+  // A goal from the spot reads "23' (פ)", as on sports sites.
+  const minuteOf = (e) => esc(M.minuteLabel(st.format, e.period, e.atMs)) + (e.pen || e.type === 'miss' ? ' (פ)' : '');
+  const minutes = (evs) => `<span class="scr-min num" dir="ltr">${evs.map(minuteOf).join(', ')}</span>`;
+  const more = (n, goalId) => `<li class="scr-more"><button type="button" data-goto="${esc(goalId)}">ועוד ${n}</button></li>`;
+  // A missed penalty: a grey line with a cross, under the goals of its side.
+  const missLine = (e) => `<li class="scr-miss">${icon('miss')}${e.side !== 'them' && e.scorer ? `<span class="scr-name">${esc(who(st, e.scorer).name)}</span> ` : ''}${minutes([e])}</li>`;
+
+  const ours = new Map();
+  for (const e of goals.filter((g) => g.side !== 'them')) {
+    const key = e.og ? 'og' : e.scorer || '?';
+    if (!ours.has(key)) ours.set(key, []);
+    ours.get(key).push(e);
+  }
+  const groups = [...ours];
+  const label = (pid) => (pid === 'og' ? 'גול עצמי' : pid === '?' ? 'לא ידוע' : who(st, pid).name);
+  const assists = (evs) => {
+    const names = [...new Set(evs.map((e) => e.assist).filter(Boolean))].map((pid) => who(st, pid).name);
+    return all && names.length ? `<span class="scr-ast">בישול: ${esc(names.join(', '))}</span>` : '';
+  };
+  const usHtml = groups.slice(0, MAX_SCORER_LINES).map(([pid, evs]) =>
+    `<li><span class="scr-name">${esc(label(pid))}</span> ${minutes(evs)}${assists(evs)}</li>`).join('')
+    + (groups.length > MAX_SCORER_LINES ? more(groups.length - MAX_SCORER_LINES, groups[MAX_SCORER_LINES][1][0].id) : '')
+    + misses.filter((e) => e.side !== 'them').map(missLine).join('');
+
+  const them = goals.filter((g) => g.side === 'them');
+  const themHtml = (them.length ? `<li>${minutes(them.slice(0, MAX_THEM))}</li>` : '')
+    + (them.length > MAX_THEM ? more(them.length - MAX_THEM, them[MAX_THEM].id) : '')
+    + misses.filter((e) => e.side === 'them').map(missLine).join('');
+
+  return `<div class="sc-scorers">
+    <ul class="us" aria-label="שערים שלנו">${usHtml}</ul>
+    <ul class="them" aria-label="שערי היריבה">${themHtml}</ul>
+  </div>`;
+}
+
 /* ── Match sheet (history rows) ─────────────────────────────────────────── */
 
-// The scorers of a result entered by hand: one row per goal of ours, in the
-// order entered, no minutes. Unnamed goals are left out.
+// The scorers of a result entered by hand, in the same two columns: ours by
+// player with the assists under each name, no minutes; the opponent's as a
+// count. Unnamed goals are left out.
 function goalsHtml(state) {
-  const rows = (state.goals || []).filter((g) => g.og || g.scorer).map((g) => `<li><div class="ev us">
-    <span class="ev-ico goal">${icon('ball')}</span>
-    <span class="ev-txt"><b>${esc(g.og ? 'גול עצמי' : whoText(state, g.scorer))}</b>${
-      !g.og && g.assist ? `<small>בישול: ${esc(whoText(state, g.assist))}</small>` : ''}</span></div></li>`);
-  return rows.length ? `<ol class="ev-list">${rows.join('')}</ol>` : '';
+  const named = (state.goals || []).filter((g) => g.og || g.scorer);
+  if (!named.length) return '';
+  const ours = new Map();
+  for (const g of named) {
+    const key = g.og ? 'og' : g.scorer;
+    if (!ours.has(key)) ours.set(key, []);
+    ours.get(key).push(g);
+  }
+  const usHtml = [...ours].map(([pid, gs]) => {
+    const helpers = [...new Set(gs.map((g) => g.assist).filter(Boolean))].map((a) => who(state, a).name);
+    return `<li><span class="scr-name">${esc(pid === 'og' ? 'גול עצמי' : who(state, pid).name)}</span>${
+      gs.length > 1 ? ` <span class="scr-min num" dir="ltr">×${gs.length}</span>` : ''}${
+      helpers.length ? `<span class="scr-ast">בישול: ${esc(helpers.join(', '))}</span>` : ''}</li>`;
+  }).join('');
+  const ga = Number(state.ga) || 0;
+  return `<div class="sc-scorers">
+    <ul class="us" aria-label="שערים שלנו">${usHtml}</ul>
+    <ul class="them" aria-label="שערי היריבה">${ga ? `<li><span class="scr-min">${ga === 1 ? 'שער אחד' : `${ga} שערים`}</span></li>` : ''}</ul>
+  </div>`;
 }
 
 // `coach` — the coach's view of a live match's minutes, or null: its
@@ -183,7 +251,9 @@ export function openMatchSheet(match, coach = null, us = '') {
     subtitle: `<span class="num">${esc(shortDate(match.date))}</span>${roundText(match.round, match.friendly) ? ` · ${esc(roundText(match.round, match.friendly))}` : ''}`,
     tall: hasEvents || hasGoals || minutes,
     body: `<div class="ms-score num"><span class="ours">${match.gf}</span><span class="sep">:</span><span>${match.ga}</span></div>
-      ${hasEvents ? timelineHtml(state, { us }) : goalsHtml(state) || '<p class="sheet-text">למשחק הזה לא תועדו אירועים — רק התוצאה.</p>'}
+      ${hasEvents ? `<div class="ms-scorers">${scorersHtml(state, { all: true })}</div>${timelineHtml(state, { us })}`
+        : hasGoals ? `<div class="ms-scorers">${goalsHtml(state)}</div><p class="sheet-text ms-note">למשחק הזה לא תועדו דקות — רק התוצאה והכובשים.</p>`
+        : '<p class="sheet-text">למשחק הזה לא תועדו אירועים — רק התוצאה.</p>'}
       <div data-ms-minutes>${minutesHtml()}</div>`,
     onMount: ({ el }) => {
       if (!minutes) return;
@@ -237,53 +307,6 @@ export function mountLive(view, ctx) {
   }
 
   /* ---- views ---- */
-
-  // Scorers under each side of the score, each centred under its team, as
-  // sports sites print them: a dot, a name, the minutes. Ours are grouped by
-  // player — a hat-trick is one line with three minutes — up to
-  // MAX_SCORER_LINES. The opponent's goals carry no names: one run of
-  // minutes, the same text as ours, wrapping inside its column, up to
-  // MAX_THEM. Past either cap "ועוד N" jumps to the first goal not shown in
-  // the timeline. A minute run is laid out LTR ("5', 23', 37'"): in the RTL
-  // flow the commas between the isolated minutes landed on the wrong side.
-  function scorersHtml(st) {
-    const MAX_SCORER_LINES = 4;
-    const MAX_THEM = 16;
-    const goals = st.events.filter((e) => e.type === 'goal')
-      .sort((a, b) => a.period - b.period || a.atMs - b.atMs);
-    const misses = st.events.filter((e) => e.type === 'miss')
-      .sort((a, b) => a.period - b.period || a.atMs - b.atMs);
-    if (!goals.length && !misses.length) return '';
-    // A goal from the spot reads "23' (פ)", as on sports sites.
-    const minuteOf = (e) => esc(M.minuteLabel(st.format, e.period, e.atMs)) + (e.pen || e.type === 'miss' ? ' (פ)' : '');
-    const minutes = (evs) => `<span class="scr-min num" dir="ltr">${evs.map(minuteOf).join(', ')}</span>`;
-    const more = (n, goalId) => `<li class="scr-more"><button type="button" data-goto="${esc(goalId)}">ועוד ${n}</button></li>`;
-    // A missed penalty: a grey line with a cross, under the goals of its side.
-    const missLine = (e) => `<li class="scr-miss">${icon('miss')}${e.side !== 'them' && e.scorer ? `<span class="scr-name">${esc(who(st, e.scorer).name)}</span> ` : ''}${minutes([e])}</li>`;
-
-    const ours = new Map();
-    for (const e of goals.filter((g) => g.side !== 'them')) {
-      const key = e.og ? 'og' : e.scorer || '?';
-      if (!ours.has(key)) ours.set(key, []);
-      ours.get(key).push(e);
-    }
-    const groups = [...ours];
-    const label = (pid) => (pid === 'og' ? 'גול עצמי' : pid === '?' ? 'לא ידוע' : who(st, pid).name);
-    const usHtml = groups.slice(0, MAX_SCORER_LINES).map(([pid, evs]) =>
-      `<li><span class="scr-name">${esc(label(pid))}</span> ${minutes(evs)}</li>`).join('')
-      + (groups.length > MAX_SCORER_LINES ? more(groups.length - MAX_SCORER_LINES, groups[MAX_SCORER_LINES][1][0].id) : '')
-      + misses.filter((e) => e.side !== 'them').map(missLine).join('');
-
-    const them = goals.filter((g) => g.side === 'them');
-    const themHtml = (them.length ? `<li>${minutes(them.slice(0, MAX_THEM))}</li>` : '')
-      + (them.length > MAX_THEM ? more(them.length - MAX_THEM, them[MAX_THEM].id) : '')
-      + misses.filter((e) => e.side === 'them').map(missLine).join('');
-
-    return `<div class="sc-scorers">
-      <ul class="us" aria-label="שערים שלנו">${usHtml}</ul>
-      <ul class="them" aria-label="שערי היריבה">${themHtml}</ul>
-    </div>`;
-  }
 
   // "ועוד N" → the goal in the timeline, scrolled to the middle of the screen
   // and lit for a moment so the eye lands on it.

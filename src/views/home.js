@@ -266,8 +266,8 @@ function messageHtml(s) {
   }
   const at = m.at ? new Date(m.at) : null;
   return `<section><div class="card msg-card">
-    ${icon('whistle')}
-    <div class="msg-body"><span class="msg-label">הודעה מהמאמן</span><p>${esc(m.text)}</p>
+    ${icon('chat')}
+    <div class="msg-body"><span class="msg-label">הודעות</span><p>${esc(m.text)}</p>
       ${at && !Number.isNaN(at.getTime()) ? `<span class="msg-at">${esc(longDate(at))} · <span class="num">${esc(clock(at))}</span></span>` : ''}</div>
     ${s.canMessage ? `<button type="button" class="chip-tool msg-edit" data-msg aria-label="עריכת ההודעה">${icon('edit')}</button>` : ''}
   </div></section>`;

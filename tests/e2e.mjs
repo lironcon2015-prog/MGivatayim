@@ -2057,7 +2057,8 @@ await step('the roster: off until the manager turns it on, then the title opens 
   expect(await parent.locator('[data-roster]').count() === 0 && !(await parent.locator('.topbar').innerText()).includes('הסגל'), 'the roster shows before it is turned on');
   await setRoster(true);
   await parent.waitForSelector('[data-roster]', { timeout: 8000 });
-  expect((await parent.locator('.topbar p').innerText()).includes('הסגל'), 'the league line says what the title opens');
+  // The season tag opens it, "הסגל ‹" under the season — not in the league line, where it ran into the role mark.
+  expect((await parent.locator('[data-roster]').innerText()).includes('הסגל') && !(await parent.locator('.topbar p').innerText()).includes('הסגל'), 'the season tag does not say what it opens');
   await parent.click('[data-roster]');
   await parent.locator('.sheet .roster li').first().waitFor();
   const rows = await parent.locator('.sheet .roster li').evaluateAll((els) => els.map((li) => [li.children[0].textContent, li.children[1].textContent]));

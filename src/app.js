@@ -345,18 +345,20 @@ function chrome(team) {
     : '';
   document.body.classList.toggle('with-nav', !!nav);
   const crestTeam = { name, crestUrl: team?.crestUrl || new URL(DEFAULT_CREST, ROOT).href };
-  // The roster, once the manager turns it on: the whole title (crest, name,
-  // league line) opens the team card, and one word in the league line says so.
-  const roster = rosterShown();
+  // The roster, once the manager turns it on: the season tag opens the team
+  // card, "הסגל ‹" under the season (the owner's pick from a mockup — in the
+  // league line it ran into the phone's role mark and broke the line).
+  const roster = rosterShown() && !!team;
   const brand = `<span class="crest has-img">${crestImg(crestTeam)}</span>
         <span class="topbar-text">
           <h1>${esc(name)}</h1>
-          <p>${esc(team?.league || 'העונה של הקבוצה')}${roster ? ' · <span class="roster-hint">הסגל ‹</span>' : ''}${roleMark()}</p>
+          <p>${esc(team?.league || 'העונה של הקבוצה')}${roleMark()}</p>
         </span>`;
   return `<header class="topbar">
       <div class="topbar-inner">
-        ${roster ? `<button type="button" class="topbar-btn" data-roster aria-label="כרטיס הקבוצה: הסגל">${brand}</button>` : brand}
-        ${team ? `<span class="season-tag num">עונת ${esc(seasonLabel(team))}</span>` : ''}
+        ${brand}
+        ${roster ? `<button type="button" class="season-tag num roster-tag" data-roster aria-label="כרטיס הקבוצה: הסגל"><span>עונת ${esc(seasonLabel(team))}</span><small class="roster-hint">הסגל ‹</small></button>`
+          : team ? `<span class="season-tag num">עונת ${esc(seasonLabel(team))}</span>` : ''}
       </div>
     </header>
     <main class="shell" id="view" tabindex="-1"></main>

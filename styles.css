@@ -181,17 +181,15 @@ h1, h2, h3 { margin: 0; font-weight: 800; letter-spacing: -.015em; line-height: 
 .topbar-text { min-width: 0; }
 .topbar-text h1 { font-size: 1.4rem; line-height: 1.2; }
 .topbar-text p { margin: 0; font-size: .84rem; color: var(--muted); }
-/* The title as a button (when the roster is on): looks exactly like the
-   title, the word "הסגל ‹" in the league line is the only hint. */
-.topbar-btn {
-  display: flex; align-items: center; gap: .8rem; min-width: 0;
-  margin: -.35rem -.5rem; padding: .35rem .5rem; border: 0; border-radius: 18px;
-  background: none; color: inherit; font: inherit; text-align: start; cursor: pointer;
-  -webkit-tap-highlight-color: transparent; touch-action: manipulation;
+/* The season tag as a button (when the roster is on): the season, and under
+   it "הסגל ‹" — the only hint, no gold. */
+.roster-tag {
+  display: grid; justify-items: center; gap: 1px; padding: .3rem .7rem .25rem; border-radius: 14px;
+  cursor: pointer; -webkit-tap-highlight-color: transparent; touch-action: manipulation;
 }
-.topbar-btn:active { background: var(--surface-2); }
-.topbar-btn:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
-.roster-hint { color: var(--text); border-bottom: 1px dotted var(--faint); white-space: nowrap; }
+.roster-tag:active { background: var(--surface-2); }
+.roster-tag:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.roster-hint { font-family: Assistant, system-ui, sans-serif; font-size: .66rem; font-weight: 700; color: var(--text); border-bottom: 1px dotted var(--faint); white-space: nowrap; }
 /* Manager or coach: a word in the league line, its icon in gold. */
 .role-mark { display: inline-flex; align-items: center; gap: .2rem; color: var(--text); font-weight: 700; white-space: nowrap; vertical-align: bottom; }
 .role-mark svg { width: 13px; height: 13px; color: var(--gold); stroke-width: 1.8; }

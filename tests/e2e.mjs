@@ -283,8 +283,8 @@ await step('the access tab has an invitation with the app\'s address, ready for 
   expect(!preview.includes('#'), 'the invitation must not carry a route or anything after the address');
 });
 
-await step('the toggle switches what copy and WhatsApp send: the install, parent or coach guide', async () => {
-  for (const [kind, page] of [['install', 'docs/install.html'], ['parent', 'docs/parent.html'], ['coach', 'docs/coach.html']]) {
+await step('the toggle switches what copy and WhatsApp send: the install, parent, player or coach guide', async () => {
+  for (const [kind, page] of [['install', 'docs/install.html'], ['parent', 'docs/parent.html'], ['player', 'docs/player.html'], ['coach', 'docs/coach.html']]) {
     await admin.click(`[data-invite-kind="${kind}"]`);
     const wa = decodeURIComponent(await admin.locator('[data-invite-wa]').getAttribute('href'));
     expect(wa.includes(APP + page), `${kind}: whatsapp sends ` + wa);

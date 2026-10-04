@@ -2,7 +2,7 @@ import { esc, shortDate, plural } from '../format.js';
 import { icon } from '../icons.js';
 import { openSheet, confirmSheet, toast, trackLayer } from '../ui/sheet.js';
 import {
-  loadGallery, cachedGallery, thumbUrl, fullUrl, posterUrl, saveUrl, uploadOne, hideItem, deleteItem, deleteItems, kindOf, MAX_VIDEO_S,
+  loadGallery, cachedGallery, thumbUrl, fullUrl, posterUrl, saveUrl, uploadOne, hideItem, deleteItem, deleteItems, tagMe, setTags, kindOf, MAX_VIDEO_S,
 } from '../gallery.js';
 import { linkedVideosHtml, sortedVideos, videosOnly } from './media.js';
 import { photoMatches } from '../fixtures.js';
@@ -68,6 +68,7 @@ function tile(g, it, sel) {
   }
   return `<button type="button" class="gl-tile${it.status !== 'live' ? ' dim' : ''}" data-open="${esc(it.id)}" aria-label="${label}">
       <img src="${esc(thumbUrl(g, it))}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.remove()" />
+      ${it.players?.length ? `<span class="gl-tagged${tags.me && it.players.includes(tags.me) ? ' me' : ''}">${icon('user')}<span class="num">${it.players.length}</span></span>` : ''}
       ${it.kind === 'video' ? `<span class="gl-vid num">${icon('play')}${it.dur ? `${Math.floor(it.dur / 60)}:${String(Math.round(it.dur % 60)).padStart(2, '0')}` : ''}</span>` : ''}
       ${own}
     </button>`;
@@ -137,6 +138,10 @@ const fileInput = '<input type="file" data-files accept="image/*,video/*" multip
 // A child's phone (role 'player') looks and saves: no upload, no hiding, as
 // the bridge enforces (notPlayer_). Set on every wiring of the screen.
 let viewOnly = false;
+// Who is in a photo (the owner's ask): a player's phone tags himself, and
+// everyone sees the names. `me` is the linked player's id, `names` the squad.
+const tags = { me: null, names: new Map() };
+const taggedName = (pid) => tags.names.get(pid) || null;
 const canUploadTo = (g) => !viewOnly && g.mode !== 'closed' && !g.blocked;
 
 const dock = (button) => `<div class="gl-dock">${button}${fileInput}</div>`;
@@ -194,6 +199,7 @@ function helpSheet(g) {
       title: 'איך הגלריה עובדת',
       body: `<div class="help">
         <p>כאן התמונות והסרטונים שההורים מעלים מהמשחקים, לפי משחק. פותחים תמונה ← <b>"שמירה"</b> כדי לשמור אותה בטלפון.</p>
+        <p>אתה בתמונה? פותחים אותה ← <b>"אני בתמונה"</b>. השם שלך יופיע מתחתיה, והיא תיכנס ל"התמונות שלי" בכרטיס.</p>
         <p>תמונה שלך שהיית מעדיף שלא תופיע? ספר להורים — הם יכולים להסתיר אותה.</p>
       </div>`,
     });
@@ -301,6 +307,14 @@ function uploadSheet(files, s, g, { asAdmin, onDone, preset = null }) {
 
 /* ---- viewer ---- */
 
+// The names under a photo, for everyone; the manager's carry an ✕.
+function tagsHtml(it, asAdmin = tags.admin) {
+  const named = (it.players || []).map((pid) => ({ pid, name: taggedName(pid) })).filter((t) => t.name);
+  if (!named.length) return '';
+  return `<div class="gv-tags">בתמונה: ${named.map((t) => `<span class="gv-tag${t.pid === tags.me ? ' me' : ''}">${esc(t.name)}${asAdmin
+    ? `<button type="button" data-v="untag" data-pid="${esc(t.pid)}" aria-label="${esc(`הסרת התיוג של ${t.name}`)}">${icon('x')}</button>` : ''}</span>`).join('')}</div>`;
+}
+
 function viewer(g, list, start, { asAdmin, onChange }) {
   let i = start;
   const el = document.createElement('div');
@@ -329,7 +343,9 @@ function viewer(g, list, start, { asAdmin, onChange }) {
       <div class="gv-cap">
         <b>${it.match ? `מול ${esc(it.match.opponent)} · <span class="num">${esc(shortDate(it.match.date))}</span>` : 'מהעונה'}</b>
         <span>הועלה ע״י ${esc(it.byName)}${it.mine && it.status === 'hidden' ? ' · מוסתרת — רק את/ה רואה אותה' : it.mine && it.status === 'pending' ? ' · עוד לא מופיעה לכולם' : ''}</span>
+        ${tagsHtml(it)}
         <div class="gv-acts">
+          ${tags.me && it.status === 'live' ? `<button type="button" class="btn secondary${it.players?.includes(tags.me) ? ' is-on' : ''}" data-v="me" aria-pressed="${!!it.players?.includes(tags.me)}">${icon(it.players?.includes(tags.me) ? 'check' : 'user')} אני בתמונה</button>` : ''}
           <a class="btn secondary" href="${esc(saveUrl(g, it))}" download>${icon('download')} שמירה</a>
           ${canShare ? `<button type="button" class="btn secondary" data-v="share">${icon('share')} שיתוף</button>` : ''}
           ${it.mine || asAdmin
@@ -387,6 +403,20 @@ function viewer(g, list, start, { asAdmin, onChange }) {
       } catch { /* dismissed, or the phone cannot share files */ }
       return;
     }
+    if (v === 'me' || v === 'untag') {
+      if (t.disabled) return;
+      t.disabled = true;
+      try {
+        const on = v === 'me' && !it.players?.includes(tags.me);
+        const r = v === 'me' ? await tagMe(it.id, on) : await setTags(it.id, (it.players || []).filter((p) => p !== t.dataset.pid));
+        it.players = r.players;
+        if (v === 'me') toast(on ? 'תויגת בתמונה.' : 'התיוג שלך הוסר.');
+        else toast('התיוג הוסר.');
+        draw();
+        onChange();
+      } catch (err) { t.disabled = false; toast(esc(err.message), { kind: 'err' }); }
+      return;
+    }
     if (v === 'hide') {
       const why = await hideReason();
       if (!why) return;
@@ -436,6 +466,53 @@ function hideReason() {
   });
 }
 
+/* ---- "my photos", on a player's card ---- */
+
+const setTagState = (s, asAdmin) => {
+  tags.me = !asAdmin && s.isPlayer ? s.myPid || null : null;
+  tags.admin = asAdmin;
+  tags.names = new Map(s.players.map((p) => [p.id, p.name]));
+};
+const taggedPhotos = (g, pid) => (g?.enabled ? photosOf(visible(g)).filter((it) => it.players?.includes(pid)) : []);
+
+// Every photo the player is tagged in, at the foot of his card (stats). From
+// the kept copy of the gallery; wireMyPhotos asks for a fresh one.
+export function myPhotosHtml(pid, mine = false) {
+  const g = cachedGallery();
+  if (!pid || !g?.enabled) return '';
+  return `<div data-my-photos="${esc(pid)}">${myPhotosBody(g, pid, mine)}</div>`;
+}
+function myPhotosBody(g, pid, mine) {
+  const list = taggedPhotos(g, pid);
+  return `<p class="my-sub">${icon('photo')}${mine ? 'התמונות שלי' : 'בתמונות'}${list.length ? ` <span class="num">${list.length}</span>` : ''}</p>
+    ${list.length ? `<div class="gl-strip my-photos">${list.map((it) => `<button type="button" class="gl-tile" data-my-photo="${esc(it.id)}" aria-label="תמונה">
+        <img src="${esc(thumbUrl(g, it))}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.remove()" /></button>`).join('')}</div>`
+      : `<p class="note">${mine ? 'בגלריה, פותחים תמונה שאתה בה ומקישים "אני בתמונה".' : 'עוד לא תויג בתמונות.'}</p>`}`;
+}
+export function wireMyPhotos(root, s, { asAdmin = false } = {}) {
+  const host = root.querySelector('[data-my-photos]');
+  if (!host) return;
+  const pid = host.dataset.myPhotos, mine = !!s.isPlayer;
+  let g = cachedGallery(), shown = JSON.stringify(taggedPhotos(g, pid));
+  setTagState(s, asAdmin);
+  const paint = () => {
+    const now = JSON.stringify(taggedPhotos(g, pid));
+    if (now === shown) return;
+    shown = now;
+    host.innerHTML = myPhotosBody(g, pid, mine);
+  };
+  const refresh = async () => {
+    try { const fresh = await loadGallery({ asAdmin }); if (fresh) { g = fresh; paint(); } } catch { /* the kept copy stays */ }
+  };
+  host.addEventListener('click', (e) => {
+    const t = e.target.closest('[data-my-photo]');
+    if (!t || !g) return;
+    const list = taggedPhotos(g, pid);
+    viewer(g, list, Math.max(0, list.findIndex((it) => it.id === t.dataset.myPhoto)), { asAdmin, onChange: refresh });
+  });
+  refresh();
+}
+
 /* ---- wiring ---- */
 
 export function wireGallery(root, s, { isAdmin = () => false } = {}) {
@@ -445,6 +522,7 @@ export function wireGallery(root, s, { isAdmin = () => false } = {}) {
   let g = cachedGallery();
   const asAdmin = isAdmin();
   viewOnly = !asAdmin && !!s.isPlayer;
+  setTagState(s, asAdmin);
   const sel = { on: false, ids: new Set(), busy: false, asAdmin };
   const endSelect = () => { sel.on = false; sel.ids.clear(); sel.busy = false; };
   const kindOk = (it) => (shownTab === 'videos' ? it.kind === 'video' : it.kind !== 'video');

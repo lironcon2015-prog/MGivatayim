@@ -52,7 +52,11 @@ const isAdmin = () => !!store.getAdminCode();
 const canMinutes = () => isAdmin() || state.payload?.role === 'coach';
 const isPlayer = () => !isAdmin() && state.payload?.role === 'player';
 const coachData = () => cleanCoach(state.payload?.coach);
-const coachCfg = (liveId) => coachFor(coachData(), liveId);
+// The fixture a live match was opened from: the players' own "I won't come"
+// is kept by its date.
+const fixtureDateOf = (liveId) => (session.state?.id === liveId ? session.state.fixture?.date
+  : (state.payload?.season?.matches || []).find((m) => m.liveId === liveId)?.fixture?.date) || null;
+const coachCfg = (liveId) => coachFor(coachData(), liveId, fixtureDateOf(liveId));
 
 // One live session for the whole app: it polls slowly everywhere (so the home
 // banner and the tab's dot appear when a match starts) and fast on the live
@@ -98,6 +102,18 @@ function prepare(payload) {
   s.message = payload.message?.text ? payload.message : null;
   s.canMessage = canMinutes();
   s.saveMessage = saveMessage;
+  // "I won't come" (a player's phone): his own marks and the coach's word,
+  // by fixture date; locked once the match kicked off.
+  s.myPid = s.isPlayer ? payload.me?.pid || null : null;
+  s.myAway = s.isPlayer ? payload.me?.away || {} : {};
+  s.saveAway = saveAway;
+  s.liveStartedFor = (date) => { const st = session.state; return !!st && st.fixture?.date === date && st.status !== 'setup'; };
+  // Who will not come to a fixture, for the coach's home card: the live
+  // match opened from it carries the coach's word.
+  s.awayCfg = canMinutes() ? (date) => {
+    const st = session.state;
+    return coachFor(coachData(), st && st.status !== 'ended' && st.fixture?.date === date ? st.id : null, date);
+  } : null;
   return s;
 }
 
@@ -251,6 +267,11 @@ async function saveMessage(text) {
   await refresh();
 }
 
+async function saveAway(date, away) {
+  await call('setAway', { date, away });
+  await refresh();
+}
+
 async function saveTraining(date, change) {
   await call('setTrainingChange', { date, change }, { asAdmin: isAdmin() });
   await refresh();
@@ -278,6 +299,7 @@ async function saveCoach(liveId, patch) {
   }
   if ('min' in patch) { e.min = patch.min; c.minDefault = patch.min; }
   if ('absent' in patch) e.absent = patch.absent;
+  if ('here' in patch) e.here = patch.here;
   c.matches[liveId] = e;
   const setCoach = (coach) => {
     state.payload = { ...state.payload, coach };

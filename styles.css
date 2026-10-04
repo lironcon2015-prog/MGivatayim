@@ -1638,6 +1638,18 @@ button.match:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px
 .mn-att + .mn-att { border-top: 1px solid var(--line); }
 .mn-att .mn-name { flex: 1; }
 .mn-att.away .mn-name { color: var(--faint); text-decoration: line-through; text-decoration-color: var(--line-strong); }
+/* "I won't come" on a child's next-match card, in Waze's place. */
+.hero [data-away] { width: 100%; }
+.away-row { display: flex; align-items: center; gap: .6rem; padding: .7rem .85rem; border-radius: var(--r-field); background: var(--well); border: 1px solid var(--line); }
+.away-row.out { border-color: var(--gold-line); background: var(--gold-soft); }
+.away-row > svg { width: 20px; height: 20px; color: var(--gold); flex: none; }
+.away-row > div { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.away-row small { color: var(--muted); font-size: .8rem; }
+.away-why { flex: none; font-size: .8rem; color: var(--muted); }
+/* A player who said "I won't come" himself: the note under the name. */
+.mn-who { flex: 1; min-width: 0; display: grid; }
+.mn-who small { font-size: .75rem; font-weight: 600; color: var(--faint); }
+.mn-who small.self { color: var(--gold); }
 .mn-played { font-size: .78rem; color: var(--muted); }
 .mn-tg, .role-tg { display: inline-flex; flex: none; padding: 2px; border-radius: var(--r-pill); background: var(--well); border: 1px solid var(--line); }
 .mn-tg button, .role-tg button {
@@ -1772,6 +1784,20 @@ button.match:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px
   position: absolute; top: 6px; right: 6px; font-size: .68rem; font-weight: 800; padding: 2px 7px;
   border-radius: var(--r-pill); background: rgba(4, 8, 14, .78); color: var(--gold); box-shadow: inset 0 0 0 1px var(--gold-line);
 }
+/* Who is in a photo: a count on the tile, the names in the viewer. */
+.gl-tagged {
+  position: absolute; bottom: 6px; right: 6px; display: inline-flex; align-items: center; gap: 3px;
+  font-size: .7rem; font-weight: 700; padding: 2px 7px; border-radius: var(--r-pill); background: rgba(4, 8, 14, .72);
+}
+.gl-tagged svg { width: 11px; height: 11px; color: var(--gold); }
+.gl-tagged.me { color: var(--gold); }
+.gv-tags { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: .6rem; font-size: .84rem; color: var(--muted); }
+.gv-tag { display: inline-flex; align-items: center; gap: 2px; padding: 3px 10px; border-radius: var(--r-pill); background: var(--surface-2); border: 1px solid var(--line); color: var(--text); font-weight: 700; }
+.gv-tag.me { color: var(--gold); border-color: var(--gold-line); background: var(--gold-soft); }
+.gv-tag button { display: inline-grid; place-items: center; width: 22px; height: 22px; margin-inline-end: -6px; padding: 0; border: 0; background: none; color: var(--muted); cursor: pointer; touch-action: manipulation; }
+.gv-tag button svg { width: 13px; height: 13px; }
+.gv-tag button:focus-visible { outline: 2px solid var(--gold); outline-offset: 1px; border-radius: 50%; }
+.gv-acts .btn.is-on { color: var(--gold); border-color: var(--gold-line); background: var(--gold-soft); }
 .gl-more { font-size: 1.25rem; font-weight: 700; }
 
 .help h3 { display: flex; align-items: center; gap: .45rem; font-size: 1rem; margin: 1.2rem 0 .35rem; }
@@ -1894,6 +1920,7 @@ body.with-nav .gl-selbar { bottom: calc(var(--nav-space) + .5rem); }
 }
 .gl-strip::-webkit-scrollbar { display: none; }
 .gl-strip .gl-tile { width: 88px; flex: none; scroll-snap-align: start; }
+.my-photos { margin-top: .5rem; margin-inline-end: 0; padding-inline-end: 0; }
 .gl-albums { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .gl-album {
   position: relative; aspect-ratio: 4 / 3; padding: 0; border-radius: 18px; overflow: hidden; cursor: pointer;

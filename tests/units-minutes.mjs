@@ -29,14 +29,23 @@ export async function run(test) {
   console.log('minutes:');
 
   await test('coach data is rebuilt field by field, with 20 as the default minimum', () => {
-    assert.deepEqual(MN.cleanCoach(null), { minDefault: 20, matches: {} });
-    const c = MN.cleanCoach({ minDefault: '<b>', matches: { X: { min: 2.5, absent: ['a', 7, { x: 1 }] }, Y: 'junk' } });
-    assert.deepEqual(c, { minDefault: 20, matches: { X: { min: null, absent: ['a'] } } });
+    assert.deepEqual(MN.cleanCoach(null), { minDefault: 20, matches: {}, away: {} });
+    const c = MN.cleanCoach({ minDefault: '<b>', matches: { X: { min: 2.5, absent: ['a', 7, { x: 1 }] }, Y: 'junk' }, away: { '2026-10-10': ['a', 3], '<x>': ['b'] } });
+    assert.deepEqual(c, { minDefault: 20, matches: { X: { min: null, absent: ['a'], here: [] } }, away: { '2026-10-10': ['a'] } });
     const cfg = MN.coachFor({ minDefault: 25, matches: { X: { absent: ['a'] } } }, 'X');
     assert.equal(cfg.min, 25, 'a match without its own minimum takes the default');
     assert.deepEqual(MN.cleanCoach(MN.cleanCoach(c)), c, 'cleaning twice changes nothing');
     assert.equal(MN.coachFor(MN.cleanCoach({ matches: { X: { absent: [] } } }), 'X').min, 20, 'an unset minimum is not zero');
     assert.ok(cfg.absent.has('a'));
+  });
+
+  await test('a player\'s own "I won\'t come" counts as absent, unless the coach said he came', () => {
+    const coach = { matches: { X: { absent: ['b'], here: ['c'] } }, away: { '2026-10-10': ['a', 'c'] } };
+    const cfg = MN.coachFor(coach, 'X', '2026-10-10');
+    assert.deepEqual([...cfg.absent].sort(), ['a', 'b']);
+    assert.deepEqual([...cfg.self].sort(), ['a', 'c']);
+    assert.deepEqual([...MN.coachFor(coach, 'X').absent], ['b'], 'another fixture\'s marks leaked in');
+    assert.deepEqual([...MN.coachFor(coach, null, '2026-10-10').absent].sort(), ['a', 'c'], 'before the live match opens, the marks alone');
   });
 
   await test('at the break before the last third, only benched players short of the minimum are flagged', () => {

@@ -20,26 +20,35 @@ const int = (v, lo, hi) => {
 // The coach data as the bridge sends it, rebuilt field by field: it is
 // written by a device, and the views trust what comes out of here.
 export function cleanCoach(raw) {
-  const out = { minDefault: DEFAULT_MIN, matches: {} };
+  const out = { minDefault: DEFAULT_MIN, matches: {}, away: {} };
   if (!raw || typeof raw !== 'object') return out;
   out.minDefault = int(raw.minDefault, 0, MAX_MIN) ?? DEFAULT_MIN;
-  const ms = raw.matches && typeof raw.matches === 'object' && !Array.isArray(raw.matches) ? raw.matches : {};
-  for (const [id, e] of Object.entries(ms)) {
+  const obj = (v) => (v && typeof v === 'object' && !Array.isArray(v) ? v : {});
+  const ids = (v) => (Array.isArray(v) ? v.filter((x) => typeof x === 'string') : []);
+  for (const [id, e] of Object.entries(obj(raw.matches))) {
     if (!e || typeof e !== 'object') continue;
-    out.matches[id] = {
-      min: int(e.min, 0, MAX_MIN),
-      absent: Array.isArray(e.absent) ? e.absent.filter((x) => typeof x === 'string') : [],
-    };
+    out.matches[id] = { min: int(e.min, 0, MAX_MIN), absent: ids(e.absent), here: ids(e.here) };
+  }
+  // Players who said "I won't come" themselves, by the fixture's date: the
+  // live match is not open yet when a child marks it.
+  for (const [date, list] of Object.entries(obj(raw.away))) {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(date)) out.away[date] = ids(list);
   }
   return out;
 }
 
 // The minimum and the absentees of one match. A match the coach never set
-// a minimum for runs on the current default.
-export function coachFor(coach, liveId) {
+// a minimum for runs on the current default. Absent: whom the coach marked,
+// and whoever marked himself for the fixture (`date`) unless the coach said
+// he came — the coach's word wins. `own`, `here` and `self` are the parts,
+// for the attendance form.
+export function coachFor(coach, liveId, date = null) {
   const c = cleanCoach(coach);
   const e = c.matches[liveId] || {};
-  return { min: e.min ?? c.minDefault, absent: new Set(e.absent || []) };
+  const own = new Set(e.absent || []), here = new Set(e.here || []);
+  const self = new Set((date && c.away[date]) || []);
+  const absent = new Set([...own, ...[...self].filter((p) => !here.has(p))]);
+  return { min: e.min ?? c.minDefault, absent, own, here, self };
 }
 
 // Everyone who took part counts as present, whatever the attendance says:
@@ -157,7 +166,7 @@ export function seasonMinutes(season, coach) {
     .filter((m) => m.liveId && Array.isArray(m.lineup) && Array.isArray(m.format) && Array.isArray(m.events))
     .map((m) => {
       const state = { format: m.format, events: m.events, lineup: m.lineup, players: m.players || [], status: 'ended' };
-      const cfg = coachFor(coach, m.liveId);
+      const cfg = coachFor(coach, m.liveId, m.fixture?.date);
       const mins = M.minutesPlayed(state);
       const present = new Set(presentPlayers(state, cfg.absent).map((p) => p.id));
       const squad = new Set(state.players.map((p) => p.id));

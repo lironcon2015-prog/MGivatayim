@@ -3,7 +3,7 @@ import { longDate, clock, pct, dec, esc, safeUrl, splitDuration, pad2, wazeLink,
 import { icon } from '../icons.js';
 import { myCardHtml, crestImg, oppLogo, roundText, sectionHead, formPill, fixtureRow, leaderRow, tile, splitBar, linkRow, videoCard, sampleNote, SCHEDULE_SAMPLE, RESULTS_SAMPLE } from '../components.js';
 import { DAYS, weekday } from '../trainings.js';
-import { openSheet, toast } from '../ui/sheet.js';
+import { openSheet, toast, confirmSheet } from '../ui/sheet.js';
 import { call } from '../bridge.js';
 import { posterUrl } from '../posters.js';
 import { sortedVideos } from './media.js';
@@ -57,8 +57,43 @@ function nextMatchCard(s) {
       <span><b>${place}</b>${nm.venue?.name && nm.venue?.address ? ` <span class="sub">· ${esc(nm.venue.address)}</span>` : ''}</span>
     </div>
     ${chips ? `<div class="meta-chips">${chips}</div>` : ''}
-    ${waze ? `<a class="btn" href="${esc(waze)}" target="_blank" rel="noopener noreferrer">${icon('nav')} ניווט אל המגרש ב-Waze</a>` : ''}
+    ${s.isPlayer ? awayHtml(s, nm.kickoff.slice(0, 10))
+      : waze ? `<a class="btn" href="${esc(waze)}" target="_blank" rel="noopener noreferrer">${icon('nav')} ניווט אל המגרש ב-Waze</a>` : ''}
   </div>`;
+}
+
+/* ── "I won't come" ────────────────────────────────────────────────────────
+   A child's phone, in place of Waze (the parents drive, not him): one button
+   until kick-off. The coach sees him absent at once, and may say otherwise —
+   then the card shows the coach's word, with no button (the bridge holds it
+   too, setAway). */
+function awayHtml(s, date) {
+  if (!s.myPid || !date) return '';
+  const a = s.myAway?.[date] || {};
+  const started = s.liveStartedFor?.(date);
+  if (a.coach) {
+    return `<div class="away-row${a.coach === 'out' ? ' out' : ''}">${icon('user')}<div><b>המאמן עדכן: ${a.coach === 'out' ? 'לא מגיע' : 'מגיע'}</b><small>לשינוי — דברו עם המאמן</small></div></div>`;
+  }
+  if (a.self) {
+    return `<div class="away-row out">${icon('user')}<div><b>סימנת שלא תגיע</b><small>המאמן רואה את זה</small></div>${started ? '' : `<button type="button" class="linkish" data-away-undo="${esc(date)}">בעצם אגיע</button>`}</div>`;
+  }
+  return started ? '' : `<button type="button" class="btn secondary" data-away="${esc(date)}">${icon('x')} לא אגיע למשחק</button>`;
+}
+
+// The coach's and the manager's: who will not come to the next match, above
+// its card — those who said so themselves and those the coach marked.
+function awayListHtml(s) {
+  const nm = s.nextMatch;
+  if (!s.showMinutes || !s.awayCfg || !nm?.kickoff) return '';
+  const cfg = s.awayCfg(nm.kickoff.slice(0, 10));
+  const out = s.players.filter((p) => cfg.absent.has(p.id)).sort((a, b) => (a.number ?? 999) - (b.number ?? 999));
+  if (!out.length) return '';
+  return `<section>
+    ${sectionHead('לא מגיעים למשחק הבא', `<span class="num">${out.length}</span>`, 'user', { coachOnly: true })}
+    <div class="card mn-list">${out.map((p) => `<div class="mn-att">
+      <span class="mn-num num">${p.number ?? '·'}</span><span class="mn-name">${esc(p.name)}</span>
+      <span class="away-why">${cfg.own.has(p.id) ? 'סומן חסר' : 'סימן בעצמו'}</span></div>`).join('')}</div>
+  </section>`;
 }
 
 /* ── This week's trainings ─────────────────────────────────────────────────
@@ -333,12 +368,25 @@ function messageSheet(s) {
   });
 }
 
+async function saveAway(s, date, away, done) {
+  try { await s.saveAway(date, away); toast(done); }
+  catch (err) { toast(esc(err.message), { kind: 'err' }); }
+}
+
 export function wireHome(root, s) {
   const host = root.querySelector('[data-week]');
   if (host) wireWeek(host, s);
   // Fetched now, while there is signal, so the QR is on the phone at the gate.
   if (s.showQr) posterUrl(s.entryQr);
   root.querySelectorAll('[data-msg]').forEach((b) => { b.onclick = () => messageSheet(s); });
+  root.querySelectorAll('[data-away]').forEach((b) => {
+    b.onclick = async () => {
+      const nm = s.nextMatch;
+      if (!(await confirmSheet({ title: 'לא תגיע למשחק?', text: `מול ${esc(nm.opponent)}. המאמן יראה את זה מיד, ואפשר לחזור בך עד שריקת הפתיחה.`, ok: 'לא אגיע', cancel: 'חזרה' }))) return;
+      saveAway(s, b.dataset.away, true, 'נשמר. המאמן רואה שלא תגיע.');
+    };
+  });
+  root.querySelectorAll('[data-away-undo]').forEach((b) => { b.onclick = () => saveAway(s, b.dataset.awayUndo, false, 'מעולה, אתה מסומן כמגיע.'); });
   return startCountdown(root);
 }
 
@@ -351,6 +399,7 @@ export function renderHome(s) {
   return `
   ${messageHtml(s)}
   ${weekHtml(s)}
+  ${awayListHtml(s)}
   <section>
     ${nextMatchCard(s)}
   </section>

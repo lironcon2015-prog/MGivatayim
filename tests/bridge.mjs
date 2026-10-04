@@ -481,7 +481,7 @@ console.log('live:');
     const c = C.post({ action: 'getSeason', deviceKey: coach }).result;
     assert.equal(c.role, 'coach');
     assert.equal(c.season.matches[0].lineup.length, 1);
-    assert.deepEqual(c.coach, { minDefault: 20, matches: {} });
+    assert.deepEqual(c.coach, { minDefault: 20, matches: {}, away: {} });
     const p = C.post({ action: 'getSeason', deviceKey: parent }).result;
     assert.equal(p.role, 'parent');
     assert.equal('lineup' in p.season.matches[0], false);
@@ -879,7 +879,7 @@ console.log('gallery:');
     assert.deepEqual(s.links.map((l) => l.icon), ['instagram'], 'a parents\' link reached a player');
     // Started one, came on in one, assisted in a typed result; the friendly is not counted.
     // Where he played in each live match (names only), and the one he missed.
-    assert.deepEqual(r.me, { pid: 'p10', games: 3, positions: { L1: ['CM'], L2: ['ST'], L3: ['CM'] }, missed: ['L4'] });
+    assert.deepEqual(r.me, { pid: 'p10', games: 3, positions: { L1: ['CM'], L2: ['ST'], L3: ['CM'] }, missed: ['L4'], away: {} });
     const p = C.post({ action: 'getSeason', deviceKey: parent }).result;
     assert.equal(p.role, 'parent');
     assert.ok(!p.me && p.season.analysis && p.season.links.length === 2, 'a parent lost what is theirs');
@@ -895,7 +895,7 @@ console.log('gallery:');
   test('a player not linked yet sees everything but a card', () => {
     C.post({ action: 'setRole', adminCode: ADMIN, id: kidId, role: 'player' });
     const r = C.post({ action: 'getSeason', deviceKey: kid }).result;
-    assert.deepEqual(r.me, { pid: null, games: 0, positions: {}, missed: [] });
+    assert.deepEqual(r.me, { pid: null, games: 0, positions: {}, missed: [], away: {} });
     assert.ok(r.season.players.every((p) => !('goals' in p)), 'an unlinked player got a child\'s totals');
     C.post({ action: 'setRole', adminCode: ADMIN, id: kidId, role: 'parent' });
     assert.ok(!('pid' in C.post({ action: 'listUsers', adminCode: ADMIN }).result.find((x) => x.id === kidId)), 'a parent kept a child link');
@@ -914,6 +914,91 @@ console.log('gallery:');
 
   test('who is in a photo: the manager only', () => {
     assert.equal(err(C.post({ action: 'tagGalleryItem', deviceKey: parent, id: 'x', players: ['p10'] })), 'bad_code');
+  });
+}
+
+// A player's own word: "I won't come" to a fixture, until kick-off, and the
+// coach's word over it; and tagging himself in a photo, which the manager
+// may take off.
+{
+  const C = createBridge({ adminCode: ADMIN });
+  C.setProp('CLOUDINARY_CLOUD', 'mg-demo');
+  C.setProp('CLOUDINARY_KEY', '123456');
+  C.setProp('CLOUDINARY_SECRET', 'shh-secret');
+  const kid = 'k'.repeat(64), parent = 'm'.repeat(64), coach = 'c'.repeat(64);
+  const approve = (key, name, role, pid) => {
+    C.post({ action: 'requestAccess', deviceKey: key, name });
+    const id = C.post({ action: 'listUsers', adminCode: ADMIN }).result.find((u) => u.name === name).id;
+    C.post({ action: 'setStatus', adminCode: ADMIN, id, status: 'approved' });
+    if (role) C.post({ action: 'setRole', adminCode: ADMIN, id, role, pid });
+  };
+  approve(kid, 'יואב', 'player', 'p8');
+  approve(parent, 'אמא של נועם');
+  approve(coach, 'המאמן', 'coach');
+  const fixture = { date: '2026-10-10', time: '10:00', opponent: 'הפועל רמת גן', home: true };
+  C.post({ action: 'putSeason', adminCode: ADMIN, baseVersion: 0, season: {
+    players: [{ id: 'p8', name: 'יואב' }, { id: 'p9', name: 'נועם' }],
+    fixtures: [fixture, { date: '2026-10-17', opponent: 'בני יהודה' }],
+    matches: [{ date: '2026-09-26', opponent: 'מכבי יפו', gf: 1, ga: 0 }],
+  } });
+  const away = (key, date, on = true) => C.post({ action: 'setAway', deviceKey: key, date, away: on });
+  const meAway = () => C.post({ action: 'getSeason', deviceKey: kid }).result.me.away;
+  const coachData = () => C.post({ action: 'getSeason', deviceKey: coach }).result.coach;
+
+  test('a player says he won\'t come; the coach sees it, nobody else may say it for him', () => {
+    assert.equal(err(away(parent, '2026-10-10')), 'not_player');
+    assert.equal(err(away(coach, '2026-10-10')), 'not_player');
+    assert.equal(err(away(kid, '2026-11-01')), 'bad_match', 'a date not on the schedule');
+    assert.equal(err(away(kid, '2026-09-26')), 'started', 'a match already played');
+    assert.equal(err(away(kid, '10/10/2026')), 'bad_date');
+    assert.ok(away(kid, '2026-10-10').ok);
+    assert.deepEqual(coachData().away, { '2026-10-10': ['p8'] });
+    assert.deepEqual(meAway(), { '2026-10-10': { self: true, coach: null } });
+    assert.ok(away(kid, '2026-10-10', false).ok, 'and takes it back');
+    assert.deepEqual(coachData().away, {});
+    assert.ok(away(kid, '2026-10-10').ok);
+    assert.ok(!('coach' in C.post({ action: 'getSeason', deviceKey: parent }).result), 'coach data reached a parent');
+  });
+
+  test('the coach\'s word wins: once he decides, the player\'s mark is locked', () => {
+    const st = { id: 'M1', status: 'setup', opponent: fixture.opponent, date: '', format: [30, 30, 20], lineup: [], players: [], events: [], fixture: { date: fixture.date, opponent: fixture.opponent } };
+    assert.equal(C.post({ action: 'startLive', adminCode: ADMIN, state: st }).result.version, 1);
+    const r = C.post({ action: 'setCoachMatch', deviceKey: coach, liveId: 'M1', absent: [], here: ['p8', 'p8'] }).result;
+    assert.deepEqual(r.matches.M1.here, ['p8']);
+    assert.deepEqual(r.away, { '2026-10-10': ['p8'] }, 'the coach\'s save dropped the players\' own marks');
+    assert.deepEqual(meAway(), { '2026-10-10': { self: true, coach: 'in' } });
+    assert.equal(err(away(kid, '2026-10-10', false)), 'coach_set');
+    C.post({ action: 'setCoachMatch', deviceKey: coach, liveId: 'M1', absent: ['p8'], here: [] });
+    assert.deepEqual(meAway(), { '2026-10-10': { self: true, coach: 'out' } });
+    assert.equal(err(C.post({ action: 'setCoachMatch', deviceKey: coach, liveId: 'M1', here: 'p8' })), 'bad_absent');
+  });
+
+  test('after kick-off the mark is closed', () => {
+    C.post({ action: 'setCoachMatch', deviceKey: coach, liveId: 'M1', absent: [], here: [] });
+    assert.ok(away(kid, '2026-10-17').ok);
+    const v = C.post({ action: 'getLive', adminCode: ADMIN }).result.version;
+    C.post({ action: 'putLive', adminCode: ADMIN, baseVersion: v, state: { id: 'M1', status: 'running', opponent: fixture.opponent, date: '2026-10-10', format: [30, 30, 20], lineup: [], players: [], events: [], fixture: { date: fixture.date, opponent: fixture.opponent } } });
+    assert.equal(err(away(kid, '2026-10-10', false)), 'started');
+  });
+
+  test('a player tags only himself, in what everyone sees; the manager takes a tag off', () => {
+    const add = () => {
+      const sig = C.post({ action: 'signUpload', adminCode: ADMIN, kind: 'image' }).result;
+      return C.post({ action: 'addGalleryItem', adminCode: ADMIN, pid: sig.public_id, w: 10, h: 10 }).result.id;
+    };
+    const a = add(), hidden = add();
+    C.post({ action: 'hideGalleryItem', deviceKey: parent, id: hidden, why: 'mine' });
+    assert.equal(err(C.post({ action: 'tagMe', deviceKey: parent, id: a, on: true })), 'not_player');
+    assert.equal(err(C.post({ action: 'tagMe', adminCode: ADMIN, id: a, on: true })), 'not_player');
+    assert.equal(err(C.post({ action: 'tagMe', deviceKey: kid, id: hidden, on: true })), 'not_found', 'a hidden photo');
+    assert.deepEqual(C.post({ action: 'tagMe', deviceKey: kid, id: a, on: true, players: ['p9'] }).result.players, ['p8'], 'he tagged someone else');
+    assert.deepEqual(C.post({ action: 'tagMe', deviceKey: kid, id: a, on: true }).result.players, ['p8'], 'tagged twice');
+    const seen = (key) => C.post({ action: 'getGallery', deviceKey: key }).result.items.find((it) => it.id === a).players;
+    assert.deepEqual(seen(parent), ['p8'], 'a parent does not see the names');
+    assert.deepEqual(C.post({ action: 'tagGalleryItem', adminCode: ADMIN, id: a, players: [] }).result.players, []);
+    assert.deepEqual(seen(kid), []);
+    C.post({ action: 'tagMe', deviceKey: kid, id: a, on: true });
+    assert.deepEqual(C.post({ action: 'tagMe', deviceKey: kid, id: a, on: false }).result.players, [], 'he took his own tag off');
   });
 }
 

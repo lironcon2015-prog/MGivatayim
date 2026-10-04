@@ -138,3 +138,7 @@ export async function uploadOne(file, match, { onProgress, asAdmin = false } = {
 export const hideItem = (id, why, { asAdmin = false } = {}) => call('hideGalleryItem', { id, why }, { asAdmin });
 export const deleteItem = (id, { asAdmin = false } = {}) => call('deleteGalleryItem', { id }, { asAdmin });
 export const deleteItems = (ids, { asAdmin = false } = {}) => call('deleteGalleryItem', { ids }, { asAdmin });
+// "I'm in this photo": a player's phone tags (or untags) only himself; the
+// manager sets the whole list — which is how a tag comes off.
+export const tagMe = (id, on) => call('tagMe', { id, on });
+export const setTags = (id, players) => call('tagGalleryItem', { id, players }, { asAdmin: true });

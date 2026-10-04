@@ -2173,6 +2173,61 @@ await step('a player sees his own card and no leaderboard; the coach\'s message 
   await kid.locator('.sheet .sheet-x').click();
   await kid.waitForFunction(() => !document.querySelector('.sheet'));
 
+  // "I won't come", in Waze's place on his next-match card (the parents
+  // drive, not him): the coach's list has him at once, and he can take it
+  // back before kick-off. And tagging himself in a photo, which the manager
+  // can take off.
+  {
+    const cur = await asAdmin('getSeason');
+    const d = new Date(israelToday() + 'T12:00:00Z');
+    d.setUTCDate(d.getUTCDate() + 1);
+    const awayFx = { date: d.toISOString().slice(0, 10), time: '23:00', opponent: 'יריבת ההיעדרות', home: true };
+    await asAdmin('putSeason', { season: { ...cur.season, fixtures: [...(cur.season.fixtures || []), awayFx] }, baseVersion: cur.version });
+    const me = seasonFile().players.find((p) => p.name === name);
+    const pid = me.id || 'n:' + me.name;
+    const marked = () => Object.values(coachFile().away || {}).some((l) => l.includes(pid));
+    await kid.goto(APP + '#/');
+    await kid.reload();
+    await kid.locator('.hero [data-away]').waitFor({ timeout: 8000 });
+    expect(await kid.locator('.hero a[href*="waze"]').count() === 0, 'a player got the Waze button');
+    await kid.click('.hero [data-away]');
+    await kid.locator('.sheet .btn', { hasText: 'לא אגיע' }).click();
+    await kid.locator('.hero .away-row', { hasText: 'סימנת שלא תגיע' }).waitFor({ timeout: 8000 });
+    await until(marked, 'the player\'s mark in coach.json');
+    await kid.waitForFunction(() => !history.state?.mgLayer);
+    await admin.goto(APP + '#/');
+    await admin.reload();
+    await admin.locator('.mn-att', { hasText: name }).waitFor({ timeout: 8000 });
+    expect((await admin.locator('.mn-att', { hasText: name }).innerText()).includes('סימן בעצמו'), 'the manager\'s list does not say he marked it himself');
+    await kid.locator('[data-away-undo]').click();
+    await kid.locator('.hero [data-away]').waitFor({ timeout: 8000 });
+    expect(!marked(), 'taking it back left the mark');
+
+    const sig = bridge.post({ action: 'signUpload', adminCode: ADMIN, kind: 'image' }).result;
+    const item = bridge.post({ action: 'addGalleryItem', adminCode: ADMIN, pid: sig.public_id, w: 10, h: 10 }).result.id;
+    const tagged = () => galleryFile().items.find((it) => it.id === item).players || [];
+    await kid.goto(APP + '#/media');
+    await kid.reload();
+    await kid.locator(`[data-open="${item}"]`).click();
+    await kid.click('.gv [data-v="me"]');
+    await kid.locator('.gv .gv-tag.me', { hasText: name }).waitFor({ timeout: 8000 });
+    expect(tagged().join() === pid, 'gallery.json tags: ' + JSON.stringify(tagged()));
+    await kid.click('.gv [data-v="close"]');
+    await kid.waitForFunction(() => !history.state?.mgLayer);
+    await kid.goto(APP + '#/stats');
+    await kid.locator('[data-my-photos] [data-my-photo]').first().waitFor({ timeout: 8000 });
+    await admin.goto(APP + '#/media');
+    await admin.reload();
+    await admin.locator(`[data-open="${item}"]`).click();
+    await admin.locator('.gv .gv-tag', { hasText: name }).waitFor({ timeout: 8000 });
+    await admin.click('.gv [data-v="untag"]');
+    await until(() => !tagged().length, 'the manager\'s untag');
+    await admin.click('.gv [data-v="close"]');
+    await admin.waitForFunction(() => !history.state?.mgLayer);
+    const back = await asAdmin('getSeason');
+    await asAdmin('putSeason', { season: { ...back.season, fixtures: back.season.fixtures.filter((f) => f.opponent !== awayFx.opponent) }, baseVersion: back.version });
+  }
+
   // The message: written on the home screen (the coach's device is revoked by
   // now; the manager writes it the same way), read by all.
   try {

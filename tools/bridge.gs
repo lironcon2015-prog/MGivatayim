@@ -121,6 +121,8 @@ function handle_(req) {
     case 'deleteGalleryItem': return deleteGalleryItem_(req);
     // מאמן או מנהל
     case 'setCoachMatch': return setCoachMatch_(req);
+    case 'setAway':       return setAway_(req);
+    case 'tagMe':         return tagMe_(req);
     case 'setTrainingChange': return setTrainingChange_(req);
     case 'setMessage':    return setMessage_(req);
     // שולט במשחק (מנהל או מכשיר שמימש קוד)
@@ -421,7 +423,11 @@ function getSeason_(req) {
   const message = message_();
   /* שחקן: מה שהורה מקבל, בלי מה שמדרג ילדים ובלי מה שנכתב להורים, ועם
      הנתונים שלו בלבד (me). */
-  if (who.player) return Object.assign(forPlayers_(s, who.user.pid || null), { role: role, message: message });
+  if (who.player) {
+    const out = Object.assign(forPlayers_(s, who.user.pid || null), { role: role, message: message });
+    out.me.away = awayFor_(who.user.pid || null);
+    return out;
+  }
   /* מאמן מקבל את העונה המלאה, עם הדקות, ואת נתוני המאמן. הורה לא מקבל
      אף אחד מהם. */
   if (!who.coach) return Object.assign(forParents_(s), { role: role, message: message });
@@ -982,6 +988,7 @@ function coach_() {
   return {
     minDefault: c && isFinite(Number(c.minDefault)) ? Number(c.minDefault) : DEFAULT_MIN_MINUTES,
     matches: c && c.matches && typeof c.matches === 'object' && !Array.isArray(c.matches) ? c.matches : {},
+    away: c && c.away && typeof c.away === 'object' && !Array.isArray(c.away) ? c.away : {},
   };
 }
 
@@ -1038,15 +1045,20 @@ function setCoachMatch_(req) {
     min = Number(req.min);
     if (!isFinite(min) || min !== Math.floor(min) || min < 0 || min > MAX_MIN_MINUTES) throw fail_('רף לא תקין', 'bad_min');
   }
-  let absent = null;
-  if (req.absent != null) {
-    if (!Array.isArray(req.absent) || req.absent.length > MAX_ABSENT) throw fail_('רשימת נוכחות לא תקינה', 'bad_absent');
-    absent = [];
-    req.absent.forEach((pid) => {
+  const ids = (list) => {
+    if (list == null) return null;
+    if (!Array.isArray(list) || list.length > MAX_ABSENT) throw fail_('רשימת נוכחות לא תקינה', 'bad_absent');
+    const out = [];
+    list.forEach((pid) => {
       const v = String(pid).slice(0, 80);
-      if (v && absent.indexOf(v) < 0) absent.push(v);
+      if (v && out.indexOf(v) < 0) out.push(v);
     });
-  }
+    return out;
+  };
+  /* absent: מי שהמאמן סימן חסר. here: מי שסימן בעצמו שלא יגיע, והמאמן
+     סימן שהגיע — ההחלטה של המאמן גוברת. */
+  const absent = ids(req.absent);
+  const here = ids(req.here);
   return withLock_(() => {
     const c = coach_();
     const entry = c.matches[liveId] || {};
@@ -1063,10 +1075,61 @@ function setCoachMatch_(req) {
     }
     if (min != null) entry.min = min;
     if (absent) entry.absent = absent;
+    if (here) entry.here = here;
     c.matches[liveId] = entry;
     writeJson_(COACH_FILE, c);
     return c;
   });
+}
+
+/* שחקן: "לא אגיע" למשחק מהלוח (בקשת בעל הריפו), עד שריקת הפתיחה. נשמר
+   בנתוני המאמן לפי תאריך המשחק בלוח — המשחק החי עוד לא נפתח כשהילד מסמן.
+   המאמן רואה אותו כחסר ויכול לשנות (setCoachMatch, here); אחרי שהמאמן
+   החליט, הסימון של השחקן נעול. */
+function setAway_(req) {
+  const who = viewer_(req);
+  const pid = who.player ? String(who.user.pid || '') : '';
+  if (!pid) throw fail_('אין הרשאה', 'not_player');
+  const date = String(req.date || '');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw fail_('תאריך לא תקין', 'bad_date');
+  const away = req.away === true;
+  return withLock_(() => {
+    const s = readJson_(SEASON_FILE, null);
+    const season = (s && s.season) || {};
+    if ((season.matches || []).some((m) => m && (m.date === date || (m.fixture && m.fixture.date === date)))) throw fail_('המשחק כבר התקיים', 'started');
+    if (!(season.fixtures || []).some((f) => f && f.date === date)) throw fail_('המשחק לא בלוח', 'bad_match');
+    const c = coach_();
+    const l = live_();
+    const st = l.state;
+    if (st && st.fixture && st.fixture.date === date) {
+      if (st.status !== 'setup') throw fail_('המשחק כבר התחיל', 'started');
+      const e = c.matches[st.id] || {};
+      if ((e.absent || []).indexOf(pid) >= 0 || (e.here || []).indexOf(pid) >= 0) throw fail_('המאמן כבר עדכן', 'coach_set');
+    }
+    const list = (Array.isArray(c.away[date]) ? c.away[date] : []).filter((x) => x !== pid);
+    if (away) list.push(pid);
+    if (list.length) c.away[date] = list; else delete c.away[date];
+    writeJson_(COACH_FILE, c);
+    return { away: away };
+  });
+}
+
+/* מה שהשחקן רואה על עצמו: לכל תאריך — אם סימן שלא יגיע, ומה המאמן החליט
+   במשחק החי שנפתח מאותה שורה בלוח. */
+function awayFor_(pid) {
+  const out = {};
+  if (!pid) return out;
+  const c = coach_();
+  Object.keys(c.away).forEach((date) => {
+    if (Array.isArray(c.away[date]) && c.away[date].indexOf(pid) >= 0) out[date] = { self: true, coach: null };
+  });
+  const st = live_().state;
+  if (st && st.fixture && st.fixture.date && st.status !== 'ended') {
+    const e = c.matches[st.id] || {};
+    const say = (e.absent || []).indexOf(pid) >= 0 ? 'out' : (e.here || []).indexOf(pid) >= 0 ? 'in' : null;
+    if (say) out[st.fixture.date] = { self: !!(out[st.fixture.date] && out[st.fixture.date].self), coach: say };
+  }
+  return out;
 }
 
 /* ---------- גלריה ----------
@@ -1326,6 +1389,28 @@ function tagGalleryItem_(req) {
   return withLock_(() => {
     const g = gallery_();
     const it = findItem_(g, req.id);
+    if (players.length) it.players = players; else delete it.players;
+    saveGallery_(g);
+    return { ok: true, players: players };
+  });
+}
+
+/* שחקן מתייג את עצמו בתמונה, או מסיר את התיוג שלו (בקשת בעל הריפו) — רק
+   את עצמו, ורק בפריט שכולם רואים. המנהל מסיר כל תיוג (tagGalleryItem). */
+function tagMe_(req) {
+  const who = viewer_(req);
+  const pid = who.player ? String(who.user.pid || '') : '';
+  if (!pid) throw fail_('אין הרשאה', 'not_player');
+  const on = req.on === true;
+  return withLock_(() => {
+    const g = gallery_();
+    const it = findItem_(g, req.id);
+    if (it.status !== 'live') throw fail_('הפריט לא נמצא', 'not_found');
+    const players = (Array.isArray(it.players) ? it.players : []).filter((x) => x !== pid);
+    if (on) {
+      if (players.length >= 30) throw fail_('יותר מדי תיוגים', 'too_big');
+      players.push(pid);
+    }
     if (players.length) it.players = players; else delete it.players;
     saveGallery_(g);
     return { ok: true, players: players };

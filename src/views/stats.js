@@ -5,6 +5,7 @@ import { posLabel } from '../positions.js';
 import { icon } from '../icons.js';
 import { hydratePosters } from '../posters.js';
 import { seasonMinutesHtml, wireSeasonMinutes } from './minutes.js';
+import { myPhotosHtml, wireMyPhotos } from './gallery.js';
 
 const BOARDS = [
   { key: 'goals',   label: 'שערים',   figs: [{ key: 'goals', label: 'שערים' }, { key: 'assists', label: 'בישולים' }] },
@@ -51,7 +52,7 @@ function cardsHtml(s) {
       <button type="button" class="btn small secondary" data-card="${esc(squad[i + 1]?.id || '')}"${i < squad.length - 1 ? '' : ' disabled'}>הבא ‹</button>
     </div>
     ${sectionHead('הכרטיס שלי', '', 'shirt')}
-    ${myCardHtml(s, { card: s.cardFor(p.id) })}
+    ${myCardHtml(s, { card: s.cardFor(p.id), extra: myPhotosHtml(p.id) })}
   </section>`;
 }
 
@@ -60,7 +61,7 @@ export function renderStats(s) {
     return switchHtml('player', [['mine', 'הכרטיס שלי'], ['team', 'הקבוצה']]) + (pane.player === 'mine'
       ? `<section id="stats-mine">
     ${sectionHead('הכרטיס שלי', '', 'shirt')}
-    ${myCardHtml(s)}
+    ${myCardHtml(s, { extra: myPhotosHtml(s.myPid, true) })}
   </section>` : teamHtml(s));
   }
   if (s.cardFor) {
@@ -150,6 +151,7 @@ export function wireStats(root, s) {
 
 function wirePane(root, s) {
   root.querySelectorAll('[data-fold]').forEach((el) => foldRows(el, el.dataset.fold));
+  wireMyPhotos(root, s, { asAdmin: !!s.isAdmin });
   const tabs = root.querySelector('#board-tabs');
   const out = root.querySelector('#board');
   if (!tabs || !out) return () => {};

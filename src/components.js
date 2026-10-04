@@ -294,7 +294,7 @@ export function foldRows(list, key, shown = 5) {
 // assist, the two zero tiles give way to "positions". The manager and the
 // coach see the same card for any player (stats → "כרטיסי שחקן").
 // `limit` cuts the matches on the home screen, without the positions.
-export function myCardHtml(s, { limit = Infinity, card = s.card } = {}) {
+export function myCardHtml(s, { limit = Infinity, card = s.card, extra = '' } = {}) {
   const c = card;
   if (!c) {
     return `<div class="card my-card"><div class="empty">המנהל צריך לבחור מי אתה מהסגל — אחרי זה יופיעו כאן המשחקים, השערים והבישולים שלך.</div></div>`;
@@ -331,5 +331,6 @@ export function myCardHtml(s, { limit = Infinity, card = s.card } = {}) {
     ${tiles}
     ${places}
     ${rows ? `<p class="my-sub">${icon('calendar')}המשחקים שלי</p><div class="rows my-list"${short ? '' : ' data-fold="mine"'}>${rows}</div>` : '<div class="empty">עוד לא שוחקו משחקים.</div>'}
+    ${extra}
   </div>`;
 }

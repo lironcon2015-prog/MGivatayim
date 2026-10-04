@@ -2206,6 +2206,7 @@ await step('a player sees his own card and no leaderboard; the coach\'s message 
     const sig = bridge.post({ action: 'signUpload', adminCode: ADMIN, kind: 'image' }).result;
     const item = bridge.post({ action: 'addGalleryItem', adminCode: ADMIN, pid: sig.public_id, w: 10, h: 10 }).result.id;
     const tagged = () => galleryFile().items.find((it) => it.id === item).players || [];
+    await fakeCloudinary(kid);
     await kid.goto(APP + '#/media');
     await kid.reload();
     await kid.locator(`[data-open="${item}"]`).click();

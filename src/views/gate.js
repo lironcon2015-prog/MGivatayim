@@ -19,19 +19,20 @@ export function setupScreen() {
      <p class="note">למנהל: הוראות ההתקנה נמצאות בראש הקובץ <code>tools/bridge.gs</code> בריפו.</p>`);
 }
 
-// On a phone, the request is sent from the home-screen app only: on iPhone a
-// request from Safari does not reach the icon, and the owner wants everyone
-// installed, Android too. `skipInstall` is the way through for a phone that
-// cannot install; a computer or other browser gets the form directly.
-export function requestGated(skipInstall) {
-  return !isStandalone() && platform() !== 'other' && !skipInstall;
+// On a phone, the request is sent from the home-screen app only, with no way
+// around it (the owner): a request from the browser — WhatsApp's own, a
+// private tab, Safari clearing a site's storage, or the icon installed later —
+// lost its device key, and the same parent asked again and again. A computer
+// or other browser gets the form directly.
+export function requestGated() {
+  return !isStandalone() && platform() !== 'other';
 }
 
 // Who is asking (the owner's request): parent, player or coach. It only asks —
 // the manager sees it on the request, and approving applies it.
 const ASK_ROLES = [['parent', 'הורה'], ['player', 'שחקן'], ['coach', 'מאמן']];
 
-export function requestScreen(name = '', error = '', { skipInstall = false, role = 'parent' } = {}) {
+export function requestScreen(name = '', error = '', { role = 'parent' } = {}) {
   const form = `<p class="gate-lead">הנתונים של הקבוצה פתוחים להורים ולשחקנים באישור המנהל. שלחו בקשה פעם אחת מהמכשיר הזה.</p>
      <form id="request-form" class="form-stack" novalidate>
        <div class="field"><span>מי אתם?</span>
@@ -45,11 +46,10 @@ export function requestScreen(name = '', error = '', { skipInstall = false, role
        ${error ? `<p class="form-error" role="alert">${esc(error)}</p>` : ''}
        <button class="btn" type="submit">שליחת בקשה</button>
      </form>`;
-  if (requestGated(skipInstall)) {
+  if (requestGated()) {
     return installHelp() + card('בקשת גישה — אחרי התקנה במסך הבית',
       `<p class="gate-lead">את הבקשה שולחים <b>מהאפליקציה שבמסך הבית</b>: מתקינים לפי ההוראות למעלה, פותחים מהאייקון, והטופס יחכה שם.</p>
-       <p class="gate-foot"><button type="button" class="linkish" data-skip-install>אי אפשר להתקין? להמשיך בלי התקנה</button></p>
-       ${platform() === 'ios' ? '<p class="note">באייפון: בקשה שתישלח מכאן לא תעבור לאפליקציה אם תתקינו אחר כך.</p>' : ''}
+       <p class="note">לא מצליחים להתקין? כתבו למנהל הקבוצה.</p>
        ${adminLink}`);
   }
   // Outside the home-screen app the title itself says the order: install

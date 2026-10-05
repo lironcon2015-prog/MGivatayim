@@ -130,16 +130,15 @@ await step('a new device lands on the access request, not on data', async () => 
   await waitText(parent, 'בקשת גישה');
 });
 
-await step('on a phone outside the home-screen app there is no request form, only a way through', async () => {
+await step('on a phone outside the home-screen app there is no request form and no way around it', async () => {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, userAgent: IPHONE });
   await ctx.addInitScript((url) => { try { localStorage.setItem('mg:bridge', url); } catch {} }, BRIDGE);
   await ctx.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
   const phone = await ctx.newPage();
   await phone.goto(APP);
-  await phone.locator('[data-skip-install]').waitFor();
+  await phone.locator('.gate h2', { hasText: 'אחרי התקנה במסך הבית' }).waitFor();
   expect(await phone.locator('#request-form').count() === 0, 'a phone in the browser must not see the form');
-  await phone.click('[data-skip-install]');
-  await phone.locator('#request-form').waitFor();
+  expect(await phone.locator('[data-skip-install]').count() === 0 && !(await text(phone)).includes('בלי התקנה'), 'a phone in the browser is offered a way around installing');
   await phone.addInitScript(() => { window.navigator.__defineGetter__('standalone', () => true); });
   await phone.reload();
   await phone.locator('#request-form').waitFor();

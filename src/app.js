@@ -40,7 +40,6 @@ const state = {
   payload: null,          // { version, updatedAt, season } as the bridge returns it
   season: null,           // buildSeason(payload.season), ready for the views
   stale: false,           // showing the device cache because the bridge was unreachable
-  skipInstall: false,     // a phone that cannot install chose to ask from the browser (this visit only)
   askRole: 'parent',      // who the request says is asking: parent, player or coach
   pending: 0,             // access requests waiting for the manager (manager only)
   galleryWaiting: 0,      // gallery items hidden (or held for review), for the manager
@@ -470,8 +469,7 @@ function draw() {
       view.querySelector('#retry').addEventListener('click', () => { state.access = 'loading'; render(); start(); });
       return;
     case 'none':
-      view.innerHTML = gate.requestScreen(state.name, state.formError, { skipInstall: state.skipInstall, role: state.askRole });
-      view.querySelector('[data-skip-install]')?.addEventListener('click', () => { state.skipInstall = true; render(); });
+      view.innerHTML = gate.requestScreen(state.name, state.formError, { role: state.askRole });
       view.querySelectorAll('[data-ask-role]').forEach((b) => b.addEventListener('click', () => {
         state.name = view.querySelector('#request-form [name="name"]')?.value ?? state.name;
         state.askRole = b.dataset.askRole;

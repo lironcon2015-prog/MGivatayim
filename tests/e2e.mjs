@@ -2225,6 +2225,17 @@ await step('a player sees his own card and no leaderboard; the coach\'s message 
     await until(() => !tagged().length, 'the manager\'s untag');
     await admin.click('.gv [data-v="close"]');
     await admin.waitForFunction(() => !history.state?.mgLayer);
+    // Past twelve: three rows of four, the last one "+N", never a sideways scroll.
+    for (let i = 0; i < 13; i++) {
+      const sg = bridge.post({ action: 'signUpload', adminCode: ADMIN, kind: 'image' }).result;
+      const id = bridge.post({ action: 'addGalleryItem', adminCode: ADMIN, pid: sg.public_id, w: 10, h: 10 }).result.id;
+      bridge.post({ action: 'tagGalleryItem', adminCode: ADMIN, id, players: [pid] });
+    }
+    await kid.goto(APP + '#/stats');
+    await kid.reload();
+    await kid.locator('[data-my-photos] .gl-plus', { hasText: '+2' }).waitFor({ timeout: 8000 });
+    const grid = await kid.locator('[data-my-photos] .my-photos').evaluate((el) => ({ n: el.children.length, wide: el.scrollWidth > el.clientWidth }));
+    expect(grid.n === 12 && !grid.wide, 'my photos: ' + JSON.stringify(grid));
     const back = await asAdmin('getSeason');
     await asAdmin('putSeason', { season: { ...back.season, fixtures: back.season.fixtures.filter((f) => f.opponent !== awayFx.opponent) }, baseVersion: back.version });
   }

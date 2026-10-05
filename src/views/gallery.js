@@ -482,11 +482,20 @@ export function myPhotosHtml(pid, mine = false) {
   if (!pid || !g?.enabled) return '';
   return `<div data-my-photos="${esc(pid)}">${myPhotosBody(g, pid, mine)}</div>`;
 }
+// Three rows of four, newest first, with no sideways scroll (the owner's
+// pick): past twelve, the last square is "+N" and opens the viewer there,
+// which swipes through them all.
+const MY_PHOTOS = 12;
 function myPhotosBody(g, pid, mine) {
   const list = taggedPhotos(g, pid);
+  const shown = list.length > MY_PHOTOS ? list.slice(0, MY_PHOTOS) : list;
+  const more = list.length - (MY_PHOTOS - 1);
   return `<p class="my-sub">${icon('photo')}${mine ? 'התמונות שלי' : 'בתמונות'}${list.length ? ` <span class="num">${list.length}</span>` : ''}</p>
-    ${list.length ? `<div class="gl-strip my-photos">${list.map((it) => `<button type="button" class="gl-tile" data-my-photo="${esc(it.id)}" aria-label="תמונה">
-        <img src="${esc(thumbUrl(g, it))}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.remove()" /></button>`).join('')}</div>`
+    ${list.length ? `<div class="gl-grid my-photos">${shown.map((it, i) => {
+        const plus = list.length > MY_PHOTOS && i === MY_PHOTOS - 1;
+        return `<button type="button" class="gl-tile${plus ? ' gl-plus' : ''}" data-my-photo="${esc(it.id)}" aria-label="${plus ? `עוד ${more} תמונות` : 'תמונה'}">
+        <img src="${esc(thumbUrl(g, it))}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.remove()" />${plus ? `<span class="num">+${more}</span>` : ''}</button>`;
+      }).join('')}</div>`
       : `<p class="note">${mine ? 'בגלריה, פותחים תמונה שאתה בה ומקישים "אני בתמונה".' : 'עוד לא תויג בתמונות.'}</p>`}`;
 }
 export function wireMyPhotos(root, s, { asAdmin = false } = {}) {

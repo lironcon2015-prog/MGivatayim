@@ -399,8 +399,7 @@ export function mountLive(view, ctx) {
     return `<div class="live-mini" data-mini aria-hidden="true" inert>
       ${goalBtn('goal-us', 'שער לנו', `<span class="sc-crest">${crestImg(ctx.team)}</span>`)}
       <span class="mini-score num"><span class="ours">${sc.us}</span><span class="sep">:</span><span>${sc.them}</span></span>
-      <span class="mini-clock num" data-mini-clock></span>
-      ${goalBtn('goal-them', `שער ל${esc(opp)}`, `<span class="sc-disc">${esc(opp.slice(0, 2))}${oppLogo(ctx.logo?.(st.opponent), opp)}</span>`)}
+      <span class="mini-them"><span class="mini-clock num" data-mini-clock></span>${goalBtn('goal-them', `שער ל${esc(opp)}`, `<span class="sc-disc">${esc(opp.slice(0, 2))}${oppLogo(ctx.logo?.(st.opponent), opp)}</span>`)}</span>
     </div>`;
   }
 

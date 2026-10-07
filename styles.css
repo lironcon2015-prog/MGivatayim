@@ -1154,7 +1154,7 @@ body.with-nav .toast { bottom: calc(var(--nav-float) + 10px); }
 .live-mini {
   position: fixed; z-index: 35; top: calc(env(safe-area-inset-top) + 8px); inset-inline: 12px;
   max-width: calc(var(--shell) - 8px); margin: 0 auto;
-  display: grid; grid-template-columns: auto 1fr auto auto; align-items: center; gap: .7rem; padding: 6px 10px;
+  display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: .7rem; padding: 6px 10px;
   border-radius: var(--r-pill); border: 1px solid var(--gold-line); background: rgba(17, 26, 40, .9);
   -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); box-shadow: var(--shadow-lift);
   opacity: 0; transform: translateY(-12px); pointer-events: none; transition: opacity .18s, transform .18s;
@@ -1167,6 +1167,10 @@ body.with-nav .toast { bottom: calc(var(--nav-float) + 10px); }
 .mini-score .ours { color: var(--gold); }
 .mini-score .sep { color: var(--faint); font-size: 1.1rem; }
 .mini-clock { font-size: 1rem; font-weight: 600; color: var(--muted); }
+/* The score in the band's true centre: our crest alone on its side, the
+   clock beside the score on the other, their crest at the far end. */
+.live-mini > .sc-goal { justify-self: start; }
+.mini-them { display: flex; align-items: center; justify-content: space-between; gap: .5rem; min-width: 0; }
 /* Scorers: two equal columns, each centred under its team, ours on the
    right (RTL, like the score). A dot opens each line — gold for ours,
    neutral for theirs — and lines wrap inside their column, so a long name

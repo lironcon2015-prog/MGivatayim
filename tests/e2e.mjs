@@ -612,6 +612,10 @@ await step('the manager opens a live match and picks a lineup', async () => {
     const nav = await admin.locator('.nav').boundingBox();
     expect(goal && goal.y >= 0 && goal.y + goal.height < vh / 3, `the crest goal button left the top of the screen (scrolled to ${y}): ` + JSON.stringify(goal));
     expect(sub && sub.y >= 0 && sub.y + sub.height <= nav.y, `the substitution left the screen or sits under the nav (scrolled to ${y}): ` + JSON.stringify(sub));
+    if (y !== '0') {
+      const off = await admin.evaluate(() => { const m = document.querySelector('.live-mini').getBoundingClientRect(); const c = document.querySelector('.mini-score').getBoundingClientRect(); return (c.left + c.width / 2) - (m.left + m.width / 2); });
+      expect(Math.abs(off) < 2, `the score in the slim band is ${Math.round(off)}px off its centre`);
+    }
   }
   // The last thing in the page, not the floating pill or the slim band.
   const last = await admin.evaluate(() => [...document.querySelectorAll('#view > *')].filter((el) => !el.matches('[data-dock], [data-mini]')).pop()?.getBoundingClientRect().bottom ?? 0);

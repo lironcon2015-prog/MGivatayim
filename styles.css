@@ -69,8 +69,7 @@
   /* Where the nav's top is now: lower once it shrinks on a scroll down.
      The floating bars ride it; the page's end keeps the full height, so
      the page does not change length under the finger. */
-  --nav-now: var(--nav-h);
-  --nav-float: calc(var(--nav-now) + var(--nav-gap) + env(safe-area-inset-bottom));
+  --nav-float: calc(var(--nav-h) + var(--nav-gap) + env(safe-area-inset-bottom));
 
   --shadow-gold: 0 22px 60px -24px var(--gold-glow);
   --shadow-lift: 0 14px 40px rgba(0, 0, 0, .5);
@@ -246,16 +245,22 @@ h1, h2, h3 { margin: 0; font-weight: 800; letter-spacing: -.015em; line-height: 
 }
 .nav a:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 /* Scrolling down to read, the nav shrinks to its icons (not gone: one tap
-   still switches screens); scrolling up brings it back (navShrink in app.js). */
-body.nav-small { --nav-now: 46px; --nav-float: calc(46px + var(--nav-gap) + env(safe-area-inset-bottom)); }
-.nav { transition: height .25s ease, inset-inline .25s ease; }
-.nav a span { max-height: 1.2em; overflow: hidden; transition: max-height .2s ease, opacity .15s ease; }
-.nav a svg { transition: width .2s ease, height .2s ease; }
-body.nav-small .nav { height: var(--nav-now); inset-inline: 40px; padding: 4px; }
-body.nav-small .nav a span { max-height: 0; opacity: 0; }
-body.nav-small .nav a svg { width: 20px; height: 20px; }
-body.nav-small .nav a .live-dot, body.nav-small .nav a .nav-dot { top: 5px; }
-.savebar, .update-bar, .live-dock, .gl-selbar, .gl-dock { transition: bottom .25s ease; }
+   still switches screens), and scrolling up brings it back — continuously,
+   with the finger, as in Instagram: --nav-p (0 full, 1 small) follows the
+   scroll (navShrink in app.js), and when the scroll stops it settles to
+   one end, animated through the registered property. Everything that floats
+   above the nav rides --nav-float with it. */
+@property --nav-p { syntax: '<number>'; inherits: true; initial-value: 0; }
+body {
+  --nav-p: 0;
+  --nav-now: calc(var(--nav-h) - 20px * var(--nav-p));
+  --nav-float: calc(var(--nav-now) + var(--nav-gap) + env(safe-area-inset-bottom));
+}
+body.nav-settle { transition: --nav-p .22s ease-out; }
+.nav { height: var(--nav-now); inset-inline: calc(12px + 28px * var(--nav-p)); padding: calc(6px - 2px * var(--nav-p)); }
+.nav a span { max-height: calc(1.2em * (1 - var(--nav-p))); opacity: calc(1 - 2 * var(--nav-p)); overflow: hidden; }
+.nav a svg { width: calc(22px - 2px * var(--nav-p)); height: calc(22px - 2px * var(--nav-p)); }
+.nav a .live-dot, .nav a .nav-dot { top: calc(9px - 4px * var(--nav-p)) !important; }
 
 /* ── Sections & cards ────────────────────────────────────────────────── */
 section { margin-top: 1.9rem; }
@@ -1012,7 +1017,7 @@ html.sheet-open, html.sheet-open body { overflow: hidden; }
   background: rgba(17, 27, 42, .94); color: var(--text); border: 1px solid var(--line-strong);
   -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
   box-shadow: var(--shadow-lift);
-  opacity: 0; transform: translateY(16px); transition: opacity .18s, transform .18s, bottom .25s ease;
+  opacity: 0; transform: translateY(16px); transition: opacity .18s, transform .18s;
 }
 .toast.in { opacity: 1; transform: none; }
 body.with-nav .toast { bottom: calc(var(--nav-float) + 10px); }

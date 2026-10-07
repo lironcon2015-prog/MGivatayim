@@ -388,6 +388,12 @@ await step('scrolling down shrinks the nav to its icons (not gone), scrolling up
     h: n.getBoundingClientRect().height, label: getComputedStyle(n.querySelector('a span')).opacity, small: document.body.classList.contains('nav-small') }; });
   const full = await nav();
   expect(!full.small && full.h > 60, `the nav is ${Math.round(full.h)}px at the top of the screen`);
+  // With the finger, not in one jump: half the range scrolled is a nav
+  // half way, until the scroll stops and it settles.
+  const mid = await parent.evaluate(() => new Promise((r) => { scrollBy(0, 35); requestAnimationFrame(() => requestAnimationFrame(() => r(document.getElementById('nav').getBoundingClientRect().height))); }));
+  expect(mid > 50 && mid < 62, `half a scroll range left the nav at ${Math.round(mid)}px, not half way`);
+  await parent.evaluate(() => scrollTo(0, 0));
+  await parent.waitForTimeout(400);
   await parent.mouse.move(200, 400);
   for (let i = 0; i < 5; i++) { await parent.mouse.wheel(0, 120); await parent.waitForTimeout(50); }
   await parent.waitForTimeout(400);

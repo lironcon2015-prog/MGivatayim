@@ -3,7 +3,7 @@
    CACHE_VERSION must equal version.json and window._BUNDLE_VERSION in
    index.html. `node tools/bump.mjs` writes all three; tests/pwa.mjs fails if
    they drift apart. */
-const CACHE_VERSION = '1.71.0';
+const CACHE_VERSION = '1.71.1';
 const CACHE_NAME = 'mgivatayim-' + CACHE_VERSION;
 
 /* The app itself: everything it needs to open with no network, kept as one

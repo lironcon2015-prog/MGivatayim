@@ -680,7 +680,8 @@ window.addEventListener('hashchange', () => {
 // NAV_RANGE pixels; once the scroll stops it settles to the nearer end. The
 // scroll is clamped to the page: iOS's rubber band at the end scrolls "up"
 // by itself, and would bring the nav back at every bottom.
-const NAV_RANGE = 70;
+// 70px felt too fast (the owner): it now takes a good swipe, as in Instagram.
+const NAV_RANGE = 200;
 function navShrink() {
   let last = 0, p = 0, ticking = false, settle = 0;
   const body = document.body;
@@ -703,7 +704,7 @@ function navShrink() {
       body.classList.add('nav-settle');
       p = p >= 0.5 && last >= NAV_RANGE ? 1 : 0;
       paint();
-    }, 140);
+    }, 220);
   };
   addEventListener('scroll', () => { if (!ticking) { ticking = true; requestAnimationFrame(update); } }, { passive: true });
 }

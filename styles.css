@@ -256,7 +256,7 @@ body {
   --nav-now: calc(var(--nav-h) - 20px * var(--nav-p));
   --nav-float: calc(var(--nav-now) + var(--nav-gap) + env(safe-area-inset-bottom));
 }
-body.nav-settle { transition: --nav-p .22s ease-out; }
+body.nav-settle { transition: --nav-p .38s cubic-bezier(.25, .8, .3, 1); }
 .nav { height: var(--nav-now); inset-inline: calc(12px + 28px * var(--nav-p)); padding: calc(6px - 2px * var(--nav-p)); }
 .nav a span { max-height: calc(1.2em * (1 - var(--nav-p))); opacity: calc(1 - 2 * var(--nav-p)); overflow: hidden; }
 .nav a svg { width: calc(22px - 2px * var(--nav-p)); height: calc(22px - 2px * var(--nav-p)); }

@@ -390,17 +390,17 @@ await step('scrolling down shrinks the nav to its icons (not gone), scrolling up
   expect(!full.small && full.h > 60, `the nav is ${Math.round(full.h)}px at the top of the screen`);
   // With the finger, not in one jump: half the range scrolled is a nav
   // half way, until the scroll stops and it settles.
-  const mid = await parent.evaluate(() => new Promise((r) => { scrollBy(0, 35); requestAnimationFrame(() => requestAnimationFrame(() => r(document.getElementById('nav').getBoundingClientRect().height))); }));
+  const mid = await parent.evaluate(() => new Promise((r) => { scrollBy(0, 100); requestAnimationFrame(() => requestAnimationFrame(() => r(document.getElementById('nav').getBoundingClientRect().height))); }));
   expect(mid > 50 && mid < 62, `half a scroll range left the nav at ${Math.round(mid)}px, not half way`);
   await parent.evaluate(() => scrollTo(0, 0));
   await parent.waitForTimeout(400);
   await parent.mouse.move(200, 400);
   for (let i = 0; i < 5; i++) { await parent.mouse.wheel(0, 120); await parent.waitForTimeout(50); }
-  await parent.waitForTimeout(400);
+  await parent.waitForTimeout(700);
   const small = await nav();
   expect(small.small && small.h < 50 && small.h > 30 && Number(small.label) === 0, `after a scroll down: ${JSON.stringify(small)}`);
-  await parent.mouse.wheel(0, -100);
-  await parent.waitForTimeout(400);
+  await parent.mouse.wheel(0, -250);
+  await parent.waitForTimeout(700);
   const back = await nav();
   expect(!back.small && back.h > 60, `after a scroll up: ${JSON.stringify(back)}`);
   await parent.evaluate(() => { location.hash = '#/'; });
@@ -597,7 +597,9 @@ await step('the manager opens a live match and picks a lineup', async () => {
   // the parents see it (scorers and all), and once it scrolls away in a slim
   // band at the top; the substitution and "more" float above the nav. All on
   // screen at the top of the page and at its bottom; the page end clears them.
-  expect(await admin.locator('.score-card .sc-crest').evaluate((el) => el.getBoundingClientRect().width) >= 60, 'the crests in the recorder\'s board shrank');
+  // Its laid-out size, not the box on screen: a tap scales the button a moment.
+  const crestW = await admin.locator('.score-card .sc-crest').evaluate((el) => el.offsetWidth);
+  expect(crestW >= 60, `the crests in the recorder's board shrank to ${crestW}px`);
   expect(await admin.locator('.live-dock [data-act="goal-us"], .live-dock [data-act="penalty"]').count() === 0, 'the goal or penalty buttons are still in the bottom bar');
   const vh = admin.viewportSize().height;
   for (const y of ['0', 'document.body.scrollHeight']) {

@@ -66,6 +66,11 @@
   --nav-h: 66px;
   --nav-gap: 14px;
   --nav-space: calc(var(--nav-h) + var(--nav-gap) + env(safe-area-inset-bottom));
+  /* Where the nav's top is now: lower once it shrinks on a scroll down.
+     The floating bars ride it; the page's end keeps the full height, so
+     the page does not change length under the finger. */
+  --nav-now: var(--nav-h);
+  --nav-float: calc(var(--nav-now) + var(--nav-gap) + env(safe-area-inset-bottom));
 
   --shadow-gold: 0 22px 60px -24px var(--gold-glow);
   --shadow-lift: 0 14px 40px rgba(0, 0, 0, .5);
@@ -240,6 +245,17 @@ h1, h2, h3 { margin: 0; font-weight: 800; letter-spacing: -.015em; line-height: 
   box-shadow: inset 0 0 0 1px rgba(232, 185, 49, .25), 0 0 22px rgba(232, 185, 49, .18);
 }
 .nav a:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+/* Scrolling down to read, the nav shrinks to its icons (not gone: one tap
+   still switches screens); scrolling up brings it back (navShrink in app.js). */
+body.nav-small { --nav-now: 46px; --nav-float: calc(46px + var(--nav-gap) + env(safe-area-inset-bottom)); }
+.nav { transition: height .25s ease, inset-inline .25s ease; }
+.nav a span { max-height: 1.2em; overflow: hidden; transition: max-height .2s ease, opacity .15s ease; }
+.nav a svg { transition: width .2s ease, height .2s ease; }
+body.nav-small .nav { height: var(--nav-now); inset-inline: 40px; padding: 4px; }
+body.nav-small .nav a span { max-height: 0; opacity: 0; }
+body.nav-small .nav a svg { width: 20px; height: 20px; }
+body.nav-small .nav a .live-dot, body.nav-small .nav a .nav-dot { top: 5px; }
+.savebar, .update-bar, .live-dock, .gl-selbar, .gl-dock { transition: bottom .25s ease; }
 
 /* ── Sections & cards ────────────────────────────────────────────────── */
 section { margin-top: 1.9rem; }
@@ -920,7 +936,7 @@ input[type="checkbox"]:focus-visible { outline: 2px solid var(--gold); outline-o
   -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
   box-shadow: var(--shadow-lift);
 }
-body.with-nav .savebar { bottom: calc(var(--nav-space) + .5rem); }
+body.with-nav .savebar { bottom: calc(var(--nav-float) + .5rem); }
 .savebar .row-btns { margin-top: 0; flex: none; flex-wrap: nowrap; gap: 6px; }
 .savebar .row-btns .btn { flex: none; }
 /* Nothing to save: a quiet line, not two dead buttons over the form. */
@@ -948,7 +964,7 @@ body.with-nav .savebar { bottom: calc(var(--nav-space) + .5rem); }
   -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
   box-shadow: var(--shadow-lift); font-size: .88rem; font-weight: 700;
 }
-body.with-nav .update-bar { bottom: calc(var(--nav-space) + 10px); }
+body.with-nav .update-bar { bottom: calc(var(--nav-float) + 10px); }
 .update-bar span { flex: 1; }
 
 /* ═══ Sheets & toasts ═════════════════════════════════════════════════════
@@ -996,10 +1012,10 @@ html.sheet-open, html.sheet-open body { overflow: hidden; }
   background: rgba(17, 27, 42, .94); color: var(--text); border: 1px solid var(--line-strong);
   -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
   box-shadow: var(--shadow-lift);
-  opacity: 0; transform: translateY(16px); transition: opacity .18s, transform .18s;
+  opacity: 0; transform: translateY(16px); transition: opacity .18s, transform .18s, bottom .25s ease;
 }
 .toast.in { opacity: 1; transform: none; }
-body.with-nav .toast { bottom: calc(var(--nav-space) + 10px); }
+body.with-nav .toast { bottom: calc(var(--nav-float) + 10px); }
 .toast span { flex: 1; }
 .toast .num { color: var(--gold); }
 .toast.err { border-color: var(--gold-line); }
@@ -1207,7 +1223,7 @@ body.with-nav .toast { bottom: calc(var(--nav-space) + 10px); }
 /* The controls of the moment, in a glass bar right above the nav: always
    under the thumb, also with the page scrolled to the pitch or the events. */
 .live-dock {
-  position: fixed; z-index: 39; inset-inline: 12px; bottom: calc(var(--nav-space) + 8px);
+  position: fixed; z-index: 39; inset-inline: 12px; bottom: calc(var(--nav-float) + 8px);
   max-width: calc(var(--shell) - 8px); margin: 0 auto; display: grid; gap: 7px; padding: 8px;
   border-radius: 26px; background: rgba(12, 20, 33, .86); border: 1px solid rgba(255, 255, 255, .11);
   -webkit-backdrop-filter: blur(18px) saturate(1.2); backdrop-filter: blur(18px) saturate(1.2);
@@ -1242,8 +1258,8 @@ body.with-nav .toast { bottom: calc(var(--nav-space) + 10px); }
 .dk-note svg { width: 16px; height: 16px; flex: none; color: var(--gold); stroke-width: 1.7; }
 /* What has to clear the bar: the page end, the toasts, the update bar. */
 body.with-dock { padding-bottom: calc(var(--nav-space) + var(--dock-h, 7.5rem) + 1rem); }
-body.with-dock .toast { bottom: calc(var(--nav-space) + var(--dock-h, 7.5rem) + 16px); }
-body.with-dock .update-bar { bottom: calc(var(--nav-space) + var(--dock-h, 7.5rem) + 16px); }
+body.with-dock .toast { bottom: calc(var(--nav-float) + var(--dock-h, 7.5rem) + 16px); }
+body.with-dock .update-bar { bottom: calc(var(--nav-float) + var(--dock-h, 7.5rem) + 16px); }
 html:has(body.with-dock) { scroll-padding-bottom: calc(var(--nav-space) + var(--dock-h, 7.5rem) + 1rem); }
 
 /* The rare things ("עוד", after the match): rows in groups. */
@@ -1891,7 +1907,7 @@ button.match:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px
   border-radius: var(--r-pill); background: rgba(10, 17, 29, .92); border: 1px solid var(--gold-line);
   -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); box-shadow: var(--shadow-lift);
 }
-body.with-nav .gl-selbar { bottom: calc(var(--nav-space) + .5rem); }
+body.with-nav .gl-selbar { bottom: calc(var(--nav-float) + .5rem); }
 .gl-selbar > span { flex: 1; min-width: 0; font-size: .85rem; font-weight: 700; }
 .gl-selbar .btn { flex: none; }
 [data-gallery]:has(.gl-selbar) { padding-bottom: 72px; }
@@ -1955,10 +1971,10 @@ body.with-nav .gl-selbar { bottom: calc(var(--nav-space) + .5rem); }
   -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); box-shadow: var(--shadow-lift);
 }
 .gl-dock .btn { margin-top: 0; }
-body.with-nav .gl-dock { bottom: calc(var(--nav-space) + .5rem); }
+body.with-nav .gl-dock { bottom: calc(var(--nav-float) + .5rem); }
 /* The page's end and the toasts clear the bar. */
 body:has(.gl-dock) { padding-bottom: calc(var(--nav-space) + 5rem); }
-body:has(.gl-dock) .toast { bottom: calc(var(--nav-space) + 4.8rem); }
+body:has(.gl-dock) .toast { bottom: calc(var(--nav-float) + 4.8rem); }
 
 /* A section scrolled to (a new row in the manager's lists) keeps its heading
    off the screen's edge. */

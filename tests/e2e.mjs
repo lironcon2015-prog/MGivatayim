@@ -381,6 +381,26 @@ await step('"all matches" and friends on home land on their own section in stats
   }
 });
 
+await step('scrolling down shrinks the nav to its icons (not gone), scrolling up brings it back', async () => {
+  await parent.evaluate(() => { location.hash = '#/stats'; });
+  await parent.locator('#stats-matches').waitFor();
+  const nav = () => parent.evaluate(() => { const n = document.getElementById('nav'); return {
+    h: n.getBoundingClientRect().height, label: getComputedStyle(n.querySelector('a span')).opacity, small: document.body.classList.contains('nav-small') }; });
+  const full = await nav();
+  expect(!full.small && full.h > 60, `the nav is ${Math.round(full.h)}px at the top of the screen`);
+  await parent.mouse.move(200, 400);
+  for (let i = 0; i < 5; i++) { await parent.mouse.wheel(0, 120); await parent.waitForTimeout(50); }
+  await parent.waitForTimeout(400);
+  const small = await nav();
+  expect(small.small && small.h < 50 && small.h > 30 && Number(small.label) === 0, `after a scroll down: ${JSON.stringify(small)}`);
+  await parent.mouse.wheel(0, -100);
+  await parent.waitForTimeout(400);
+  const back = await nav();
+  expect(!back.small && back.h > 60, `after a scroll up: ${JSON.stringify(back)}`);
+  await parent.evaluate(() => { location.hash = '#/'; });
+  await parent.locator('a[data-jump]').first().waitFor();
+});
+
 await step('a parent has no manager tab and cannot open the editor', async () => {
   expect(await parent.locator('#nav a[href="#/admin"]').count() === 0, 'parent sees the manager tab');
   await parent.goto(APP + '#/admin');

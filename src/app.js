@@ -674,6 +674,26 @@ window.addEventListener('hashchange', () => {
   jumpTo = null;
   if (target) target.scrollIntoView({ block: 'start' }); else window.scrollTo(0, 0);
 });
+// Scrolling down to read shrinks the nav to its icons, scrolling up (or
+// back near the top) brings it back — the owner's ask, as in Instagram.
+// The scroll is clamped to the page: iOS's rubber band at the end scrolls
+// "up" by itself, and would bring the nav back at every bottom.
+function navShrink() {
+  let last = 0, ticking = false;
+  const update = () => {
+    ticking = false;
+    const max = document.documentElement.scrollHeight - innerHeight;
+    const y = Math.min(Math.max(scrollY, 0), Math.max(max, 0));
+    const body = document.body;
+    if (y < 60) body.classList.remove('nav-small');
+    else if (y > last + 6) body.classList.add('nav-small');
+    else if (y < last - 6) body.classList.remove('nav-small');
+    else return;
+    last = y;
+  };
+  addEventListener('scroll', () => { if (!ticking) { ticking = true; requestAnimationFrame(update); } }, { passive: true });
+}
+navShrink();
 start();
 // An update never reloads under someone mid-action: an unsaved edit, a
 // sheet open (a goal half entered), or live actions still to be sent.

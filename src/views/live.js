@@ -371,38 +371,37 @@ export function mountLive(view, ctx) {
   function scoreboard(st) {
     const sc = M.score(st);
     const crest = crestImg(ctx.team);
-    if (compactBoard(st)) return compactScoreboard(st, sc, crest);
+    const goals = goalCrests(st);
+    const opp = st.opponent || 'יריבה';
     return `<section class="live-top"><div class="card score-card">
       <div class="sc-head">${statusChip(st)}${syncMark()}<span class="sc-side">${watchChip(st)}${st.status === 'running' || (st.status === 'setup' && control()) ? '' : `<span class="sc-period">${esc(M.describeFormat(st.format))}</span>`}</span></div>
       <div class="sc-row">
-        <div class="sc-team us"><span class="sc-crest">${crest}</span><b>${esc(ctx.team.name)}</b><small>${st.home ? 'בית' : 'חוץ'}</small></div>
+        <div class="sc-team us">${goals ? goalBtn('goal-us', 'שער לנו', `<span class="sc-crest">${crest}</span>`) : `<span class="sc-crest">${crest}</span>`}<b>${esc(ctx.team.name)}</b><small>${st.home ? 'בית' : 'חוץ'}</small></div>
         <div class="sc-score num" aria-label="${sc.us} : ${sc.them}"><span class="ours" data-us>${sc.us}</span><span class="sep">:</span><span data-them>${sc.them}</span></div>
-        <div class="sc-team"><span class="sc-disc">${esc((st.opponent || '?').slice(0, 2))}${oppLogo(ctx.logo?.(st.opponent), st.opponent || 'יריבה')}</span><b>${esc(st.opponent || 'יריבה')}</b><small>${st.home ? 'חוץ' : 'בית'}</small></div>
+        <div class="sc-team">${(() => { const disc = `<span class="sc-disc">${esc((st.opponent || '?').slice(0, 2))}${oppLogo(ctx.logo?.(st.opponent), opp)}</span>`; return goals ? goalBtn('goal-them', `שער ל${esc(opp)}`, disc) : disc; })()}<b>${esc(opp)}</b><small>${st.home ? 'חוץ' : 'בית'}</small></div>
       </div>
       ${scorersHtml(st)}
       ${st.status === 'setup' && control() ? setupSummary(st) : clockHtml(st)}
     </div></section>`;
   }
 
-  // Whoever records a running match gets the board in one band that stays at
-  // the top of the screen (the owner's pick from a mockup, so the events show
-  // under it): a tap on a crest is a goal for that team, the clock under the
-  // score. The scorers are in the events right below; viewers keep the full
-  // board.
-  function compactBoard(st) { return st.status === 'running' && control() && fullCtl(); }
-  function compactScoreboard(st, sc, crest) {
+  // Whoever records a running match taps a crest for a goal (the owner's
+  // pick from a mockup): the board itself looks exactly as the parents see
+  // it, scorers and all, only with a small gold + on each crest. Scrolled
+  // past it, a slim band with the same crests, the score and the clock stays
+  // at the top (miniBoard), so the goals are never more than a tap away.
+  function goalCrests(st) { return st.status === 'running' && control() && fullCtl(); }
+  const goalBtn = (act, label, inner) => `<button type="button" class="sc-goal" data-act="${act}" aria-label="${label}">${inner}<i aria-hidden="true">+</i></button>`;
+  function miniBoard(st) {
+    if (!goalCrests(st)) return '';
+    const sc = M.score(st);
     const opp = st.opponent || 'יריבה';
-    return `<section class="live-top compact"><div class="card score-card compact">
-      <div class="sc-head">${statusChip(st)}${syncMark()}<span class="sc-side">${watchChip(st)}</span></div>
-      <div class="sc-row">
-        <div class="sc-team us"><button type="button" class="sc-goal" data-act="goal-us" aria-label="שער לנו"><span class="sc-crest">${crest}</span><i aria-hidden="true">+</i></button><b>${esc(ctx.team.name)}</b></div>
-        <div class="sc-mid">
-          <div class="sc-score num" aria-label="${sc.us} : ${sc.them}"><span class="ours" data-us>${sc.us}</span><span class="sep">:</span><span data-them>${sc.them}</span></div>
-          ${clockHtml(st)}
-        </div>
-        <div class="sc-team"><button type="button" class="sc-goal them" data-act="goal-them" aria-label="שער ל${esc(opp)}"><span class="sc-disc">${esc(opp.slice(0, 2))}${oppLogo(ctx.logo?.(st.opponent), opp)}</span><i aria-hidden="true">+</i></button><b>${esc(opp)}</b></div>
-      </div>
-    </div></section>`;
+    return `<div class="live-mini" data-mini aria-hidden="true" inert>
+      ${goalBtn('goal-us', 'שער לנו', `<span class="sc-crest">${crestImg(ctx.team)}</span>`)}
+      <span class="mini-score num"><span class="ours">${sc.us}</span><span class="sep">:</span><span>${sc.them}</span></span>
+      <span class="mini-clock num" data-mini-clock></span>
+      ${goalBtn('goal-them', `שער ל${esc(opp)}`, `<span class="sc-disc">${esc(opp.slice(0, 2))}${oppLogo(ctx.logo?.(st.opponent), opp)}</span>`)}
+    </div>`;
   }
 
   // The clock and its period together. Whoever controls the match taps it
@@ -819,11 +818,12 @@ export function mountLive(view, ctx) {
     // opponent's name, the coach's minimum) redraws around it, not over it.
     const restoreFocus = keepFocus(view);
     if (tab === 'minutes') {
-      view.innerHTML = `${scoreboard(st)}${syncChip()}${hiddenNote(st)}${streamLink(st)}${tabs}<div data-mn-host>${liveMinutesHtml(st, now(), cfg, { folded: store.getFolded() === alertKey(st) })}</div>${ctl ? dock(st) : ''}`;
+      view.innerHTML = `${scoreboard(st)}${syncChip()}${hiddenNote(st)}${streamLink(st)}${tabs}<div data-mn-host>${liveMinutesHtml(st, now(), cfg, { folded: store.getFolded() === alertKey(st) })}</div>${ctl ? dock(st) : ''}${miniBoard(st)}`;
       restoreImages();
       restoreFocus();
       lastMinute = minuteKey(st);
       fitDock();
+      watchMini();
       window.scrollTo(0, scroll);
       hydratePosters(view);
       tick();
@@ -854,13 +854,32 @@ export function mountLive(view, ctx) {
         </div>`}
       ${st.status === 'ended' ? endedPanel(st) : ''}
       ${!S.canControl && st.status !== 'ended' ? claimLink() : ''}
-      ${ctl ? dock(st) : ''}`;
+      ${ctl ? dock(st) : ''}${miniBoard(st)}`;
     restoreImages();
     restoreFocus();
     fitDock();
+    watchMini();
     window.scrollTo(0, scroll);
     hydratePosters(view);
     tick();
+  }
+
+  // The slim band shows once the board has scrolled out of sight, and only
+  // then: with the board on screen, the crests are right there.
+  let miniSeen = null;
+  function watchMini() {
+    miniSeen?.disconnect();
+    miniSeen = null;
+    const mini = view.querySelector('[data-mini]');
+    const board = view.querySelector('.score-card');
+    if (!mini || !board || !('IntersectionObserver' in window)) return;
+    miniSeen = new IntersectionObserver(([e]) => {
+      const show = !e.isIntersecting && e.boundingClientRect.top < 0;
+      mini.classList.toggle('show', show);
+      mini.setAttribute('aria-hidden', String(!show));
+      mini.inert = !show;
+    }, { rootMargin: '-40px 0px 0px 0px' });
+    miniSeen.observe(board);
   }
 
   // The bar above the nav is as tall as its rows: the page end and the
@@ -981,6 +1000,8 @@ export function mountLive(view, ctx) {
     else if (st.status === 'break') main = 'הפסקה';
     else main = 'סיום';
     c.textContent = main;
+    const mc = view.querySelector('[data-mini-clock]');
+    if (mc) mc.textContent = main;
     c.classList.toggle('paused', st.status === 'running' && !st.clock.running);
     // Past the period's length: the clock itself hints that it is time to end it.
     view.querySelector('.sc-clock-btn')?.classList.toggle('over', !!extra);

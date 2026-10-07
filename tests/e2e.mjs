@@ -592,10 +592,12 @@ await step('the manager opens a live match and picks a lineup', async () => {
   await addToLineup(admin, ['1', '9', '10', 'איתי']);
   await admin.waitForFunction(() => document.querySelectorAll('.pitch .pl:not(.open)').length === 4);
   await admin.click('[data-act="start"]');
-  await admin.locator('.sc-goal[data-act="goal-us"]').waitFor();
-  // A running match: the goals are the crests in a board that stays at the
-  // top, the substitution and "more" float above the nav — on screen at the
-  // top of the page and at its bottom, and the page end clears them.
+  await admin.locator('.score-card .sc-goal[data-act="goal-us"]').waitFor();
+  // A running match: the goals are the crests — in the board, which looks as
+  // the parents see it (scorers and all), and once it scrolls away in a slim
+  // band at the top; the substitution and "more" float above the nav. All on
+  // screen at the top of the page and at its bottom; the page end clears them.
+  expect(await admin.locator('.score-card .sc-crest').evaluate((el) => el.getBoundingClientRect().width) >= 60, 'the crests in the recorder\'s board shrank');
   expect(await admin.locator('.live-dock [data-act="goal-us"], .live-dock [data-act="penalty"]').count() === 0, 'the goal or penalty buttons are still in the bottom bar');
   const vh = admin.viewportSize().height;
   for (const y of ['0', 'document.body.scrollHeight']) {
@@ -603,13 +605,14 @@ await step('the manager opens a live match and picks a lineup', async () => {
     await admin.waitForTimeout(400);
     // The page is redrawn with every send; a box read mid-redraw is null.
     const boxOf = async (sel) => { let b = null; for (let k = 0; k < 20 && !b; k++) b = await admin.locator(sel).boundingBox().catch(() => null) || (await admin.waitForTimeout(100), null); return b; };
-    const goal = await boxOf('.sc-goal[data-act="goal-us"]');
+    const goal = await boxOf(y === '0' ? '.score-card .sc-goal[data-act="goal-us"]' : '.live-mini.show .sc-goal[data-act="goal-us"]');
     const sub = await boxOf('.live-dock [data-act="sub"]');
     const nav = await admin.locator('.nav').boundingBox();
     expect(goal && goal.y >= 0 && goal.y + goal.height < vh / 3, `the crest goal button left the top of the screen (scrolled to ${y}): ` + JSON.stringify(goal));
     expect(sub && sub.y >= 0 && sub.y + sub.height <= nav.y, `the substitution left the screen or sits under the nav (scrolled to ${y}): ` + JSON.stringify(sub));
   }
-  const last = await admin.locator('#view > *:last-child').evaluate((el) => el.previousElementSibling?.getBoundingClientRect().bottom ?? 0);
+  // The last thing in the page, not the floating pill or the slim band.
+  const last = await admin.evaluate(() => [...document.querySelectorAll('#view > *')].filter((el) => !el.matches('[data-dock], [data-mini]')).pop()?.getBoundingClientRect().bottom ?? 0);
   const dockTop = (await admin.locator('.live-dock').boundingBox()).y;
   expect(last <= dockTop + 1 && dockTop < vh, `the page end hides under the bar (${last} > ${dockTop})`);
   await admin.evaluate(() => window.scrollTo(0, 0));
@@ -811,7 +814,7 @@ await step('a wrong live code is refused; the right one hands the parent control
   await parent.locator('[data-msg]', { hasText: 'נותרו' }).waitFor();
   await parent.fill('[data-claim] input', '4821');
   await parent.locator('[data-claim] button').click();
-  await parent.locator('.sc-goal[data-act="goal-us"]').waitFor({ timeout: 8000 });
+  await parent.locator('.score-card .sc-goal[data-act="goal-us"]').waitFor({ timeout: 8000 });
 });
 
 await step('the parent in control records a goal against; the manager sees it', async () => {
@@ -844,7 +847,7 @@ await step('a double tap is one tap: one goal against, and a sheet that stays op
 await step('a controlling phone reopened with no reception still shows the match and can record', async () => {
   await parent.context().setOffline(true);
   await parent.reload();
-  await parent.locator('.sc-goal[data-act="goal-us"]').waitFor({ timeout: 8000 });
+  await parent.locator('.score-card .sc-goal[data-act="goal-us"]').waitFor({ timeout: 8000 });
   await parent.locator('.sync.off').waitFor();
   expect((await parent.locator('.sc-score [data-them]').innerText()).trim() === '1', 'the reopened board lost the score');
   await parent.context().setOffline(false);

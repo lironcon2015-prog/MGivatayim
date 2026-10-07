@@ -1130,6 +1130,35 @@ body.with-nav .toast { bottom: calc(var(--nav-float) + 10px); }
 .sc-score .sep { color: var(--faint); font-weight: 600; font-size: 2rem; transform: translateY(-.1em); }
 .sc-score.bump { animation: bump .9s cubic-bezier(.2, .9, .3, 1.2); }
 @keyframes bump { 0% { transform: scale(1); } 22% { transform: scale(1.2); } 100% { transform: scale(1); } }
+/* The recorder's board in a running match: one band that stays at the top,
+   the crests are the goal buttons (a small gold + says so), the clock sits
+   under the score. Glass, since the events scroll under it. */
+.live-top.compact { position: sticky; top: calc(env(safe-area-inset-top) + 6px); z-index: 30; }
+.score-card.compact {
+  padding: .6rem .8rem .7rem; border-radius: 24px; background: rgba(17, 26, 40, .9);
+  -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
+}
+.score-card.compact .sc-row { margin-top: .35rem; gap: .3rem; }
+.score-card.compact .sc-team b { font-size: .78rem; }
+.sc-mid { display: grid; justify-items: center; gap: .3rem; }
+.score-card.compact .sc-score { font-size: 2.3rem; }
+.score-card.compact .sc-score .sep { font-size: 1.5rem; }
+.score-card.compact .sc-clock { margin-top: 0; min-height: 0; }
+.score-card.compact .sc-clock [data-clock] { font-size: 1.3rem; }
+.sc-goal {
+  position: relative; display: grid; place-items: center; width: 64px; height: 64px; padding: 0; cursor: pointer;
+  border-radius: 50%; border: 1.5px dashed rgba(232, 185, 49, .55); background: none; color: inherit; font: inherit;
+  -webkit-tap-highlight-color: transparent; touch-action: manipulation; transition: transform .08s ease, border-color .12s;
+}
+.sc-goal:active { transform: scale(.94); border-color: var(--gold); }
+.sc-goal:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.sc-goal .sc-crest, .sc-goal .sc-disc { width: 50px; height: 50px; }
+.sc-goal .sc-disc { font-size: .95rem; }
+.sc-goal i {
+  position: absolute; bottom: -2px; inset-inline-start: -2px; width: 20px; height: 20px; border-radius: 50%;
+  display: grid; place-items: center; font-style: normal; font-weight: 800; font-size: .9rem; line-height: 1;
+  background: var(--gold-fill); color: var(--on-gold); box-shadow: 0 2px 8px rgba(0, 0, 0, .4);
+}
 /* Scorers: two equal columns, each centred under its team, ours on the
    right (RTL, like the score). A dot opens each line — gold for ours,
    neutral for theirs — and lines wrap inside their column, so a long name
@@ -1256,6 +1285,25 @@ body.with-nav .toast { bottom: calc(var(--nav-float) + 10px); }
 .dk-toggle:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; border-radius: 10px; }
 .dk-note { display: flex; align-items: center; justify-content: center; gap: .45rem; margin: 0; padding: .45rem .3rem 0; font-size: .82rem; font-weight: 600; color: var(--muted); text-align: center; }
 .dk-note svg { width: 16px; height: 16px; flex: none; color: var(--gold); stroke-width: 1.7; }
+/* A running match, for whoever records it: the substitution and "more" in
+   one floating pill by the thumb, on the left, where it covers only the end
+   of an event's line (the minutes are on the right). */
+.live-dock.fab {
+  inset-inline: auto; left: max(14px, calc(50% - var(--shell) / 2 + 14px)); max-width: none; margin: 0;
+  display: flex; gap: 0; padding: 0; overflow: hidden; border-radius: var(--r-pill);
+  border: 1.5px solid var(--gold); background: rgba(18, 28, 44, .94);
+}
+.live-dock.fab button {
+  min-height: 48px; display: flex; align-items: center; justify-content: center; gap: .4rem; cursor: pointer;
+  font: inherit; font-size: .95rem; font-weight: 800; color: var(--text); background: none; border: 0;
+  -webkit-tap-highlight-color: transparent; touch-action: manipulation; transition: background .12s;
+}
+.live-dock.fab button:active { background: rgba(255, 255, 255, .07); }
+.live-dock.fab button:focus-visible { outline: 2px solid var(--gold); outline-offset: -3px; }
+.live-dock.fab svg { width: 19px; height: 19px; stroke-width: 1.7; color: var(--gold); }
+.fab-sub { padding: 0 1.05rem 0 .95rem; }
+.fab-more { width: 50px; border-inline-start: 1px solid var(--line-strong) !important; }
+.fab-more svg { color: var(--muted) !important; }
 /* What has to clear the bar: the page end, the toasts, the update bar. */
 body.with-dock { padding-bottom: calc(var(--nav-space) + var(--dock-h, 7.5rem) + 1rem); }
 body.with-dock .toast { bottom: calc(var(--nav-float) + var(--dock-h, 7.5rem) + 16px); }

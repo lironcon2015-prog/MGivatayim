@@ -586,18 +586,22 @@ await step('the manager opens a live match and picks a lineup', async () => {
   await addToLineup(admin, ['1', '9', '10', 'איתי']);
   await admin.waitForFunction(() => document.querySelectorAll('.pitch .pl:not(.open)').length === 4);
   await admin.click('[data-act="start"]');
-  await admin.locator('.live-dock [data-act="goal-us"]').waitFor();
-  // The controls stay under the thumb, at the top of the page and at its
-  // bottom, clear of the nav; and the page end clears them.
+  await admin.locator('.sc-goal[data-act="goal-us"]').waitFor();
+  // A running match: the goals are the crests in a board that stays at the
+  // top, the substitution and "more" float above the nav — on screen at the
+  // top of the page and at its bottom, and the page end clears them.
+  expect(await admin.locator('.live-dock [data-act="goal-us"], .live-dock [data-act="penalty"]').count() === 0, 'the goal or penalty buttons are still in the bottom bar');
   const vh = admin.viewportSize().height;
   for (const y of ['0', 'document.body.scrollHeight']) {
     await admin.evaluate((to) => window.scrollTo(0, eval(to)), y);
-    await admin.waitForTimeout(300);
-    // The bar is redrawn with every send; a box read mid-redraw is null.
-    let box = null;
-    for (let k = 0; k < 20 && !box; k++) box = await admin.locator('.live-dock [data-act="goal-us"]').boundingBox().catch(() => null) || (await admin.waitForTimeout(100), null);
+    await admin.waitForTimeout(400);
+    // The page is redrawn with every send; a box read mid-redraw is null.
+    const boxOf = async (sel) => { let b = null; for (let k = 0; k < 20 && !b; k++) b = await admin.locator(sel).boundingBox().catch(() => null) || (await admin.waitForTimeout(100), null); return b; };
+    const goal = await boxOf('.sc-goal[data-act="goal-us"]');
+    const sub = await boxOf('.live-dock [data-act="sub"]');
     const nav = await admin.locator('.nav').boundingBox();
-    expect(box && box.y >= 0 && box.y + box.height <= nav.y, `the goal button left the screen or sits under the nav (scrolled to ${y}): ` + JSON.stringify(box));
+    expect(goal && goal.y >= 0 && goal.y + goal.height < vh / 3, `the crest goal button left the top of the screen (scrolled to ${y}): ` + JSON.stringify(goal));
+    expect(sub && sub.y >= 0 && sub.y + sub.height <= nav.y, `the substitution left the screen or sits under the nav (scrolled to ${y}): ` + JSON.stringify(sub));
   }
   const last = await admin.locator('#view > *:last-child').evaluate((el) => el.previousElementSibling?.getBoundingClientRect().bottom ?? 0);
   const dockTop = (await admin.locator('.live-dock').boundingBox()).y;
@@ -801,7 +805,7 @@ await step('a wrong live code is refused; the right one hands the parent control
   await parent.locator('[data-msg]', { hasText: 'נותרו' }).waitFor();
   await parent.fill('[data-claim] input', '4821');
   await parent.locator('[data-claim] button').click();
-  await parent.locator('.live-dock [data-act="goal-us"]').waitFor({ timeout: 8000 });
+  await parent.locator('.sc-goal[data-act="goal-us"]').waitFor({ timeout: 8000 });
 });
 
 await step('the parent in control records a goal against; the manager sees it', async () => {
@@ -834,7 +838,7 @@ await step('a double tap is one tap: one goal against, and a sheet that stays op
 await step('a controlling phone reopened with no reception still shows the match and can record', async () => {
   await parent.context().setOffline(true);
   await parent.reload();
-  await parent.locator('.live-dock [data-act="goal-us"]').waitFor({ timeout: 8000 });
+  await parent.locator('.sc-goal[data-act="goal-us"]').waitFor({ timeout: 8000 });
   await parent.locator('.sync.off').waitFor();
   expect((await parent.locator('.sc-score [data-them]').innerText()).trim() === '1', 'the reopened board lost the score');
   await parent.context().setOffline(false);
@@ -1418,23 +1422,28 @@ await step('a later fixture can go live now; finishing dates it today and takes 
   await admin.click('[data-act="start"]');
 
   // A penalty scored by us, one of theirs missed, and an own goal.
-  await admin.click('[data-act="penalty"]');
+  // The penalty is in "more" now: the bottom bar is the substitution alone.
+  const penalty = async () => { await admin.click('[data-act="more"]'); await admin.click('[data-m="penalty"]'); };
+  await penalty();
   await admin.click('[data-pen="us"]');
   await admin.locator('.pick', { hasText: 'גיא פרץ' }).click();
   await admin.click('[data-res="goal"]');
-  await admin.click('[data-act="penalty"]');
+  await penalty();
   await admin.click('[data-pen="them"]');
   await admin.click('[data-res="miss"]');
   await admin.click('[data-act="goal-us"]');
   await admin.locator('.pick-plain', { hasText: 'גול עצמי' }).click();
   await admin.locator('.sc-score .ours', { hasText: '2' }).waitFor();
-  const us = (await admin.locator('.sc-scorers .us').innerText()).replace(/\s+/g, ' ');
-  expect(us.includes('גיא פרץ') && us.includes('(פ)') && us.includes('גול עצמי'), 'our scorers: ' + us);
-  expect(await admin.locator('.sc-scorers .them .scr-miss').count() === 1, 'their missed penalty is not shown');
   expect(await admin.locator('.sc-score [data-them]').innerText() === '0', 'a miss changed the score');
   expect(await admin.locator('.ev.us .tl-pen').count() === 1 && await admin.locator('.ev.them.miss').count() === 1, 'timeline: penalty tag, or their miss on their side, missing');
 
   await endPeriod(admin);
+  // The recorder's board is folded while the clock runs: the scorers are
+  // under the full board from the break on (and always for viewers).
+  await admin.locator('.sc-scorers .us').waitFor();
+  const us = (await admin.locator('.sc-scorers .us').innerText()).replace(/\s+/g, ' ');
+  expect(us.includes('גיא פרץ') && us.includes('(פ)') && us.includes('גול עצמי'), 'our scorers: ' + us);
+  expect(await admin.locator('.sc-scorers .them .scr-miss').count() === 1, 'their missed penalty is not shown');
   await finishNow(admin);
   await waitText(admin, 'נשמר בתוצאות');
   await new Promise((r) => setTimeout(r, 600));

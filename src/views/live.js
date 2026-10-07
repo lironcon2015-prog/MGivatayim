@@ -371,6 +371,7 @@ export function mountLive(view, ctx) {
   function scoreboard(st) {
     const sc = M.score(st);
     const crest = crestImg(ctx.team);
+    if (compactBoard(st)) return compactScoreboard(st, sc, crest);
     return `<section class="live-top"><div class="card score-card">
       <div class="sc-head">${statusChip(st)}${syncMark()}<span class="sc-side">${watchChip(st)}${st.status === 'running' || (st.status === 'setup' && control()) ? '' : `<span class="sc-period">${esc(M.describeFormat(st.format))}</span>`}</span></div>
       <div class="sc-row">
@@ -380,6 +381,27 @@ export function mountLive(view, ctx) {
       </div>
       ${scorersHtml(st)}
       ${st.status === 'setup' && control() ? setupSummary(st) : clockHtml(st)}
+    </div></section>`;
+  }
+
+  // Whoever records a running match gets the board in one band that stays at
+  // the top of the screen (the owner's pick from a mockup, so the events show
+  // under it): a tap on a crest is a goal for that team, the clock under the
+  // score. The scorers are in the events right below; viewers keep the full
+  // board.
+  function compactBoard(st) { return st.status === 'running' && control() && fullCtl(); }
+  function compactScoreboard(st, sc, crest) {
+    const opp = st.opponent || 'יריבה';
+    return `<section class="live-top compact"><div class="card score-card compact">
+      <div class="sc-head">${statusChip(st)}${syncMark()}<span class="sc-side">${watchChip(st)}</span></div>
+      <div class="sc-row">
+        <div class="sc-team us"><button type="button" class="sc-goal" data-act="goal-us" aria-label="שער לנו"><span class="sc-crest">${crest}</span><i aria-hidden="true">+</i></button><b>${esc(ctx.team.name)}</b></div>
+        <div class="sc-mid">
+          <div class="sc-score num" aria-label="${sc.us} : ${sc.them}"><span class="ours" data-us>${sc.us}</span><span class="sep">:</span><span data-them>${sc.them}</span></div>
+          ${clockHtml(st)}
+        </div>
+        <div class="sc-team"><button type="button" class="sc-goal them" data-act="goal-them" aria-label="שער ל${esc(opp)}"><span class="sc-disc">${esc(opp.slice(0, 2))}${oppLogo(ctx.logo?.(st.opponent), opp)}</span><i aria-hidden="true">+</i></button><b>${esc(opp)}</b></div>
+      </div>
     </div></section>`;
   }
 
@@ -434,8 +456,9 @@ export function mountLive(view, ctx) {
     if (st.status === 'setup') {
       body = `<div class="dk-row main">${btn('start', 'play', `שריקת פתיחה · ${esc(M.periodName(st.format, 0))}`, ' gold')}<button type="button" class="dk-btn icon-only" data-act="more" aria-label="עוד">${icon('more')}</button></div>`;
     } else if (st.status === 'running') {
-      body = `<div class="dk-row goals">${btn('goal-us', 'ball', 'שער לנו', ' gold')}${btn('goal-them', 'ball', 'שער ליריבה')}</div>
-        <div class="dk-row">${btn('sub', 'swap', 'חילוף', ' sm')}${btn('penalty', 'penalty', 'פנדל', ' sm')}${btn('more', 'more', 'עוד', ' sm')}</div>`;
+      // The goals are the crests in the board; the substitution, the most
+      // frequent action, floats by the thumb with "more" beside it.
+      return `<div class="live-dock fab" data-dock><button type="button" class="fab-sub" data-act="sub">${icon('swap')}<span>חילוף</span></button><button type="button" class="fab-more" data-act="more" aria-label="עוד">${icon('more')}</button></div>`;
     } else if (st.status === 'break') {
       body = `${btn('start', 'play', `פתיחת ${esc(M.periodName(st.format, st.period))}`, ' gold')}
         <div class="dk-row">${btn('sub', 'swap', 'חילוף', ' sm')}${btn('goal-us', 'ball', 'שער שנשכח', ' sm')}${btn('more', 'more', 'עוד', ' sm')}</div>`;
@@ -1606,16 +1629,19 @@ export function mountLive(view, ctx) {
     const sh = openSheet({
       title: 'ניהול המשחק',
       body: `${admin ? '' : `<p class="ctl-who">${icon('check')} אתם שולטים במשחק הזה.</p>`}
-        ${group('במגרש', [live && row('shape', 'swap', 'שינוי מערך', `עכשיו <b class="num" dir="ltr">${esc(M.formationNow(st))}</b> · או החלפת עמדות`)])}
+        ${group('במגרש', [st.status === 'running' && row('penalty', 'penalty', 'פנדל', 'גול או החמצה, לנו או ליריבה'), live && row('shape', 'swap', 'שינוי מערך', `עכשיו <b class="num" dir="ltr">${esc(M.formationNow(st))}</b> · או החלפת עמדות`)])}
         ${group('מי מתעד ומה רואים', [who, ctx.veo() && row('stream', 'broadcast', 'קישור לשידור (Veo)', st.stream ? 'יש קישור — כולם רואים כפתור צפייה' : 'אין קישור')])}
         ${group(live ? 'סוף' : 'עוד', [
           admin && !S.hidden && st.status === 'setup' && row('hide', 'eyeoff', 'הסתרה מההורים עד הפרסום', '', true),
           live && row('finish', 'flag', 'סיום המשחק עכשיו', '', true),
           admin && row('cancel', 'x', 'ביטול המשחק החי (בלי שמירה)', '', true),
-        ])}`,
+        ])}
+        ${coachOnly() && st.status === 'running' ? group('הכפתורים', [row('squad', 'user', 'חזרה לכפתורי הסגל', 'חילוף ושינוי מערך בלבד')]) : ''}`,
       onMount: ({ el }) => {
         const on = (m, fn) => el.querySelector(`[data-m="${m}"]`)?.addEventListener('click', fn);
         on('shape', () => { sh.close('next'); shapeSheet(); });
+        on('penalty', () => { sh.close('next'); penaltySheet(); });
+        on('squad', () => { sh.close('done'); store.setCoachFull(false); render(); toast('רק כפתורי הסגל והחילופים'); });
         on('code', () => { sh.close('next'); codeSheet(); });
         on('stream', () => { sh.close('next'); streamSheet(); });
         on('finish', () => { sh.close('next'); finish(); });

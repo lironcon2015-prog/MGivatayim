@@ -598,7 +598,8 @@ await step('the manager opens a live match and picks a lineup', async () => {
   // band at the top; the substitution and "more" float above the nav. All on
   // screen at the top of the page and at its bottom; the page end clears them.
   // Its laid-out size, not the box on screen: a tap scales the button a moment.
-  const crestW = await admin.locator('.score-card .sc-crest').evaluate((el) => el.offsetWidth);
+  // The board is redrawn with every send: an element read mid-redraw is detached (0px).
+  const crestW = await admin.waitForFunction(() => { const w = document.querySelector('.score-card .sc-crest')?.offsetWidth; return w > 0 && w; }, null, { timeout: 5000 }).then((h) => h.jsonValue());
   expect(crestW >= 60, `the crests in the recorder's board shrank to ${crestW}px`);
   expect(await admin.locator('.live-dock [data-act="goal-us"], .live-dock [data-act="penalty"]').count() === 0, 'the goal or penalty buttons are still in the bottom bar');
   const vh = admin.viewportSize().height;
@@ -1990,10 +1991,13 @@ await step('several items are deleted at once by picking them; a parent picks on
   expect(await parent.locator('[data-gallery] .gl-album-grid .gl-tile').count() === 3, 'the game page does not hold all three photos');
   // The upload button stays on screen above the nav wherever the page is
   // scrolled: after the last of many photos it was screens away.
+  const innerWidthOf = (p) => p.viewportSize().width;
   for (const y of [0, 1e6]) {
     await parent.evaluate((v) => { document.body.style.minHeight = '4000px'; window.scrollTo(0, v); }, y);
     const [btn, nav, vh] = await parent.evaluate(() => [document.querySelector('[data-upload-here]')?.getBoundingClientRect().toJSON(), document.querySelector('.nav, nav')?.getBoundingClientRect().toJSON(), innerHeight]);
     expect(btn && btn.top >= 0 && btn.bottom <= (nav ? nav.top : vh), `the upload button is off screen at scroll ${y}: ${JSON.stringify(btn)} nav ${JSON.stringify(nav)}`);
+    // A pill at the side, not a bar across the screen (the owner's pick).
+    expect(btn.width < innerWidthOf(parent) / 2 && btn.left < innerWidthOf(parent) / 2, `the upload button is not a pill on the left: ${JSON.stringify(btn)}`);
   }
   await parent.evaluate(() => { document.body.style.minHeight = ''; window.scrollTo(0, 0); });
   // The photos | videos switch stays on a game's page, even for a game

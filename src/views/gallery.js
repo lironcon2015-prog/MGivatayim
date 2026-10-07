@@ -144,6 +144,9 @@ const tags = { me: null, names: new Map() };
 const taggedName = (pid) => tags.names.get(pid) || null;
 const canUploadTo = (g) => !viewOnly && g.mode !== 'closed' && !g.blocked;
 
+// A side pill by the thumb, like the substitution in the live screen (the
+// owner's pick from a mockup): a full-width gold bar shouted for an action most
+// parents take once a match.
 const dock = (button) => `<div class="gl-dock">${button}${fileInput}</div>`;
 
 function overviewHtml(g, s) {
@@ -167,7 +170,7 @@ function overviewHtml(g, s) {
     ${tabsHtml(tab, photos.length, clips.length + linked.length)}
     ${body}
   </section>
-  ${canUpload ? dock(`<button type="button" class="btn" data-upload>${icon('upload')} העלאת תמונות וסרטונים</button>`) : ''}`;
+  ${canUpload ? dock(`<button type="button" class="gl-fab" data-upload aria-label="העלאת תמונות וסרטונים">${icon('upload')}<span>העלאה</span></button>`) : ''}`;
 }
 
 // One game's page: every photo (or clip) of it, picking, and an upload that
@@ -187,7 +190,7 @@ function albumHtml(g, grp, sel) {
     ${list.length ? `<div class="gl-grid gl-album-grid">${list.map((it) => tile(g, it, sel)).join('')}</div>`
       : empty(shownTab === 'videos' ? 'אין סרטונים מהמשחק הזה.' : 'אין תמונות מהמשחק הזה.')}
   </section>
-  ${sel.on ? selBar(sel) : canUpload ? dock(`<button type="button" class="btn" data-upload-here>${icon('upload')} העלאה למשחק הזה</button>`) : ''}`;
+  ${sel.on ? selBar(sel) : canUpload ? dock(`<button type="button" class="gl-fab" data-upload-here aria-label="העלאה למשחק הזה">${icon('upload')}<span>העלאה</span></button>`) : ''}`;
 }
 
 /* ---- help ---- */

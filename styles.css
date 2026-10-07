@@ -2025,12 +2025,19 @@ body.with-nav .gl-selbar { bottom: calc(var(--nav-float) + .5rem); }
 .gl-meta { margin: -.35rem .15rem .8rem; }
 .gl-album-grid { margin-top: .8rem; }
 .gl-dock {
-  position: fixed; z-index: 44; inset-inline: 12px; bottom: calc(12px + env(safe-area-inset-bottom));
-  max-width: calc(var(--shell) - 8px); margin: 0 auto; padding: .5rem;
-  border-radius: var(--r-pill); background: rgba(10, 17, 29, .92); border: 1px solid var(--line-strong);
-  -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); box-shadow: var(--shadow-lift);
+  position: fixed; z-index: 44; left: max(14px, calc(50% - var(--shell) / 2 + 14px));
+  bottom: calc(12px + env(safe-area-inset-bottom));
 }
-.gl-dock .btn { margin-top: 0; }
+.gl-fab {
+  min-height: 48px; padding: 0 1.15rem 0 1rem; display: flex; align-items: center; gap: .45rem; cursor: pointer;
+  font: inherit; font-size: .95rem; font-weight: 800; color: var(--text);
+  border-radius: var(--r-pill); border: 1.5px solid var(--gold); background: rgba(18, 28, 44, .94);
+  -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); box-shadow: var(--shadow-lift);
+  -webkit-tap-highlight-color: transparent; touch-action: manipulation; transition: transform .08s ease;
+}
+.gl-fab svg { width: 19px; height: 19px; stroke-width: 1.7; color: var(--gold); }
+.gl-fab:active { transform: scale(.96); }
+.gl-fab:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 body.with-nav .gl-dock { bottom: calc(var(--nav-float) + .5rem); }
 /* The page's end and the toasts clear the bar. */
 body:has(.gl-dock) { padding-bottom: calc(var(--nav-space) + 5rem); }

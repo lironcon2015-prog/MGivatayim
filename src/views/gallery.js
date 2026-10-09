@@ -7,7 +7,7 @@ import {
 import { linkedVideosHtml, sortedVideos, videosOnly } from './media.js';
 import { photoMatches } from '../fixtures.js';
 import { hydratePosters } from '../posters.js';
-import { keepImages } from '../components.js';
+import { keepImages, warmImages } from '../components.js';
 
 /* ── The team's gallery, on the media screen ──────────────────────────────
    Everything a parent uploads is up at once, under their name; any parent
@@ -526,6 +526,16 @@ export function wireMyPhotos(root, s, { asAdmin = false } = {}) {
     viewer(g, list, Math.max(0, list.findIndex((it) => it.id === t.dataset.myPhoto)), { asAdmin, onChange: refresh });
   });
   refresh();
+}
+
+// The gallery's first screen from the copy on the phone, its pictures
+// loaded while another screen is open — called once the app is up.
+export function warmGallery(s) {
+  const g = cachedGallery();
+  if (!g?.enabled) return;
+  const d = document.createElement('div');
+  d.innerHTML = overviewHtml(g, s);
+  warmImages([...d.querySelectorAll('img[src]')].map((i) => i.getAttribute('src')));
 }
 
 /* ---- wiring ---- */

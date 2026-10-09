@@ -403,6 +403,21 @@ await step('scrolling down shrinks the nav to its icons (not gone), scrolling up
   await parent.waitForTimeout(700);
   const back = await nav();
   expect(!back.small && back.h > 60, `after a scroll up: ${JSON.stringify(back)}`);
+  // A short page (the media screen with a few photos) scrolls less than the
+  // range: scrolled to its end, the nav stopped half way and settled back
+  // to full.
+  await parent.evaluate(() => {
+    scrollTo(0, 0);
+    const v = document.getElementById('view');
+    v.style.overflow = 'hidden';
+    v.style.height = `${v.offsetHeight - (document.documentElement.scrollHeight - innerHeight) + 150}px`;
+  });
+  await parent.waitForTimeout(700);
+  for (let i = 0; i < 4; i++) { await parent.mouse.wheel(0, 120); await parent.waitForTimeout(50); }
+  await parent.waitForTimeout(700);
+  const short = await parent.evaluate(() => ({ max: document.documentElement.scrollHeight - innerHeight, y: scrollY, small: document.body.classList.contains('nav-small') }));
+  await parent.evaluate(() => { const v = document.getElementById('view'); v.style.height = v.style.overflow = ''; });
+  expect(short.small && short.max > 120 && short.max < 180, `at the end of a short page the nav is back to full: ${JSON.stringify(short)}`);
   await parent.evaluate(() => { location.hash = '#/'; });
   await parent.locator('a[data-jump]').first().waitFor();
 });
@@ -1894,6 +1909,32 @@ await step('back in the gallery, the thumbnails are the ones already loaded, not
     location.hash = '#/media';
   }), THUMB);
   expect(back.same && back.ready, 'the gallery drew its thumbnails anew: ' + JSON.stringify(back));
+});
+
+await step('after the app is opened again, the gallery comes up with its thumbnails ready', async () => {
+  // A new launch has no pictures in memory: the thumbnails popped in one by
+  // one on the first visit. The app loads them while the home screen is up.
+  // A fresh context with the parent's storage is the relaunch (a reload in
+  // the same one keeps the browser's memory cache), and slow pictures make
+  // "loaded on the gallery screen" visible.
+  const THUMB = '[data-gallery] .gl-tile img';
+  const ctx = await browser.newContext({ viewport: { width: 400, height: 860 }, storageState: await parent.context().storageState() });
+  await ctx.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
+  await ctx.route('https://res.cloudinary.com/**', async (r) => { await new Promise((ok) => setTimeout(ok, 1500)); await r.fulfill({ status: 200, contentType: 'image/png', body: PNG }); });
+  const p = await ctx.newPage();
+  try {
+    await p.goto(APP + '#/');
+    await p.locator('#view .card').first().waitFor({ timeout: 8000 });
+    await p.waitForTimeout(4500);
+    const first = await p.evaluate((sel) => new Promise((res) => {
+      addEventListener('hashchange', () => setTimeout(() => {
+        const i = document.querySelector(sel);
+        res({ found: !!i, ready: !!(i?.complete && i.naturalWidth) });
+      }), { once: true });
+      location.hash = '#/media';
+    }), THUMB);
+    expect(first.found && first.ready, 'the first gallery visit after a launch drew thumbnails not loaded yet: ' + JSON.stringify(first));
+  } finally { await ctx.close(); }
 });
 
 await step('reopening the media screen shows the gallery at once, not the pre-gallery screen while it loads', async () => {

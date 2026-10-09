@@ -8,7 +8,7 @@ import * as store from './store.js';
 import { renderHome, wireHome } from './views/home.js';
 import { renderStats, wireStats, statsJump } from './views/stats.js';
 import { renderMedia } from './views/media.js';
-import { wireGallery } from './views/gallery.js';
+import { wireGallery, warmGallery } from './views/gallery.js';
 import * as gate from './views/gate.js';
 import { mountAdmin, hasUnsavedWork } from './views/admin.js';
 import { startUpdater, appVersion } from './updater.js';
@@ -557,7 +557,10 @@ function draw() {
   restoreImages();
   teardown = route.wire ? route.wire(view, s) || (() => {}) : () => {};
   hydratePosters(view);
+  if (!warmed && route.hash !== '#/media') { warmed = true; setTimeout(() => warmGallery(s), 1500); }
 }
+// The gallery's thumbnails, loaded once per launch on another screen.
+let warmed = false;
 
 // The filmed match into the season's videos, from the live screen (the
 // manager only — the bridge refuses anyone else): on top of the newest saved
@@ -694,6 +697,7 @@ window.addEventListener('hashchange', () => {
 // by itself, and would bring the nav back at every bottom.
 // 70px felt too fast (the owner): it now takes a good swipe, as in Instagram.
 const NAV_RANGE = 200;
+const NAV_MIN_PAGE = 60;
 function navShrink() {
   let last = 0, p = 0, ticking = false, settle = 0;
   const body = document.body;
@@ -706,15 +710,20 @@ function navShrink() {
     const max = document.documentElement.scrollHeight - innerHeight;
     const y = Math.min(Math.max(scrollY, 0), Math.max(max, 0));
     body.classList.remove('nav-settle');
+    // A page that ends before NAV_RANGE shrinks it over what it has: with
+    // 200px it stopped halfway at the bottom of a short screen (the media
+    // screen with a few photos) and settled back to full. One that barely
+    // scrolls keeps it full.
+    const range = max < NAV_MIN_PAGE ? Infinity : Math.min(NAV_RANGE, max);
     // Near the top it can never be smaller than the distance scrolled.
-    p = Math.min(Math.max(p + (y - last) / NAV_RANGE, 0), 1, y / NAV_RANGE);
+    p = Math.min(Math.max(p + (y - last) / range, 0), 1, y / range);
     last = y;
     paint();
     clearTimeout(settle);
     settle = setTimeout(() => {
       if (p === 0 || p === 1) return;
       body.classList.add('nav-settle');
-      p = p >= 0.5 && last >= NAV_RANGE ? 1 : 0;
+      p = p >= 0.5 && last >= range ? 1 : 0;
       paint();
     }, 220);
   };

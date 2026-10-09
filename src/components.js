@@ -49,6 +49,20 @@ function keep(img) {
   while (pool.size > POOL_SRCS) pool.delete(pool.keys().next().value);
 }
 
+// Loads pictures into the pool before their screen is drawn, so its first
+// draw after the app opens takes them ready instead of making them load
+// there one by one (the gallery's thumbnails "refreshed" on every launch).
+export function warmImages(srcs) {
+  for (const src of new Set(srcs)) {
+    if (!src || pool.has(src)) continue;
+    const i = new Image();
+    i.decoding = 'async';
+    i.referrerPolicy = 'no-referrer';
+    i.setAttribute('src', src);
+    i.decode().then(() => { if (!i.isConnected && !pool.has(src)) keep(i); }, () => {});
+  }
+}
+
 export function keepImages(root) {
   root.querySelectorAll('img[src]').forEach((i) => {
     if (i.complete && i.naturalWidth) keep(i);

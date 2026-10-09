@@ -2375,7 +2375,7 @@ await step('the manager screen shows the device copy at once, and edits only the
     await admin.goto(APP + '#/admin');
     await admin.click('[data-tab="games"]');
     await admin.locator('.admin-body[inert]').waitFor({ timeout: 1000 });
-    expect(await admin.locator('.empty', { hasText: 'טוען' }).count() === 0, 'the copy on the device was not drawn while the season loads');
+    expect(await admin.locator('.skel').count() === 0, 'the copy on the device was not drawn while the season loads');
     expect(/מעדכן/.test(await admin.locator('.save-msg').innerText()), 'the wait is not said');
     await admin.locator('.admin-body:not([inert])').waitFor({ timeout: 5000 });
   } finally {

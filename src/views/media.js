@@ -1,5 +1,5 @@
 import { esc, safeUrl } from '../format.js';
-import { sectionHead, videoCard, roundText, linkRow } from '../components.js';
+import { sectionHead, videoCard, roundText, linkRow, skeleton } from '../components.js';
 import { cachedGallery } from '../gallery.js';
 
 /* The media screen: the team gallery on top (photos | videos), useful links
@@ -41,7 +41,7 @@ function hostHtml(s) {
   const g = cachedGallery();
   if (g?.enabled) return '';
   if (g) return videosOnly(s);
-  return `<section>${sectionHead('הגלריה של הקבוצה', '', 'photo')}<div class="card"><div class="empty">טוען…</div></div></section>`;
+  return `<section>${sectionHead('הגלריה של הקבוצה', '', 'photo')}<div class="card">${skeleton('grid', 9)}</div></section>`;
 }
 
 export function renderMedia(s) {

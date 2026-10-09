@@ -191,7 +191,7 @@ export function fixtureRow(f) {
 
 export function leaderRow(player, rank, figures) {
   const figs = figures
-    .map((f) => `<span class="fig ${f.key === 'goals' ? 'g' : f.key === 'assists' ? 'a' : ''}"><b class="num">${player[f.key]}</b><span>${esc(f.label)}</span></span>`)
+    .map((f) => `<span class="fig ${f.key === 'goals' ? 'g' : f.key === 'assists' ? 'a' : ''}${Number(player[f.key]) ? '' : ' zero'}"><b class="num">${player[f.key]}</b><span>${esc(f.label)}</span></span>`)
     .join('');
   return `<div class="leader">
     <span class="rank num">${rank}</span>
@@ -199,6 +199,15 @@ export function leaderRow(player, rank, figures) {
       .filter(Boolean).map(esc).join(' · ')}</span></span>
     <span class="figs">${figs}</span>
   </div>`;
+}
+
+// While something loads: the outline of what is coming, gently shimmering,
+// in place of "טוען…" (the owner's pick). `kind` is 'rows' or 'grid'.
+export function skeleton(kind = 'rows', n = 4) {
+  const body = kind === 'grid'
+    ? `<div class="skel-grid">${'<i></i>'.repeat(n)}</div>`
+    : Array.from({ length: n }, (_, i) => `<div class="skel-row"><i class="skel-dot"></i><span><i style="width:${[72, 54, 64, 46][i % 4]}%"></i><i style="width:${[38, 30, 44, 26][i % 4]}%"></i></span></div>`).join('');
+  return `<div class="skel" role="status" aria-label="טוען">${body}</div>`;
 }
 
 export function tile({ value, label, sub, tone = '' }) {

@@ -1,7 +1,7 @@
 import { topBy, opponentLogo } from '../season.js';
 import { longDate, clock, pct, dec, esc, safeUrl, splitDuration, pad2, wazeLink, navLink, isGoogleMaps, isShortMapLink, mapsCoords } from '../format.js';
 import { icon } from '../icons.js';
-import { myCardHtml, crestImg, oppLogo, roundText, sectionHead, formPill, fixtureRow, leaderRow, tile, splitBar, linkRow, videoCard, sampleNote, SCHEDULE_SAMPLE, RESULTS_SAMPLE } from '../components.js';
+import { myCardHtml, crestImg, oppLogo, roundText, sectionHead, formPill, fixtureRow, leaderRow, tile, splitBar, linkRow, videoCard, sampleNote, skeleton, SCHEDULE_SAMPLE, RESULTS_SAMPLE } from '../components.js';
 import { DAYS, weekday } from '../trainings.js';
 import { openSheet, toast, confirmSheet } from '../ui/sheet.js';
 import { call } from '../bridge.js';
@@ -298,7 +298,7 @@ async function qrSheet(s) {
   const sh = openSheet({
     title: 'כניסה למתחם האימונים',
     subtitle: esc([s.team.name, s.team.league].filter(Boolean).join(' · ')),
-    body: '<div class="qr-pass"><div class="empty">טוען…</div></div>',
+    body: `<div class="qr-pass">${skeleton('grid', 1)}</div>`,
     onClose: () => { lock?.release?.().catch(() => {}); },
   });
   try { lock = await navigator.wakeLock?.request('screen'); } catch { /* the screen may sleep: no harm */ }

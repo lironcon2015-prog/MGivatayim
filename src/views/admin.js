@@ -7,7 +7,7 @@ import { formatEditorHtml, wireFormatEditor } from './live.js';
 import { videoOrder } from './media.js';
 import { openSheet, toast } from '../ui/sheet.js';
 import { icon } from '../icons.js';
-import { roundText, oppLogo, keepFocus } from '../components.js';
+import { roundText, oppLogo, keepFocus, skeleton } from '../components.js';
 import { preparePosters, uploadLogo, uploadQr, hydratePosters } from '../posters.js';
 import { logoKey } from '../season.js';
 import { thumbUrl } from '../gallery.js';
@@ -547,7 +547,7 @@ export function mountAdmin(view, ctx) {
           ${TABS.map(([id, label]) => `<button type="button" role="tab" data-tab="${id}" aria-selected="${tab === id}">${tabLabel(id, label)}</button>`).join('')}
         </div>
       </section>
-      ${tab === 'access' ? accessHtml() : (syncError ? syncErrorHtml() : '') + (draft ? seasonHtml() : syncError ? '' : '<section><div class="card"><div class="empty">טוען…</div></div></section>')}`;
+      ${tab === 'access' ? accessHtml() : (syncError ? syncErrorHtml() : '') + (draft ? seasonHtml() : syncError ? '' : `<section><div class="card">${skeleton('rows', 5)}</div></section>`)}`;
     restoreFocus();
     window.scrollTo(0, scroll);
     const fmt = view.querySelector('[data-format-editor]');
@@ -815,7 +815,7 @@ export function mountAdmin(view, ctx) {
 
   function usersHtml() {
     if (usersError) return `<section><div class="card"><p class="form-error">${esc(usersError)}</p></div></section>` + inviteHtml();
-    if (!users) return `<section><div class="card"><div class="empty">טוען…</div></div></section>`;
+    if (!users) return `<section><div class="card">${skeleton('rows', 5)}</div></section>`;
     const by = (st) => users.filter((u) => st.includes(u.status))
       .sort((a, b) => String(b.requestedAt).localeCompare(String(a.requestedAt)));
     // A coach is an approved device the manager marked: it sees playing time

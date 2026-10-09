@@ -1878,6 +1878,24 @@ await step('photos and videos show apart; the linked videos sit in the videos ta
   await parent.click('[data-gtab="photos"]');
 });
 
+await step('back in the gallery, the thumbnails are the ones already loaded, not new ones that pop in', async () => {
+  // Every visit drew the gallery's thumbnails anew (innerHTML): they came
+  // in empty and popped up one by one — a refresh, each time.
+  const THUMB = '[data-gallery] .gl-tile img';
+  await parent.waitForFunction((sel) => { const i = document.querySelector(sel); return i?.complete && i.naturalWidth; }, THUMB);
+  await parent.evaluate((sel) => { document.querySelector(sel).__mark = 1; }, THUMB);
+  await parent.evaluate(() => { location.hash = '#/'; });
+  await parent.locator('#view .card').first().waitFor();
+  const back = await parent.evaluate((sel) => new Promise((res) => {
+    addEventListener('hashchange', () => setTimeout(() => {
+      const i = document.querySelector(sel);
+      res({ same: i?.__mark === 1, ready: !!(i?.complete && i.naturalWidth) });
+    }), { once: true });
+    location.hash = '#/media';
+  }), THUMB);
+  expect(back.same && back.ready, 'the gallery drew its thumbnails anew: ' + JSON.stringify(back));
+});
+
 await step('reopening the media screen shows the gallery at once, not the pre-gallery screen while it loads', async () => {
   // A slow bridge, as Apps Script often is: the kept copy must carry the first frame.
   const slow = async (r) => { if ((r.request().postData() || '').includes('"getGallery"')) await new Promise((ok) => setTimeout(ok, 2500)); await r.continue().catch(() => {}); };

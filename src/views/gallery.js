@@ -7,6 +7,7 @@ import {
 import { linkedVideosHtml, sortedVideos, videosOnly } from './media.js';
 import { photoMatches } from '../fixtures.js';
 import { hydratePosters } from '../posters.js';
+import { keepImages } from '../components.js';
 
 /* ── The team's gallery, on the media screen ──────────────────────────────
    Everything a parent uploads is up at once, under their name; any parent
@@ -511,7 +512,9 @@ export function wireMyPhotos(root, s, { asAdmin = false } = {}) {
     const now = JSON.stringify(taggedPhotos(g, pid));
     if (now === shown) return;
     shown = now;
+    const restore = keepImages(host);
     host.innerHTML = myPhotosBody(g, pid, mine);
+    restore();
   };
   const refresh = async () => {
     try { const fresh = await loadGallery({ asAdmin }); if (fresh) { g = fresh; paint(); } } catch { /* the kept copy stays */ }
@@ -550,13 +553,17 @@ export function wireGallery(root, s, { isAdmin = () => false } = {}) {
     if (!alive) return;
     // Not loaded yet: the host keeps what it was rendered with ("loading",
     // or a kept copy). Off, or no answer and no copy: the linked videos alone.
-    if (!g?.enabled) { if (g || loaded) host.innerHTML = videosOnly(s); return; }
+    // Pictures already loaded (this visit or the last one) are put back as
+    // they were, not made anew: every visit had them blink in again.
+    const restore = keepImages(host);
+    if (!g?.enabled) { if (g || loaded) { host.innerHTML = videosOnly(s); restore(); hydratePosters(host); } return; }
     const items = visible(g);
     shownTab = tabFor(photosOf(items), clipsOf(items).length + s.videos.length);
     if (loaded) tabFixed = true;
     const grp = openAlbum();
     if (!grp) { album = null; endSelect(); }
     host.innerHTML = grp ? albumHtml(g, grp, sel) : overviewHtml(g, s);
+    restore();
     hydratePosters(host);
   };
   // Redrawn only when the answer differs from what is on screen: a redraw

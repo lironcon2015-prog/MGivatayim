@@ -38,7 +38,7 @@ export function oppLogo(ref, name) {
 // time. A picture taken from the pool is reattached as it was, drawn at once.
 const pool = new Map();          // src → loaded <img> elements not on screen
 const POOL_PER_SRC = 4;
-const POOL_SRCS = 40;
+const POOL_SRCS = 80;          // a gallery screen alone shows ~30
 function keep(img) {
   const k = img.getAttribute('src');
   // Newest first: the picture just taken off the screen is the one to put
@@ -251,7 +251,7 @@ export function videoCard(v) {
   // bridge made, filled in after render by hydratePosters.
   const yt = youtubeThumb(v.url);
   const img = yt ? `<img class="thumb-img" src="${esc(yt)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.remove()" />`
-    : v.poster ? `<img class="thumb-img" data-poster="${esc(v.poster)}" alt="" decoding="async" onerror="this.remove()" />` : '';
+    : v.poster ? `<img class="thumb-img" data-poster="${esc(v.poster)}"${cachedPosterUrl(v.poster) ? ` src="${esc(cachedPosterUrl(v.poster))}"` : ''} alt="" decoding="async" onerror="this.remove()" />` : '';
   const inner = `<div class="thumb">
       ${img}
       <span class="play">${icon('play')}</span>

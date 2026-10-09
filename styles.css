@@ -2114,3 +2114,14 @@ section { scroll-margin-top: 12px; }
 
 @media (prefers-reduced-motion: reduce) { .skel i { animation: none; } }
 
+/* ── Switching screens: a short fade and a slight slide along the nav ──── */
+.view-enter { animation: view-in .22s cubic-bezier(.2, .8, .3, 1) both; }
+.view-enter.from-left { --enter-x: -14px; }
+.view-enter.from-right { --enter-x: 14px; }
+/* A relative offset, not a transform: a transform would make #view the box
+   of every fixed bar inside it (the live dock, the upload pill, the score
+   band), and they would ride the slide off their places for a moment. */
+.view-enter { position: relative; }
+@keyframes view-in { from { opacity: 0; left: var(--enter-x, 0); } to { opacity: 1; left: 0; } }
+@media (prefers-reduced-motion: reduce) { .view-enter { animation: none; } }
+

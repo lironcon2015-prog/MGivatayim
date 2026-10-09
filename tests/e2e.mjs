@@ -407,6 +407,14 @@ await step('scrolling down shrinks the nav to its icons (not gone), scrolling up
   await parent.locator('a[data-jump]').first().waitFor();
 });
 
+await step('a tab switch slides the new screen in from the tab\'s side; a redraw does not move', async () => {
+  await parent.click('#nav a[href="#/stats"]');
+  await parent.locator('#view.view-enter.from-left').waitFor({ timeout: 3000 });
+  await parent.click('#nav a[href="#/"]');
+  await parent.locator('#view.view-enter.from-right').waitFor({ timeout: 3000 });
+  await parent.locator('a[data-jump]').first().waitFor();
+});
+
 await step('a parent has no manager tab and cannot open the editor', async () => {
   expect(await parent.locator('#nav a[href="#/admin"]').count() === 0, 'parent sees the manager tab');
   await parent.goto(APP + '#/admin');

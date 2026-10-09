@@ -436,6 +436,9 @@ function draw() {
   app.innerHTML = chrome(state.season?.team);
   app.querySelector('[data-roster]')?.addEventListener('click', openRoster);
   const view = app.querySelector('#view');
+  // A tab switch slides the new screen in from the tab's side (the owner's
+  // pick from a live mockup); a redraw of the same screen does not move.
+  if (enterFrom) { view.classList.add('view-enter', enterFrom); enterFrom = ''; }
 
   // The manager area is reachable from every state: a manager whose own
   // device was never approved still has to be able to get in.
@@ -665,8 +668,17 @@ function start() {
 // A link can land on a section of the next screen ("ללוח המלא" → the full
 // schedule in stats): the route is the hash, so the section rides beside it.
 let jumpTo = null;
+// Which way the next screen enters: along the nav, RTL — a tab further left
+// comes in from the left, back toward home from the right.
+let enterFrom = '';
+const tabIndex = (h) => { const i = ROUTES.findIndex((r) => r.hash === (h || '#/')); return i >= 0 ? i : h === ADMIN_HASH ? ROUTES.length : -1; };
+let lastHash = location.hash || '#/';
 document.addEventListener('click', (e) => { jumpTo = e.target.closest?.('a[data-jump]')?.dataset.jump || null; }, true);
 window.addEventListener('hashchange', () => {
+  const to = location.hash || '#/', from = lastHash;
+  lastHash = to;
+  const a = tabIndex(from), b = tabIndex(to);
+  enterFrom = a >= 0 && b >= 0 && a !== b ? (b > a ? 'from-left' : 'from-right') : '';
   state.formError = '';
   statsJump(jumpTo);
   render();

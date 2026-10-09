@@ -73,6 +73,17 @@
 
   --shadow-gold: 0 22px 60px -24px var(--gold-glow);
   --shadow-lift: 0 14px 40px rgba(0, 0, 0, .5);
+
+  /* Liquid glass (the owner's pick, as in iOS 26/27) for what floats over the
+     page: nearly clear, the content shows through, a bright rim and a lens
+     highlight. Bars that carry a message to read in a second (toast, save,
+     update) take the dense glass: blurred too, but dark enough for the sun. */
+  --glass-bg: linear-gradient(180deg, rgba(255, 255, 255, .14), rgba(255, 255, 255, .04) 45%, rgba(10, 16, 28, .18));
+  --glass-filter: blur(10px) saturate(1.9) brightness(1.08);
+  --glass-rim: rgba(255, 255, 255, .22);
+  --glass-shine: inset 0 1px 1px rgba(255, 255, 255, .45), inset 0 -1px 1px rgba(255, 255, 255, .12), inset 0 0 18px rgba(255, 255, 255, .05);
+  --glass-shadow: 0 12px 30px rgba(0, 0, 0, .4);
+  --glass-dense: rgba(14, 22, 36, .8);
 }
 
 /* ── Fonts ─────────────────────────────────────────────────────────────
@@ -2046,3 +2057,32 @@ body:has(.gl-dock) .toast { bottom: calc(var(--nav-float) + 4.8rem); }
 /* A section scrolled to (a new row in the manager's lists) keeps its heading
    off the screen's edge. */
 section { scroll-margin-top: 12px; }
+
+/* ── Liquid glass ─────────────────────────────────────────────────────────
+   Only on what floats over the page (the owner chose it from a live mockup):
+   the nav, the floating pills, the slim score band, the live bar. Cards,
+   the scoreboard and sheets stay solid: they are the content, and glass
+   under a sheet or a card hurts reading (and blur on every card costs
+   scrolling). Text on the clear glass gets a soft shadow to stay legible
+   over a bright photo. */
+.nav, .live-dock, .live-mini, .gl-fab {
+  background: var(--glass-bg); border: 1px solid var(--glass-rim);
+  -webkit-backdrop-filter: var(--glass-filter); backdrop-filter: var(--glass-filter);
+  box-shadow: var(--glass-shine), var(--glass-shadow);
+}
+.nav a, .live-dock.fab button, .live-mini, .gl-fab { text-shadow: 0 1px 2px rgba(0, 0, 0, .55); }
+.nav a { color: #DDE4EF; }
+.nav a[aria-current="page"] {
+  color: var(--gold); background: radial-gradient(120% 140% at 50% 0%, rgba(255, 255, 255, .22), rgba(232, 185, 49, .14) 60%);
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, .5), inset 0 0 0 1px rgba(232, 185, 49, .35);
+}
+/* The floating pills keep a gold rim, softer on glass. */
+.live-dock.fab, .gl-fab { border: 1.5px solid rgba(232, 185, 49, .55); box-shadow: var(--glass-shine), inset 0 0 0 1px rgba(232, 185, 49, .2), var(--glass-shadow); }
+.live-mini { border-color: rgba(232, 185, 49, .4); }
+/* Read in a second, in the sun: the dense glass. */
+.toast, .savebar, .update-bar, .gl-selbar {
+  background: var(--glass-dense);
+  -webkit-backdrop-filter: blur(18px) saturate(1.5); backdrop-filter: blur(18px) saturate(1.5);
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, .18), var(--shadow-lift);
+}
+

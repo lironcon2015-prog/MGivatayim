@@ -405,19 +405,34 @@ await step('scrolling down shrinks the nav to its icons (not gone), scrolling up
   expect(!back.small && back.h > 60, `after a scroll up: ${JSON.stringify(back)}`);
   // A short page (the media screen with a few photos) scrolls less than the
   // range: scrolled to its end, the nav stopped half way and settled back
-  // to full.
-  await parent.evaluate(() => {
-    scrollTo(0, 0);
-    const v = document.getElementById('view');
-    v.style.overflow = 'hidden';
-    v.style.height = `${v.offsetHeight - (document.documentElement.scrollHeight - innerHeight) + 150}px`;
-  });
-  await parent.waitForTimeout(700);
-  for (let i = 0; i < 4; i++) { await parent.mouse.wheel(0, 120); await parent.waitForTimeout(50); }
-  await parent.waitForTimeout(700);
-  const short = await parent.evaluate(() => ({ max: document.documentElement.scrollHeight - innerHeight, y: scrollY, small: document.body.classList.contains('nav-small') }));
-  await parent.evaluate(() => { const v = document.getElementById('view'); v.style.height = v.style.overflow = ''; });
-  expect(short.small && short.max > 120 && short.max < 180, `at the end of a short page the nav is back to full: ${JSON.stringify(short)}`);
+  // to full. Then again with the screen's height read too small, as an
+  // iPhone did once right after the update reload (the player's phone):
+  // the page seemed to scroll further than it does, and its end settled the
+  // nav back to full — first the window's reading alone, then all three.
+  for (const stale of [[0, 0, 0], [60, 0, 0], [30, 30, 30]]) {
+    await parent.evaluate(([inner, client, vv]) => {
+      scrollTo(0, 0);
+      const v = document.getElementById('view');
+      v.style.overflow = 'hidden';
+      v.style.height = `${v.offsetHeight - (document.documentElement.scrollHeight - innerHeight) + 150}px`;
+      const ih = innerHeight, ch = document.documentElement.clientHeight;
+      window.__realInner = Object.getOwnPropertyDescriptor(window, 'innerHeight');
+      if (inner) Object.defineProperty(window, 'innerHeight', { configurable: true, get: () => ih - inner });
+      if (client) Object.defineProperty(document.documentElement, 'clientHeight', { configurable: true, get: () => ch - client });
+      const vh = visualViewport.height;
+      if (vv) Object.defineProperty(visualViewport, 'height', { configurable: true, get: () => vh - vv });
+    }, stale);
+    await parent.waitForTimeout(700);
+    for (let i = 0; i < 4; i++) { await parent.mouse.wheel(0, 120); await parent.waitForTimeout(50); }
+    await parent.waitForTimeout(700);
+    const short = await parent.evaluate(() => ({ y: scrollY, small: document.body.classList.contains('nav-small') }));
+    await parent.evaluate(() => {
+      const v = document.getElementById('view'); v.style.height = v.style.overflow = '';
+      if (window.__realInner) Object.defineProperty(window, 'innerHeight', window.__realInner);
+      delete document.documentElement.clientHeight; delete visualViewport.height;
+    });
+    expect(short.small && short.y > 120 && short.y < 180, `at the end of a short page (height read ${stale} too small) the nav is back to full: ${JSON.stringify(short)}`);
+  }
   await parent.evaluate(() => { location.hash = '#/'; });
   await parent.locator('a[data-jump]').first().waitFor();
 });

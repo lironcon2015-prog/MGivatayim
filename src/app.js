@@ -707,7 +707,13 @@ function navShrink() {
   };
   const update = () => {
     ticking = false;
-    const max = document.documentElement.scrollHeight - innerHeight;
+    // The screen's height from the largest of three readings: on a short
+    // page one reading too small (iPhone, right after the update reload —
+    // the owner saw it once on the player's phone, not after a relaunch)
+    // made the page seem longer than it scrolls, and its real end settled
+    // the nav back to full.
+    const de = document.documentElement;
+    const max = de.scrollHeight - Math.max(innerHeight, de.clientHeight, window.visualViewport?.height || 0);
     const y = Math.min(Math.max(scrollY, 0), Math.max(max, 0));
     body.classList.remove('nav-settle');
     // A page that ends before NAV_RANGE shrinks it over what it has: with
@@ -723,7 +729,8 @@ function navShrink() {
     settle = setTimeout(() => {
       if (p === 0 || p === 1) return;
       body.classList.add('nav-settle');
-      p = p >= 0.5 && last >= range ? 1 : 0;
+      // A short page is all "near the top": past half of it is the end.
+      p = p >= 0.5 && (last >= range || range < NAV_RANGE) ? 1 : 0;
       paint();
     }, 220);
   };

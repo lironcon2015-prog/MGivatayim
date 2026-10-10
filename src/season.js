@@ -163,7 +163,7 @@ export function buildSeason(input, now = new Date()) {
   // Israel time) and every fixture after it.
   const kick = String(nextMatch?.kickoff || '');
   const games = [...chronological.map((m) => ({ date: m.date, opponent: m.opponent, home: m.home, gf: Number(m.gf), ga: Number(m.ga) })),
-    ...(nextMatch ? [{ date: kick.slice(0, 10), time: nextMatch.timeTbd ? '' : kick.slice(11, 16), opponent: nextMatch.opponent, ...(nextMatch.dateTbd ? { tbd: true } : {}) }] : []), ...upcoming];
+    ...(nextMatch ? [{ date: kick.slice(0, 10), time: nextMatch.timeTbd ? '' : kick.slice(11, 16), opponent: nextMatch.opponent, home: nextMatch.home, round: nextMatch.round, friendly: nextMatch.friendly, venue: nextMatch.venue, ...(nextMatch.dateTbd ? { tbd: true } : {}) }] : []), ...upcoming];
 
   const week = trainingWeek(raw, games, now);
   const weekDone = nextWeekFrom(week);

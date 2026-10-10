@@ -109,7 +109,8 @@ export function trainingWeek(season, games, now = new Date(), ahead = 0) {
     // A game whose day is still to be set ("צו פיוס"): its date is only the
     // week's, so it closes the week, "to be set" where the day goes.
     if (g.tbd === true && !played) {
-      items.push({ kind: 'game', tbd: true, date: g.date, start: time(g.time), opponent: text(g.opponent), past: false, today: false });
+      items.push({ kind: 'game', tbd: true, date: g.date, start: time(g.time), opponent: text(g.opponent), home: g.home !== false,
+        round: g.round ?? null, friendly: g.friendly === true, venue: g.venue || null, past: false, today: false });
       continue;
     }
     items.push({ kind: 'game', date: g.date, start: time(g.time), opponent: text(g.opponent),

@@ -191,13 +191,21 @@ export function matchRow(match, i) {
   </${tag}>`;
 }
 
-// A fixture still ahead: date, home/away, opponent, round and ground, and
-// the kick-off time where a result row has its score.
-export function fixtureRow(f) {
+// The opponent's crest on its plaque (its initials until it arrives, or for
+// good when none was uploaded), home/away tagged on the plaque's lower edge —
+// the owner's pick for the schedule rows and the week's undated game.
+export function plaqueTag(ref, name, home, cls = '') {
+  return `<span class="opp-tag${cls ? ' ' + cls : ''}"><span class="opp-plq">${esc(String(name || '').slice(0, 2))}${oppLogo(ref, name)}</span><em>${home ? 'בית' : 'חוץ'}</em></span>`;
+}
+
+// A fixture still ahead: date, the opponent's crest tagged home/away,
+// opponent, round and ground, and the kick-off time where a result row has
+// its score.
+export function fixtureRow(f, logo = null) {
   const sub = [roundText(f.round, f.friendly), f.venue?.name].filter(Boolean).map(esc).join(' · ');
   return `<div class="match fixture-row">
     ${whenHtml(f.date)}
-    <span class="ha">${f.home !== false ? 'בית' : 'חוץ'}</span>
+    ${plaqueTag(logo, f.opponent, f.home !== false)}
     <span class="who"><b>${esc(f.opponent)}</b>${sub ? `<span>${sub}</span>` : ''}</span>
     <span class="kick num">${f.time ? esc(f.time) : 'טרם נקבע'}</span>
   </div>`;

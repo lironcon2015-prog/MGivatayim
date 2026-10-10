@@ -1288,11 +1288,14 @@ await step('a pasted schedule becomes the next match and the list after it', asy
   expect((await parent.locator('.fixture-row', { hasText: 'בני לוח' }).innerText()).includes('טרם נקבע'), 'a missing time should say so');
   // The date column holds its text: nothing spills into the home/away pill.
   const clash = await parent.locator('.match').evaluateAll((rows) => rows.map((r) => {
-    const w = r.querySelector('.when'), ha = r.querySelector('.ha');
+    const w = r.querySelector('.when'), ha = r.querySelector('.ha, .opp-tag');
     const kids = [...w.children].map((c) => c.getBoundingClientRect());
     return kids.some((k) => k.left < ha.getBoundingClientRect().right - 0.5) || w.scrollWidth > w.clientWidth ? r.innerText.replace(/\s+/g, ' ') : null;
   }).filter(Boolean));
   expect(!clash.length, 'a date runs into its pill: ' + clash.join(' | '));
+  // A schedule row carries the opponent's plaque, home/away tagged on it.
+  const tags = await parent.locator('.fixture-row').evaluateAll((rows) => rows.map((r) => r.querySelector('.opp-tag .opp-plq') && r.querySelector('.opp-tag em')?.textContent));
+  expect(tags.length && tags.every((t) => t === 'בית' || t === 'חוץ'), 'a schedule row without its plaque and home/away tag: ' + JSON.stringify(tags));
 });
 
 await step('back on the home screen, the crest is the one already loaded, not a new one that shows empty first', async () => {

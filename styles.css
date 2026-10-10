@@ -454,6 +454,19 @@ button.wk-day:active { transform: scale(.97); }
 }
 .wk-day.cancelled .t, .wk-day.away .t { text-decoration: line-through; color: var(--faint); }
 .wk-day.game { background: transparent; border-style: dashed; }
+/* The week's game with no day yet (the owner's pick): a quiet gold flag where
+   a changed training has its red one — nothing changed, it is just not known
+   yet — a gold-tinted frame, the crest tagged home/away and the name. */
+.wk-day.tbd { border-color: var(--gold-line); padding-top: .65rem; }
+.wk-flag.tbd { background: var(--surface-solid); color: var(--gold); border: 1px solid var(--gold-line); }
+.wk-day .opp { margin-top: .5rem; max-width: 100%; font-size: .66rem; font-weight: 700; line-height: 1.15; overflow-wrap: anywhere;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.wk-day .soon { margin-top: auto; padding-top: .25rem; font-size: .62rem; color: var(--faint); }
+.wk-day .opp-plq { width: 30px; height: 30px; font-size: .6rem; }
+.tbd-opp { display: flex; align-items: center; gap: .8rem; margin-bottom: .4rem; }
+.tbd-opp b { display: block; font-size: 1.05rem; }
+.tbd-sub { font-size: .8rem; color: var(--faint); }
+.opp-tag.big .opp-plq { width: 56px; height: 56px; font-size: 1rem; }
 .wk-sub { color: var(--loss); font-weight: 700; }
 .wk-was {
   display: grid; grid-template-columns: auto 1fr; gap: .35rem .8rem; margin: 0 0 .6rem;
@@ -626,6 +639,22 @@ button.form-pill:focus-visible { outline: 2px solid var(--gold); outline-offset:
 .match .ha {
   flex: none; width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center;
   font-size: .72rem; font-weight: 700; background: var(--surface-2); color: #A7B2C4;
+}
+/* The opponent's crest on the plaque of the next-match card, home/away on
+   its lower edge (schedule rows, the week's undated game). */
+.opp-tag { position: relative; flex: none; }
+.opp-plq {
+  position: relative; width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center;
+  font-size: .72rem; font-weight: 800; color: #C3CCDA;
+  background: radial-gradient(circle at 50% 28%, var(--plaque-hi), var(--plaque) 72%);
+  border: 1px solid var(--plaque-ring); box-shadow: var(--plaque-shadow);
+}
+.opp-plq .opp-logo { position: absolute; inset: 0; width: 100%; height: 100%; padding: 13%; object-fit: contain; }
+.opp-plq:has(.opp-logo[src]) { color: transparent; }
+.opp-tag em {
+  position: absolute; inset-inline: -6px; bottom: -7px; margin: auto; width: fit-content; padding: 0 5px; border-radius: var(--r-pill);
+  font-style: normal; font-size: .58rem; font-weight: 700; line-height: 1.45; white-space: nowrap;
+  background: var(--surface-solid); color: #A7B2C4; border: 1px solid var(--line-strong);
 }
 .match .who { flex: 1; min-width: 0; }
 .match .who b { display: block; font-size: .94rem; font-weight: 700; }

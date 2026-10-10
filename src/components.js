@@ -194,8 +194,10 @@ export function matchRow(match, i) {
 // The opponent's crest on its plaque (its initials until it arrives, or for
 // good when none was uploaded), home/away tagged on the plaque's lower edge —
 // the owner's pick for the schedule rows and the week's undated game.
+export const plaque = (ref, name, cls = '') =>
+  `<span class="opp-plq${cls ? ' ' + cls : ''}">${esc(String(name || '').slice(0, 2))}${oppLogo(ref, name)}</span>`;
 export function plaqueTag(ref, name, home, cls = '') {
-  return `<span class="opp-tag${cls ? ' ' + cls : ''}"><span class="opp-plq">${esc(String(name || '').slice(0, 2))}${oppLogo(ref, name)}</span><em>${home ? 'בית' : 'חוץ'}</em></span>`;
+  return `<span class="opp-tag${cls ? ' ' + cls : ''}">${plaque(ref, name)}<em>${home ? 'בית' : 'חוץ'}</em></span>`;
 }
 
 // A fixture still ahead: date, the opponent's crest tagged home/away,

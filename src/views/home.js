@@ -1,7 +1,7 @@
 import { topBy, opponentLogo } from '../season.js';
 import { longDate, clock, pct, dec, esc, safeUrl, splitDuration, pad2, wazeLink, navLink, isGoogleMaps, isShortMapLink, mapsCoords } from '../format.js';
 import { icon } from '../icons.js';
-import { myCardHtml, crestImg, oppLogo, plaqueTag, roundText, sectionHead, formPill, fixtureRow, leaderRow, tile, splitBar, linkRow, videoCard, sampleNote, skeleton, SCHEDULE_SAMPLE, RESULTS_SAMPLE } from '../components.js';
+import { myCardHtml, crestImg, oppLogo, plaque, plaqueTag, roundText, sectionHead, formPill, fixtureRow, leaderRow, tile, splitBar, linkRow, videoCard, sampleNote, skeleton, SCHEDULE_SAMPLE, RESULTS_SAMPLE } from '../components.js';
 import { DAYS, weekday } from '../trainings.js';
 import { openSheet, toast, confirmSheet } from '../ui/sheet.js';
 import { call } from '../bridge.js';
@@ -126,18 +126,20 @@ function weekInner(s) {
     const flag = it.change ? `<span class="wk-flag">${FLAGS[it.change]}</span>` : '';
     const inner = `${flag}<span class="l">${day}</span><span class="n num">${dayMonth(it.date)}</span>
       <span class="t num">${esc(it.start || '—')}</span>`;
-    // A game whose day is still to be set (the owner's pick): a quiet gold
-    // flag, the opponent's crest tagged home/away and its name, opening the
-    // little that is known. Five columns leave no room for the last line.
-    if (it.kind === 'game' && it.tbd) {
-      const narrow = cols >= 5;
-      return `<button type="button" class="wk-day ${cls}" data-wk="${i}"><span class="wk-flag tbd">${narrow ? 'ייקבע' : 'יום ייקבע'}</span>
-        ${plaqueTag(opponentLogo(s, it.opponent), it.opponent, it.home !== false)}<span class="opp">${esc(it.opponent)}</span>${narrow ? '' : '<span class="soon">משחק השבוע</span>'}</button>`;
-    }
+    // A game (the owner's picks): a gold "game" flag on the top edge and the
+    // opponent's crest. With its day set it reads like a training — day,
+    // date, time — the crest where the venue goes; a played one has its
+    // score where the time was, ours first. With its day still to be set
+    // ("צו פיוס") it closes the week: crest, name, "day to be set".
     if (it.kind === 'game') {
-      // A played game shows its score where the time was, ours first.
+      const crest = (size) => plaque(opponentLogo(s, it.opponent), it.opponent, size);
+      const gflag = '<span class="wk-flag game">משחק</span>';
+      if (it.tbd) {
+        return `<button type="button" class="wk-day ${cls}" data-wk="${i}">${gflag}${crest('m')}<span class="opp">${esc(it.opponent)}</span><span class="soon">יום ייקבע</span></button>`;
+      }
       const at = it.gf != null ? `<span class="t num" dir="ltr">${it.ga}-${it.gf}</span>` : `<span class="t num">${esc(it.start || '—')}</span>`;
-      return `<div class="wk-day ${cls}">${flag}<span class="l">${day}</span><span class="n num">${dayMonth(it.date)}</span>${at}<span class="v">משחק</span></div>`;
+      const tag = it.gf != null ? 'div' : 'button';
+      return `<${tag}${tag === 'button' ? ` type="button" data-wk="${i}"` : ''} class="wk-day ${cls}">${gflag}<span class="l">${day}</span><span class="n num">${dayMonth(it.date)}</span>${at}${crest('s')}</${tag}>`;
     }
     const where = it.change === 'cancelled' ? 'בוטל' : it.change === 'away' ? `ל${DAYS[weekday(it.movedTo)]}` : it.venue.name || it.venue.address;
     return `<button type="button" class="wk-day ${cls}" data-wk="${i}">${inner}<span class="v">${esc(where)}</span></button>`;
@@ -160,19 +162,24 @@ function weekHtml(s) {
   return `<section class="week-sec" aria-label="אימוני השבוע" data-week>${weekInner(s)}</section>`;
 }
 
-// The week's game with no day yet: what is known — the opponent, round,
-// home/away, its week and ground — and that the day will show here.
-function tbdGameSheet(g, s) {
+// A game of the week, from its square: the opponent, round, home/away, its
+// day and time (or its week, while the day is to be set), ground and Waze.
+function gameSheet(g, s) {
   const week = shownWeek(s);
   const place = g.venue?.name || g.venue?.address || '';
+  const waze = navLink(g.venue?.waze) || wazeLink(g.venue?.address);
   const head = [roundText(g.round, g.friendly), g.home !== false ? 'בית' : 'חוץ'].filter(Boolean).join(' · ');
+  const when = g.tbd
+    ? `<span>שבוע <b class="num" dir="ltr">${ltr(`${dayMonth(week.start)}–${dayMonth(week.end)}`)}</b> · יום ושעה טרם נקבעו</span>`
+    : `<span><b>${g.today ? 'היום' : `יום ${DAYS[weekday(g.date)]}`} <span class="num">${dayMonth(g.date)}</span></b> · ${g.start ? `<span class="num" dir="ltr">${esc(g.start)}</span>` : 'שעה טרם נקבעה'}</span>`;
   const sh = openSheet({
-    title: 'משחק השבוע',
+    title: g.tbd ? 'משחק השבוע' : 'משחק',
     body: `<div class="wk-sheet">
-      <div class="tbd-opp">${plaqueTag(opponentLogo(s, g.opponent), g.opponent, g.home !== false, 'big')}<div><b>${esc(g.opponent)}</b><span class="tbd-sub">${esc(head)}</span></div></div>
-      <div class="meta-row">${icon('calendar')}<span>שבוע <b class="num" dir="ltr">${ltr(`${dayMonth(week.start)}–${dayMonth(week.end)}`)}</b> · יום ושעה טרם נקבעו</span></div>
+      <div class="tbd-opp">${plaque(opponentLogo(s, g.opponent), g.opponent, 'big')}<div><b>${esc(g.opponent)}</b><span class="tbd-sub">${esc(head)}</span></div></div>
+      <div class="meta-row">${icon('calendar')}${when}</div>
       ${place ? `<div class="meta-row">${icon('pin')}<span><b>${esc(place)}</b>${g.venue.name && g.venue.address ? ` <span class="sub">· ${esc(g.venue.address)}</span>` : ''}</span></div>` : ''}
-      <p class="note">המשחק ייקבע לאחד מימי השבוע. כשהיום והשעה ייקבעו הם יופיעו כאן ובכרטיס המשחק הבא, ותתחיל הספירה לאחור.</p>
+      ${waze && !g.tbd ? `<a class="btn" href="${esc(waze)}" target="_blank" rel="noopener noreferrer">${icon('nav')} ניווט אל המגרש ב-Waze</a>` : ''}
+      ${g.tbd ? '<p class="note">המשחק ייקבע לאחד מימי השבוע. כשהיום והשעה ייקבעו הם יופיעו כאן ובכרטיס המשחק הבא, ותתחיל הספירה לאחור.</p>' : ''}
     </div>`,
   });
   hydratePosters(sh.el);
@@ -342,7 +349,7 @@ function wireWeek(host, s) {
   const qr = host.querySelector('[data-qr]');
   if (qr) qr.onclick = () => qrSheet(s);
   host.querySelectorAll('[data-wk]').forEach((b) => {
-    b.onclick = () => { const t = shownWeek(s)?.items[Number(b.dataset.wk)]; if (t) (t.kind === 'game' ? tbdGameSheet(t, s) : trainingSheet(t, s)); };
+    b.onclick = () => { const t = shownWeek(s)?.items[Number(b.dataset.wk)]; if (t) (t.kind === 'game' ? gameSheet(t, s) : trainingSheet(t, s)); };
   });
   const next = host.querySelector('[data-next-week]');
   if (next) next.onclick = () => { showNext = !showNext; host.innerHTML = weekInner(s); hydratePosters(host); wireWeek(host, s); };

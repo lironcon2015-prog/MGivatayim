@@ -116,7 +116,12 @@ function borderKeys(data, border) {
   const all = border.map(px);
   const covered = (keys) => all.filter((v) => keys.some((k) => d(v, k) < KEY_NEAR)).length / all.length;
   const one = median(all);
-  if (covered([one]) >= 0.95) return [one];
+  // Gemini's key (CREST_PROMPT: #00FF00, or #FF00FF) is no crest's colour, and
+  // Gemini draws a tall badge touching the edges whatever the prompt says —
+  // 10% of the border was crest. Flooding starts only from the key, so the
+  // crest on the border stays.
+  const chroma = (c) => (c[1] > 200 && c[0] < 90 && c[2] < 90) || (c[0] > 200 && c[2] > 200 && c[1] < 90);
+  if (covered([one]) >= (chroma(one) ? 0.75 : 0.95)) return [one];
   // Two colours: the one farthest from the first median seeds the second.
   const far = all.reduce((a, v) => (d(v, one) > d(a, one) ? v : a));
   const groups = [[], []];

@@ -830,6 +830,17 @@ await test('an edge pixel half green becomes half transparent, and loses the gre
   assert.ok(g < 60, 'green left in the edge: ' + g);
 });
 
+await test("Gemini's green is removed even round a badge that touches every edge", async () => {
+  const { keyBackground } = await import('../src/imaging.js');
+  // An oval reaching the middle of each side: an eighth of the border is crest.
+  const w = 32, h = 40;
+  const px = paint(w, h, (x, y) => ((x - 15.5) / 15.6) ** 2 + ((y - 19.5) / 19.6) ** 2 <= 1 ? NAVY : GREEN);
+  assert.equal(keyBackground(px, w, h), true);
+  assert.equal(alphaAt(px, w, 0, 0) + alphaAt(px, w, w - 1, h - 1), 0, 'the green corners stayed');
+  assert.equal(alphaAt(px, w, 0, 20), 255, 'the crest on the border went');
+  assert.equal(alphaAt(px, w, 16, 20), 255);
+});
+
 await test('a border that is not one plain colour is left alone', async () => {
   const { keyBackground } = await import('../src/imaging.js');
   const w = 16, h = 16;

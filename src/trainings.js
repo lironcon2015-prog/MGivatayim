@@ -106,10 +106,16 @@ export function trainingWeek(season, games, now = new Date(), ahead = 0) {
     if (seen.has(key)) continue;
     seen.add(key);
     const played = Number.isInteger(g.gf) && Number.isInteger(g.ga);
+    // A game whose day is still to be set ("צו פיוס"): its date is only the
+    // week's, so it closes the week, "to be set" where the day goes.
+    if (g.tbd === true && !played) {
+      items.push({ kind: 'game', tbd: true, date: g.date, start: time(g.time), opponent: text(g.opponent), past: false, today: false });
+      continue;
+    }
     items.push({ kind: 'game', date: g.date, start: time(g.time), opponent: text(g.opponent),
       ...(played ? { gf: g.gf, ga: g.ga, home: g.home !== false } : {}), past: played || g.date < today, today: g.date === today });
   }
-  items.sort((a, b) => a.date.localeCompare(b.date) || (a.kind === 'game') - (b.kind === 'game'));
+  items.sort((a, b) => (a.tbd === true) - (b.tbd === true) || a.date.localeCompare(b.date) || (a.kind === 'game') - (b.kind === 'game'));
   return { start, end, ahead, trainings: days.length, items };
 }
 

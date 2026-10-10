@@ -448,6 +448,46 @@ await test('a Google Maps link routes in Waze by its coordinates', async () => {
   assert.equal(navLink('https://example.com/?q=1.5,2.5'), 'https://example.com/?q=1.5,2.5');
 });
 
+await test('צו פיוס: a game with its day to be set closes its week, sorts last, and an import keeps a day set by hand', async () => {
+  const { buildSeason } = await import('../src/season.js');
+  const F = await import('../src/fixtures.js');
+  const tuesday = new Date('2026-09-29T10:00:00Z');   // week 27.9–3.10
+  const base = {
+    trainings: [{ day: '0', start: '17:00', end: '18:30' }, { day: '4', start: '17:00', end: '18:30' }],
+    fixtures: [
+      { date: '2026-09-30', time: '', opponent: 'בלי יום', home: true, round: 2, tbd: true },   // the list said Wednesday
+      { date: '2026-10-01', time: '17:00', opponent: 'עם יום', home: false, round: 9 },
+    ],
+  };
+  const s = buildSeason(base, tuesday);
+  assert.equal(s.nextMatch.opponent, 'עם יום', 'a dated game of the week comes first');
+  assert.deepEqual(s.schedule.map((f) => f.opponent), ['עם יום', 'בלי יום']);
+  const items = s.week.items;
+  assert.deepEqual([items.at(-1).kind, items.at(-1).tbd, items.at(-1).opponent], ['game', true, 'בלי יום'], 'the undated game is the last square');
+  assert.ok(items.slice(0, -1).every((i) => i.tbd !== true));
+  const alone = buildSeason({ ...base, fixtures: [base.fixtures[0]] }, tuesday);
+  assert.equal(alone.nextMatch.dateTbd, true);
+  assert.equal(alone.week.items.at(-1).tbd, true);
+  // Its week is not over on the list's day: still ahead on Saturday, gone on Sunday.
+  assert.equal(F.upcomingFixtures(base.fixtures, [], new Date('2026-10-03T10:00:00Z')).length, 1);
+  assert.equal(F.upcomingFixtures(base.fixtures, [], new Date('2026-10-04T10:00:00Z')).length, 0);
+
+  // Re-importing the league's list: every game comes in to be set, and one
+  // whose day was set by hand keeps it.
+  const season = { fixtures: [
+    { date: '2026-10-28', time: '16:00', opponent: 'הכח', round: 2, home: true, kit: 'כחול' },   // set by hand
+    { date: '2026-10-31', time: '', opponent: 'השרון', round: 3, home: false },                   // still the list's day
+  ], matches: [] };
+  const file = { fixtures: [
+    { date: '2026-10-31', time: '', opponent: 'הכח', round: 2, home: true },
+    { date: '2026-10-31', time: '', opponent: 'השרון', round: 3, home: false },
+  ], results: [] };
+  const r = F.applyFixtureImport(season, file, { tbd: true });
+  assert.deepEqual([r.fixtures[0].date, r.fixtures[0].time, r.fixtures[0].tbd, r.fixtures[0].kit], ['2026-10-28', '16:00', undefined, 'כחול']);
+  assert.deepEqual([r.fixtures[1].date, r.fixtures[1].tbd], ['2026-10-31', true]);
+  assert.equal(F.applyFixtureImport(season, file).fixtures[0].tbd, undefined, 'without the setting the file\'s days are the days');
+});
+
 await test('fixtures: an import never overwrites a result already there', async () => {
   const F = await import('../src/fixtures.js');
   const season = { matches: [{ date: '2026-08-15', opponent: 'בני יהודה', gf: 4, ga: 4, liveId: 'L1' }] };

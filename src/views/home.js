@@ -49,10 +49,10 @@ function nextMatchCard(s) {
     ${eyebrow(`${round}${nm.home ? 'בית' : 'חוץ'}`)}
     <div class="fixture">
       ${disc(sides[0])}
-      <div class="vs"><div class="kick num">${nm.timeTbd ? 'שעה טרם נקבעה' : clock(kick)}</div><div class="word">VS</div><div class="date">${esc(longDate(kick))}</div></div>
+      <div class="vs"><div class="kick num">${nm.timeTbd ? 'שעה טרם נקבעה' : clock(kick)}</div><div class="word">VS</div><div class="date">${nm.dateTbd ? 'תאריך טרם נקבע' : esc(longDate(kick))}</div></div>
       ${disc(sides[1])}
     </div>
-    ${nm.timeTbd ? '' : `<div id="countdown" data-kickoff="${kick.toISOString()}"></div>`}
+    ${nm.timeTbd || nm.dateTbd ? '' : `<div id="countdown" data-kickoff="${kick.toISOString()}"></div>`}
     <div class="meta-row">${icon('pin')}
       <span><b>${place}</b>${nm.venue?.name && nm.venue?.address ? ` <span class="sub">· ${esc(nm.venue.address)}</span>` : ''}</span>
     </div>
@@ -125,6 +125,9 @@ function weekInner(s) {
     const flag = it.change ? `<span class="wk-flag">${FLAGS[it.change]}</span>` : '';
     const inner = `${flag}<span class="l">${day}</span><span class="n num">${dayMonth(it.date)}</span>
       <span class="t num">${esc(it.start || '—')}</span>`;
+    if (it.kind === 'game' && it.tbd) {
+      return `<div class="wk-day ${cls}"><span class="l">תאריך</span><span class="n">טרם נקבע</span><span class="t num">${esc(it.start || '—')}</span><span class="v">משחק</span></div>`;
+    }
     if (it.kind === 'game') {
       // A played game shows its score where the time was, ours first.
       const at = it.gf != null ? `<span class="t num" dir="ltr">${it.ga}-${it.gf}</span>` : `<span class="t num">${esc(it.start || '—')}</span>`;

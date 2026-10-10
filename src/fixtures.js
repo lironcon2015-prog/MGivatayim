@@ -202,12 +202,24 @@ export function playedTest(matches) {
   return (f) => played.has(f.date) || opened.has(fixtureKey(f));
 }
 
+// A game whose day is still to be set (tbd, the "צו פיוס" setting): its date
+// is the round's date from the league's list, which only tells the week —
+// the league lists every round on its Saturday, and these games are played
+// on a weekday. It counts as possibly any day of that week (Sunday–Saturday),
+// and sorts after every dated game of the week.
+const shiftDays = (iso, n) => { const d = new Date(iso + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+const dow = (iso) => new Date(iso + 'T12:00:00Z').getUTCDay();
+export const isTbd = (f) => f?.tbd === true && /^\d{4}-\d{2}-\d{2}$/.test(String(f.date || ''));
+export const firstDay = (f) => (isTbd(f) ? shiftDays(f.date, -dow(f.date)) : f?.date || '');
+export const lastDay = (f) => (isTbd(f) ? shiftDays(f.date, 6 - dow(f.date)) : f?.date || '');
+export const gameOrder = (f) => `${lastDay(f)} ${isTbd(f) ? '~' : f?.time || ''}`;
+
 export function upcomingFixtures(fixtures, matches, now = new Date()) {
   const today = todayInIsrael(now);
   const played = playedTest(matches);
   return (fixtures || [])
-    .filter((f) => f && f.date >= today && !played(f))
-    .sort((a, b) => a.date.localeCompare(b.date) || (a.time || '').localeCompare(b.time || ''));
+    .filter((f) => f && lastDay(f) >= today && !played(f))
+    .sort((a, b) => gameOrder(a).localeCompare(gameOrder(b)));
 }
 
 // Games a gallery upload can belong to, newest first: every result, and every
@@ -217,7 +229,7 @@ export function photoMatches(matches, fixtures, now = new Date()) {
   const today = todayInIsrael(now);
   const played = (matches || []).filter((m) => m?.date).map((m) => ({ date: m.date, opponent: m.opponent || '' }));
   const days = new Set(played.map((m) => m.date));
-  const past = (fixtures || []).filter((f) => f?.date && f.date <= today && !days.has(f.date))
+  const past = (fixtures || []).filter((f) => f?.date && firstDay(f) <= today && !days.has(f.date))
     .map((f) => ({ date: f.date, opponent: f.opponent || '' }));
   return [...played, ...past].filter((m) => m.opponent).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 20);
 }
@@ -229,7 +241,7 @@ export function fixtureAsNext(f) {
   const time = f.time || '12:00';
   return {
     opponent: f.opponent, home: f.home !== false, round: f.round ?? null, friendly: f.friendly === true,
-    kickoff: israelIso(f.date, time), timeTbd: !f.time,
+    kickoff: israelIso(f.date, time), timeTbd: !f.time, ...(isTbd(f) ? { dateTbd: true } : {}),
     venue: { name: f.venue?.name || '', address: f.venue?.address || '', waze: f.venue?.waze || '' },
     arrival: f.arrival || '', kit: f.kit || '', fromFixtures: true,
   };
@@ -239,14 +251,25 @@ export function fixtureAsNext(f) {
 // the whole schedule), and its results are added unless a match on that date
 // is already there — a result entered by hand or saved from a live match is
 // never overwritten by a spreadsheet.
-export function applyFixtureImport(season, { fixtures, results }) {
+// With "צו פיוס" on (tbd) the file's dates are only the rounds' weeks: every
+// fixture comes in with its date still to be set, and a date the manager
+// already set by hand (the same round and opponent, on another day than the
+// file's) stays.
+export function applyFixtureImport(season, { fixtures, results }, { tbd = false } = {}) {
   // The file knows dates, opponents and grounds; what the manager added to a
   // game here (gathering, kit, a Waze link, a ground the file leaves empty)
   // stays with the same game — the imported schedule replaces the old one.
-  const had = new Map((season.fixtures || []).map((f) => [fixtureKey(f), f]));
+  const before = (season.fixtures || []).filter(Boolean);
+  const had = new Map(before.map((f) => [fixtureKey(f), f]));
+  const sameRound = (f) => f.round != null && before.find((o) => o.round === f.round && String(o.opponent || '').trim() === f.opponent);
   fixtures = fixtures.map((f) => {
-    const old = had.get(fixtureKey(f));
+    if (tbd) f = { ...f, tbd: true };
+    const old = had.get(fixtureKey(f)) || (tbd ? sameRound(f) : null);
     if (!old) return f;
+    if (tbd && old.tbd !== true && old.date !== f.date) {
+      const { tbd: _, ...rest } = f;
+      f = { ...rest, date: old.date, time: old.time || f.time };
+    } else if (tbd) f = { ...f, time: f.time || old.time || '' };
     const v = f.venue || {}, ov = old.venue || {};
     return {
       ...f, arrival: old.arrival || '', kit: old.kit || '',

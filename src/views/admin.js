@@ -11,7 +11,7 @@ import { roundText, oppLogo, keepFocus, skeleton } from '../components.js';
 import { preparePosters, uploadLogo, uploadQr, hydratePosters } from '../posters.js';
 import { logoKey } from '../season.js';
 import { thumbUrl } from '../gallery.js';
-import { detectFixtureColumns, rowsToFixtures, applyFixtureImport, upcomingFixtures, fixtureKey, mergeNextMatch, playedTest, FIXTURE_FIELDS, todayInIsrael } from '../fixtures.js';
+import { detectFixtureColumns, rowsToFixtures, applyFixtureImport, upcomingFixtures, fixtureKey, mergeNextMatch, playedTest, FIXTURE_FIELDS, todayInIsrael, gameOrder, firstDay } from '../fixtures.js';
 import { DAYS, weekday } from '../trainings.js';
 
 /* ── What the manager edits ───────────────────────────────────────────────
@@ -76,6 +76,7 @@ const SETTINGS_FIELDS = [
   { key: 'sampleSchedule', label: 'הלוח עוד לא רשמי', type: 'check' },
   { key: 'showRoster', label: 'סגל הקבוצה', type: 'check' },
   { key: 'entryQrParents', label: 'גם ההורים רואים את ה-QR', type: 'check' },
+  { key: 'tzoPius', label: 'צו פיוס — לא משחקים בשבת', type: 'check' },
 ];
 const HOME_VENUE_FIELDS = [
   { key: 'name', label: 'שם המגרש', wide: true },
@@ -100,14 +101,15 @@ const LISTS = [
     // no result, marked, with its gathering time, kit and Waze link (the owner:
     // a separate "next match" was the same game twice). Every row takes them.
     path: 'fixtures', title: 'לוח משחקים', glyph: 'calendar', add: 'משחק', importer: 'fixtures', tab: 'games', limit: 5, crest: true,
-    order: (a, b) => gameKey(a).localeCompare(gameKey(b)),   // soonest first
+    order: (a, b) => gameOrder(a).localeCompare(gameOrder(b)),   // soonest first; a game with no day yet ends its week
     note: 'המשחק הבא הוא הקרוב שעוד אין לו תוצאה. התכנסות, תלבושת וסמל אפשר להוסיף לכל משחק.',
     blank: () => ({ date: today(), time: '', opponent: '', home: true, round: null, venue: { name: '', address: '', waze: '' }, arrival: '', kit: '' }),
     label: (f) => `${f.date ? shortDate(f.date) + ' · ' : ''}${f.opponent || 'משחק חדש'}`,
-    sum: (f) => ({ title: f.opponent || 'משחק חדש', sub: [f.date && shortDate(f.date), f.time || 'שעה טרם נקבעה', f.home === false ? 'חוץ' : 'בית', roundText(f.round, f.friendly), f.arrival && `התכנסות ${f.arrival}`, f.kit].filter(Boolean).join(' · ') }),
+    sum: (f) => ({ title: f.opponent || 'משחק חדש', sub: [f.date && (f.tbd === true ? `תאריך טרם נקבע (שבוע ${shortDate(f.date)})` : shortDate(f.date)), f.time || 'שעה טרם נקבעה', f.home === false ? 'חוץ' : 'בית', roundText(f.round, f.friendly), f.arrival && `התכנסות ${f.arrival}`, f.kit].filter(Boolean).join(' · ') }),
     fields: [
       { key: 'date', label: 'תאריך', type: 'date', required: true },
       { key: 'time', label: 'שעה', type: 'time', hint: 'ריק = טרם נקבעה' },
+      { key: 'tbd', label: 'התאריך טרם נקבע (התאריך שלמעלה = שבוע המחזור)', type: 'check', wide: true },
       { key: 'opponent', label: 'יריבה', required: true },
       { key: 'home', label: 'בית / חוץ', type: 'select', options: HOME_OPTS },
       { key: 'round', label: 'מחזור', type: 'round' },
@@ -621,6 +623,7 @@ export function mountAdmin(view, ctx) {
           <select data-fcol="${i}">${FIXTURE_FIELDS.map((f) => `<option value="${f.key}"${cols.map[i] === f.key ? ' selected' : ''}>${f.label}</option>`).join('')}</select></label>`).join('')}</div>
         ${out.fixtures.length || out.results.length ? `<div class="imp-list">${out.results.map((r) => row(r, true)).join('')}${out.fixtures.map((f) => row(f, false)).join('')}</div>`
           : '<div class="empty">לא נמצאו משחקים. בדקו שיש עמודת תאריך ועמודת יריבה (או קבוצת בית וקבוצת חוץ).</div>'}
+        ${draft.settings?.tzoPius === true && out.fixtures.length ? '<p class="note">צו פיוס: התאריכים מהקובץ נשמרים כשבוע המחזור בלבד, וכל משחק נכנס עם "תאריך טרם נקבע". תאריך שכבר קבעתם ידנית נשאר.</p>' : ''}
         ${(draft.fixtures || []).length ? `<p class="note">הלוח הנוכחי (${draft.fixtures.length} משחקים) יוחלף בלוח מהקובץ.</p>` : ''}
         <div class="sheet-actions"><button type="button" class="btn" data-fapply${out.fixtures.length || newRes ? '' : ' disabled'}>${out.fixtures.length ? `ייבוא ${out.fixtures.length} משחקים ללוח` : 'ייבוא'}${newRes ? ` ו-${newRes} תוצאות` : ''}</button></div>`;
     };
@@ -635,7 +638,7 @@ export function mountAdmin(view, ctx) {
         sh.setBody(body()); wire(sh.body);
       }));
       el.querySelector('[data-fapply]')?.addEventListener('click', () => {
-        const r = applyFixtureImport(draft, out);
+        const r = applyFixtureImport(draft, out, { tbd: draft.settings?.tzoPius === true });
         draft.fixtures = r.fixtures;
         draft.matches = r.matches;
         sortLists(draft);
@@ -1152,7 +1155,7 @@ export function mountAdmin(view, ctx) {
   // What a schedule row adds under its fields: the opponent's crest, and
   // "played" once the game is next or its day has come.
   function fixtureExtra(item, i) {
-    const due = fixtureKey(item) === nextKey() || (item.date && item.date <= today());
+    const due = fixtureKey(item) === nextKey() || (item.date && firstDay(item) <= today());
     return `<div data-logo-host="fixtures.${i}">${logoHtml(item.opponent)}</div>
       ${due ? `<button type="button" class="btn small" data-played="${i}">המשחק התקיים — הזנת תוצאה</button>` : ''}`;
   }
@@ -1232,6 +1235,13 @@ export function mountAdmin(view, ctx) {
           <div class="sec-head">${icon('clock')}<h2>מבנה משחק</h2></div>
           <div class="card" data-format-editor>${formatEditorHtml(cleanFormat(draft.settings?.format), cleanSize(draft.settings?.size))}
             <p class="note">ברירת המחדל לכל משחק חי. אפשר לשנות גם בפתיחת משחק מסוים.</p></div>
+        </section>
+        <section>
+          <div class="sec-head">${icon('calendar')}<h2>תאריכי המשחקים</h2></div>
+          <div class="card">
+            <div class="opt">${fieldHtml(SETTINGS_FIELDS[4], 'settings.tzoPius', draft.settings?.tzoPius === true)}
+              <p class="note">בלוח של ההתאחדות כל מחזור רשום בשבת, והמשחקים שלנו באמצע השבוע. בייבוא לוח, התאריך מהקובץ נשמר רק כשבוע המחזור: כל משחק נכנס עם "תאריך טרם נקבע", ואת התאריך קובעים ידנית במשחק עצמו (ניהול ← משחקים). עד אז הוא מופיע בריבוע האחרון של השבוע באימוני השבוע, ובלוח ובמשחק הבא — "טרם נקבע".</p></div>
+          </div>
         </section>
         <section id="entry-qr">
           <div class="sec-head">${icon('qr')}<h2>QR כניסה למתחם</h2></div>
@@ -1419,6 +1429,21 @@ export function mountAdmin(view, ctx) {
         game.friendly = el.value === 'f';
         game.round = el.value === '' || el.value === 'f' ? null : Number(el.value);
       } else setPath(draft, path, coerce(field, el.value, el));
+      // "צו פיוס" turned on over a schedule already in: every game still ahead
+      // has its day to be set, as an import would leave it.
+      if (path === 'settings.tzoPius' && el.checked) {
+        const played = playedTest(draft.matches);
+        let n = 0;
+        for (const f of draft.fixtures || []) if (f && f.tbd !== true && f.date >= today() && !played(f)) { f.tbd = true; n++; }
+        if (n) { touch(); paint(); toast(`${n} משחקים בלוח סומנו "תאריך טרם נקבע". לחצו "שמירה" כדי שכולם יראו.`, { ms: 6000 }); return; }
+      }
+      // A day typed for a game whose date was still to be set: it is set now.
+      const dated = /^fixtures\.(\d+)\.date$/.exec(path);
+      if (dated && draft.fixtures[Number(dated[1])]?.tbd === true) {
+        draft.fixtures[Number(dated[1])].tbd = false;
+        const box = view.querySelector(`[data-path="fixtures.${dated[1]}.tbd"]`);
+        if (box) box.checked = false;
+      }
       // A link to a social page takes its icon, unless one was already picked
       // (anything but the default).
       const linkUrl = /^links\.(\d+)\.url$/.exec(path);
@@ -1587,7 +1612,7 @@ export function mountAdmin(view, ctx) {
       const idx = Number(t.dataset.played);
       const f = draft.fixtures?.[idx];
       if (!f) return;
-      const item = { date: f.date || today(), opponent: f.opponent, home: f.home !== false, round: f.round ?? null, friendly: f.friendly === true, gf: null, ga: null };
+      const item = { date: f.tbd === true ? today() : f.date || today(), opponent: f.opponent, home: f.home !== false, round: f.round ?? null, friendly: f.friendly === true, gf: null, ga: null };
       for (const other of draft.matches || []) setOpen(other, false);
       setOpen(item, true);
       setNew(item, true);

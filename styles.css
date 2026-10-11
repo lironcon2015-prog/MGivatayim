@@ -1854,8 +1854,12 @@ button.match:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px
 .mn-map td.mn-cell:has(small) { height: auto; padding: 3px 0 2px; line-height: 1.1; }
 .mn-cell small { display: block; font-size: .6rem; font-weight: 500; color: var(--faint); }
 .mn-cell.short small { color: var(--gold-dim); }
-.mn-pos .mn-cell { min-width: 26px; }
-.mn-pos thead th { font-size: .66rem; font-weight: 600; color: var(--muted); }
+.mn-pos { width: 100%; border-spacing: 2px 3px; }
+.mn-pos th.nm { width: 100%; }
+.mn-pos .mn-cell { min-width: 24px; height: 24px; border-radius: 7px; font-size: .74rem; }
+.mn-pos thead th { font-size: .62rem; font-weight: 600; color: var(--muted); padding: 0 1px; white-space: nowrap; }
+.mn-pos .mn-lines th { color: var(--faint); font-weight: 500; padding-bottom: 1px; border-bottom: 1px solid var(--line); }
+.mn-no { display: inline-block; min-width: 1.5em; margin-inline-end: .3rem; font-size: .72rem; color: var(--faint); text-align: center; }
 .mn-pos .mn-cell.none { color: var(--line-strong); font-weight: 400; }
 .mn-cell.main { background: color-mix(in srgb, var(--blue) 14%, transparent); color: var(--blue); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--blue) 40%, transparent); }
 .mn-legend { display: flex; flex-wrap: wrap; gap: .4rem 1rem; }

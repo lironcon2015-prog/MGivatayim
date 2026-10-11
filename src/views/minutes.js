@@ -280,7 +280,7 @@ function posHtml(sm) {
     const main = ranked[0]?.[0];
     return `<tr>
       <th class="nm">${named(p)}</th>
-      ${used.map((u) => { const n = p.at[u.id] || 0; return `<td class="mn-pc"><b class="mn-cell num${n ? (u.id === main ? ' main' : '') : ' none'}">${n || '·'}</b></td>`; }).join('')}
+      ${used.map((u) => { const n = p.at[u.id] || 0; return `<td class="mn-pc"><b class="mn-cell num${n ? (u.id === main ? ' main' : '') : ' none'}${n > 9 ? ' two' : ''}">${n || '·'}</b></td>`; }).join('')}
     </tr>`;
   }).join('');
   return `<div class="card mn-map-wrap"><table class="mn-map mn-pos"><thead><tr class="mn-lines"><th></th>${lines.map((x) => `<th colspan="${x.n}">${LINE_NAME[x.l]}</th>`).join('')}</tr><tr><th></th>${used.map((u) => `<th scope="col" title="${esc(u.label)}" style="width:${(99 / used.length).toFixed(2)}%">${esc(u.short)}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table></div>

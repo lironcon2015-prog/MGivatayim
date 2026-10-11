@@ -1858,6 +1858,8 @@ button.match:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px
 .mn-pos th.nm { width: 1%; white-space: nowrap; padding-inline-end: .45rem; }
 .mn-pos .mn-pc { padding: 0 1px; }
 .mn-pos .mn-pc .mn-cell { display: grid; place-items: center; width: 100%; max-width: 32px; min-width: 18px; height: auto; aspect-ratio: 1; margin-inline: auto; border-radius: 7px; font-size: min(.88rem, 3.6vw); line-height: 1; }
+/* Two digits (a main position over a season) keep a margin in the smallest square. */
+.mn-pos .mn-pc .mn-cell.two { font-size: min(.78rem, 2.9vw); letter-spacing: -.03em; }
 .mn-pos thead th { font-size: min(.72rem, 2.5vw); font-weight: 600; color: var(--muted); padding: 0 1px; white-space: nowrap; letter-spacing: -.02em; }
 .mn-pos .mn-lines th { color: var(--faint); font-weight: 500; padding-bottom: 1px; border-bottom: 1px solid var(--line); }
 .mn-no { display: inline-block; min-width: 1.5em; margin-inline-end: .3rem; font-size: .72rem; color: var(--faint); text-align: center; }

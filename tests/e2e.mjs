@@ -994,6 +994,7 @@ await step('minutes per player are the manager\'s only', async () => {
   expect(cached && cached.season.players.every((p) => !('minutes' in p)), 'minutes reached the parent\'s device');
   expect(cached.season.matches.every((m) => !('lineup' in m)), 'a past lineup reached the parent\'s device');
   await admin.goto(APP + '#/stats');
+  await admin.locator('[data-pane="staff:coach"]').click();
   await admin.locator('#minutes .mn-table').waitFor();
 });
 
@@ -1622,17 +1623,31 @@ await step('a device the manager marks as coach sees playing time; a parent does
   await row.locator('[data-role="coach"][aria-pressed="true"]').waitFor();
   await coach.click('#recheck');
   await coach.goto(APP + '#/stats');
+  // Minutes and positions live on the coach's card, a third pane; the team
+  // card is the parents' own.
+  await coach.locator('[data-pane="staff:team"]').click({ timeout: 8000 });
+  await coach.locator('#board').waitFor();
+  expect(await coach.locator('#minutes').count() === 0, 'minutes on the team card');
+  await coach.locator('[data-pane="staff:coach"]').click();
   await coach.locator('#minutes .mn-table').waitFor({ timeout: 8000 });
   // Who the phone is, in the title on every screen; a parent's says nothing.
   expect((await coach.locator('.topbar .role-mark').innerText()).trim() === 'מאמן', 'the coach is not named in the title');
   expect((await admin.locator('.topbar .role-mark').innerText()).trim() === 'מנהל', 'the manager is not named in the title');
   expect(await parent.locator('.topbar .role-mark').count() === 0, 'a parent\'s title names a role');
-  // What parents never see says so, to the coach and to the manager.
-  expect(await coach.locator('#minutes .sec-head .coach-only').innerText() === '(רק למאמן)', 'the coach\'s minutes carry no "only the coach" note');
+  // The tab is the coach's own and says so; nothing inside repeats it.
+  expect(await coach.locator('#minutes .coach-only').count() === 0, 'an "only the coach" note inside the coach\'s card');
   await admin.goto(APP + '#/stats');
-  await admin.locator('#minutes .sec-head .coach-only').waitFor({ timeout: 8000 });
+  await admin.locator('[data-pane="staff:coach"]').click({ timeout: 8000 });
+  await admin.locator('#minutes .mn-table').waitFor({ timeout: 8000 });
   await coach.locator('#minutes [data-mnview="map"]').click();
   await coach.locator('#minutes .mn-map .mn-cell').first().waitFor();
+  // Under the minutes, the position he held longest in that match.
+  expect(await coach.locator('#minutes .mn-map .mn-cell small').count() > 0, 'no position under the minutes on the map');
+  await coach.locator('#minutes [data-mnview="pos"]').click();
+  await coach.locator('#minutes .mn-pos .mn-cell.main').first().waitFor();
+  expect(await coach.locator('#minutes .mn-table, #minutes .mn-map:not(.mn-pos)').count() === 0, 'two views at once');
+  await coach.locator('#minutes [data-mnview="map"]').click();
+  await coach.locator('#minutes .mn-map:not(.mn-pos)').waitFor();
   await coach.locator('#minutes .mn-pl').first().click();
   await coach.locator('.sheet .mn-hist').waitFor();
   await coach.locator('.sheet-x').click();

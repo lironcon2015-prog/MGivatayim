@@ -470,6 +470,25 @@ export function minutesPlayed(state, now = null) {
 // bridge walks the same way (positionsPlayed_), for the player's own phone.
 export const POS_MIN_MS = 5 * 60000;
 export function positionsPlayed(state, minMs = POS_MIN_MS) {
+  const out = {};
+  for (const [pid, m] of positionTimes(state)) {
+    const all = [...m];
+    const long = all.filter(([, ms]) => ms >= minMs).map(([pos]) => pos);
+    out[pid] = long.length ? long : [all.reduce((a, b) => (b[1] > a[1] ? b : a))[0]];
+  }
+  return out;
+}
+
+// The one position each player held longest in a match — a cell of the
+// coach's minutes map. Coach and manager only: they see minutes anyway.
+export function mainPositions(state) {
+  const out = {};
+  for (const [pid, m] of positionTimes(state)) out[pid] = [...m].reduce((a, b) => (b[1] > a[1] ? b : a))[0];
+  return out;
+}
+
+// pid → Map(position → ms held), walking lineup, subs and formation changes.
+function positionTimes(state) {
   const format = state.format || [];
   const events = state.events || [];
   const lengths = format.map((_, p) => {
@@ -501,13 +520,7 @@ export function positionsPlayed(state, minMs = POS_MIN_MS) {
     credit(L - cursor);
   }
   while (k < changes.length) apply(changes[k++]);
-  const out = {};
-  for (const [pid, m] of held) {
-    const all = [...m];
-    const long = all.filter(([, ms]) => ms >= minMs).map(([pos]) => pos);
-    out[pid] = long.length ? long : [all.reduce((a, b) => (b[1] > a[1] ? b : a))[0]];
-  }
-  return out;
+  return held;
 
   function credit(d) {
     if (d > 0) for (const [pid, pos] of field) held.get(pid).set(pos, held.get(pid).get(pos) + d);

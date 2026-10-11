@@ -172,10 +172,12 @@ export function seasonMinutes(season, coach) {
       const squad = new Set(state.players.map((p) => p.id));
       const started = new Set(m.lineup.map((l) => l.pid));
       const spans = stints(state);
+      const main = M.mainPositions(state);
+      const played = M.positionsPlayed(state);
       const cells = {};
       for (const pid of squad) {
         cells[pid] = present.has(pid)
-          ? { minutes: mins[pid] || 0, short: (mins[pid] || 0) < cfg.min, started: started.has(pid), spans: stintSpans(m.format, spans.get(pid)) }
+          ? { minutes: mins[pid] || 0, short: (mins[pid] || 0) < cfg.min, started: started.has(pid), spans: stintSpans(m.format, spans.get(pid)), pos: main[pid] || '', positions: played[pid] || [] }
           : { absent: true };
       }
       return { match: m, min: cfg.min, cells };
@@ -183,14 +185,18 @@ export function seasonMinutes(season, coach) {
 
   const players = season.players.map((p) => {
     let games = 0, total = 0, below = 0, starts = 0;
+    // Matches at each position over the season, as on the player's own card:
+    // once per match, positions held five minutes or more.
+    const at = {};
     for (const x of matches) {
       const c = x.cells[p.id];
       if (!c || c.absent) continue;
       games++; total += c.minutes;
       if (c.short) below++;
       if (c.started) starts++;
+      for (const pos of c.positions) at[pos] = (at[pos] || 0) + 1;
     }
-    return { id: p.id, name: p.name, number: p.number ?? null, pos: p.pos || '', pos2: p.pos2 || '', posText: p.posText || '', games, total, below, starts, avg: games ? total / games : 0 };
+    return { id: p.id, name: p.name, number: p.number ?? null, pos: p.pos || '', pos2: p.pos2 || '', posText: p.posText || '', games, total, below, starts, at, avg: games ? total / games : 0 };
   });
   players.sort((a, b) => (a.games ? 0 : 1) - (b.games ? 0 : 1) || a.avg - b.avg || (a.number ?? 999) - (b.number ?? 999));
   return {

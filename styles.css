@@ -1851,6 +1851,13 @@ button.match:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px
 .mn-cell.short { background: var(--gold-soft); color: var(--gold); box-shadow: inset 0 0 0 1.5px var(--gold-line); }
 .mn-cell.x { background: none; color: var(--faint); outline: 1px dashed var(--line-strong); outline-offset: -1px; }
 .mn-cell.none { background: none; }
+.mn-map td.mn-cell:has(small) { height: auto; padding: 3px 0 2px; line-height: 1.1; }
+.mn-cell small { display: block; font-size: .6rem; font-weight: 500; color: var(--faint); }
+.mn-cell.short small { color: var(--gold-dim); }
+.mn-pos .mn-cell { min-width: 26px; }
+.mn-pos thead th { font-size: .66rem; font-weight: 600; color: var(--muted); }
+.mn-pos .mn-cell.none { color: var(--line-strong); font-weight: 400; }
+.mn-cell.main { background: color-mix(in srgb, var(--blue) 14%, transparent); color: var(--blue); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--blue) 40%, transparent); }
 .mn-legend { display: flex; flex-wrap: wrap; gap: .4rem 1rem; }
 .mn-legend span { display: inline-flex; align-items: center; gap: .35rem; }
 .mn-legend .mn-cell { display: inline-block; min-width: 18px; height: 12px; border-radius: 4px; }

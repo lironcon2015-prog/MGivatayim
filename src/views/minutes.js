@@ -13,7 +13,7 @@ import { icon } from '../icons.js';
 import { openSheet } from '../ui/sheet.js';
 import { sectionHead, COACH_ONLY, foldRows } from '../components.js';
 import { outcomeOf } from '../season.js';
-import { posLabel } from '../positions.js';
+import { posLabel, position, POSITIONS } from '../positions.js';
 
 const mins = (n) => M.ltr(`${n}'`);
 const total = (format) => format.reduce((a, b) => a + b, 0) || 1;
@@ -216,21 +216,59 @@ export function coachSheet(state, getCfg, save) {
 
 /* ── The season ──────────────────────────────────────────────────────── */
 
+/* The coach's card on the stats screen (a third pane, the owner's pick
+   against a mockup): one switch for the whole card — "טבלה | מפה | עמדות" —
+   one view at a time, no switch inside a switch. The table is the season's
+   minutes; the map is minutes per match with the position held longest under
+   each; positions is player against position over the season, counted as on
+   the player's own card (once a match, five minutes or more). The tab is the
+   only entry and it is drawn for coach and manager alone, so no
+   "(רק למאמן)" inside. The view is for the visit. */
+const VIEWS = [
+  ['table', 'טבלה', 'clock', 'דקות לעונה'],
+  ['map', 'מפה', 'clock', 'דקות ועמדה בכל משחק'],
+  ['pos', 'עמדות', 'shirt', 'מספר משחקים בעמדה'],
+];
+let view = 'table';
+
 export function seasonMinutesHtml(s) {
   const sm = MN.seasonMinutes(s, s.coach);
   if (!sm.matches.length) {
-    return `<section>${sectionHead('דקות משחק', '', 'clock', { coachOnly: true })}
-      <div class="card"><div class="empty">עוד לא נשמר משחק חי. הדקות נספרות מההרכב והחילופים של משחקים שתועדו בלייב.</div></div></section>`;
+    return `<section id="minutes">${sectionHead('דקות ועמדות', '', 'clock')}
+      <div class="card"><div class="empty">עוד לא נשמר משחק חי. הדקות והעמדות נספרות מההרכב והחילופים של משחקים שתועדו בלייב.</div></div></section>`;
   }
   return `<section id="minutes">
-    ${sectionHead('דקות משחק', `<span class="num">${sm.matches.length}</span> משחקים מתועדים`, 'clock', { coachOnly: true })}
+    ${kpis([[sm.matches.length, 'משחקים מתועדים'], [sm.belowTotal, 'פעמים מתחת לרף', sm.belowTotal > 0], [sm.playersBelow, 'שחקנים מתחת לרף']])}
     <div class="seg" role="tablist" id="mn-tabs">
-      <button role="tab" type="button" data-mnview="table" aria-selected="true">טבלה</button>
-      <button role="tab" type="button" data-mnview="map" aria-selected="false">מפה</button>
+      ${VIEWS.map(([k, l]) => `<button role="tab" type="button" data-mnview="${k}" aria-selected="${view === k}">${l}</button>`).join('')}
     </div>
-    ${kpis([[sm.matches.length, 'משחקים'], [sm.belowTotal, 'פעמים מתחת לרף', sm.belowTotal > 0], [sm.playersBelow, 'שחקנים']])}
-    <div id="mn-body">${tableHtml(sm)}</div>
+    <div id="mn-body">${bodyHtml(sm, s)}</div>
   </section>`;
+}
+
+function bodyHtml(sm, s) {
+  const [, , glyph, title] = VIEWS.find((v) => v[0] === view);
+  const body = view === 'map' ? mapHtml(sm, s) : view === 'pos' ? posHtml(sm) : tableHtml(sm);
+  return sectionHead(title, `<span class="num">${sm.matches.length}</span> משחקים`, glyph) + body;
+}
+
+// Player against position: a column for every position anyone held this
+// season, in the order of the pitch (keeper, defence, midfield, attack); the
+// player's most frequent one in blue, as the second series is everywhere.
+function posHtml(sm) {
+  const used = POSITIONS.filter((p) => sm.players.some((x) => x.at[p.id]));
+  if (!used.length) return '<div class="card"><div class="empty">אין עדיין עמדות במשחקים שתועדו.</div></div>';
+  const rows = [...sm.players].sort((a, b) => (a.games ? 0 : 1) - (b.games ? 0 : 1) || (a.number ?? 999) - (b.number ?? 999)).map((p) => {
+    // The most matches; a tie goes to his listed position, as on his card.
+    const ranked = Object.entries(p.at).sort((a, b) => b[1] - a[1] || (b[0] === p.pos) - (a[0] === p.pos));
+    const main = ranked[0]?.[0];
+    return `<tr>
+      <th class="nm"><button type="button" class="mn-pl" data-mnp="${esc(p.id)}">${esc(shortName(p.name))}</button></th>
+      ${used.map((u) => { const n = p.at[u.id] || 0; return `<td class="mn-cell num${n ? (u.id === main ? ' main' : '') : ' none'}">${n || '·'}</td>`; }).join('')}
+    </tr>`;
+  }).join('');
+  return `<div class="card mn-map-wrap"><table class="mn-map mn-pos"><thead><tr><th></th>${used.map((u) => `<th scope="col" title="${esc(u.label)}">${esc(u.short)}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table></div>
+    <p class="note mn-legend"><span><i class="mn-cell main"></i>העמדה העיקרית</span><span>עמדה נספרת פעם אחת במשחק, מ-5 דקות.</span></p>`;
 }
 
 function tableHtml(sm) {
@@ -259,11 +297,12 @@ function mapHtml(sm, s) {
         const c = x.cells[p.id];
         if (!c) return '<td class="mn-cell none"></td>';
         if (c.absent) return '<td class="mn-cell x">—</td>';
-        return `<td class="mn-cell num${c.short ? ' short' : ''}">${c.minutes}</td>`;
+        const at = position(c.pos);
+        return `<td class="mn-cell num${c.short ? ' short' : ''}">${c.minutes}${at ? `<small>${esc(at.short)}</small>` : ''}</td>`;
       }).join('')}
     </tr>`).join('');
   return `<div class="card mn-map-wrap"><table class="mn-map"><thead><tr><th></th>${cols}</tr></thead><tbody>${rows}</tbody></table></div>
-    <p class="note mn-legend"><span><i class="mn-cell short"></i>מתחת לרף</span><span><i class="mn-cell"></i>מעל</span><span><i class="mn-cell x"></i>לא הגיע</span></p>`;
+    <p class="note mn-legend"><span><i class="mn-cell short"></i>מתחת לרף</span><span><i class="mn-cell"></i>מעל</span><span><i class="mn-cell x"></i>לא הגיע</span><span>מתחת לדקות: העמדה במשחק</span></p>`;
 }
 
 function playerSheet(sm, s, pid) {
@@ -304,13 +343,14 @@ export function wireSeasonMinutes(root, s) {
   const box = root.querySelector('#minutes');
   if (!box) return () => {};
   const sm = MN.seasonMinutes(s, s.coach);
-  foldRows(body?.querySelector('tbody'), 'minutes');
+  if (view === 'table') foldRows(body?.querySelector('tbody'), 'minutes');
   const onClick = (e) => {
     const v = e.target.closest('[data-mnview]');
     if (v && tabs && body) {
       tabs.querySelectorAll('button').forEach((b) => b.setAttribute('aria-selected', String(b === v)));
-      body.innerHTML = v.dataset.mnview === 'map' ? mapHtml(sm, s) : tableHtml(sm);
-      foldRows(body.querySelector('tbody'), 'minutes');
+      view = v.dataset.mnview;
+      body.innerHTML = bodyHtml(sm, s);
+      if (view === 'table') foldRows(body.querySelector('tbody'), 'minutes');
       return;
     }
     const p = e.target.closest('[data-mnp]');

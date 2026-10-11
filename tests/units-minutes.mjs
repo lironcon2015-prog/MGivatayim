@@ -142,6 +142,22 @@ export async function run(test) {
     assert.deepEqual(r.players.map((p) => p.id), ['a', 'd', 'e', 'g', 'c', 'b'], 'fewest average minutes first, then by number');
   });
 
+  await test('the coach\'s card: the position held longest in each match, and matches at each position over the season', () => {
+    const end = (period) => ({ id: `end-${period}`, type: 'period_end', period, atMs: 30 * MIN });
+    const one = { liveId: 'P1', date: '2026-09-01', format: [30, 30], players: squad, lineup: [{ pid: 'a', pos: 'CB' }, { pid: 'b', pos: 'ST' }],
+      events: [end(0), { id: 's1', type: 'sub', period: 0, atMs: 10 * MIN, in: 'c', out: 'b' },
+        { id: 'f1', type: 'shape', period: 1, atMs: 27 * MIN, formation: '', moves: [{ pid: 'a', pos: 'RB' }] }, end(1)] };
+    const two = { liveId: 'P2', date: '2026-09-08', format: [30, 30], players: squad, lineup: [{ pid: 'a', pos: 'RB' }], events: [end(0), end(1)] };
+    const r = MN.seasonMinutes({ chronological: [one, two], players: squad }, {});
+    const c1 = r.matches[0].cells;
+    assert.deepEqual([c1.a.pos, c1.b.pos, c1.c.pos], ['CB', 'ST', 'ST'], 'a sub takes the place he came into');
+    assert.deepEqual(c1.a.positions, ['CB'], 'three minutes at right back is not a position');
+    const a = r.players.find((p) => p.id === 'a');
+    assert.deepEqual(a.at, { CB: 1, RB: 1 });
+    assert.deepEqual(r.players.find((p) => p.id === 'c').at, { ST: 1 });
+    assert.deepEqual(r.players.find((p) => p.id === 'd').at, {}, 'came, never on the field');
+  });
+
   await test('an absent player gets no match and no zero', () => {
     const s = M.newLive({ id: 'Z', opponent: 'x', format: [30, 30, 20], players: squad });
     const m = { liveId: 'Z', date: '2026-09-01', format: s.format, lineup: [{ pid: 'g', pos: '' }], events: [], players: squad };

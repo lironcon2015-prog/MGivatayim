@@ -15,8 +15,10 @@ const BOARDS = [
 /* A switch at the top of the screen (the owner's pick, against a mockup).
    A player: "הכרטיס שלי | הקבוצה", his card first — one long screen of both
    was two and a half screens of scrolling. The manager and the coach:
-   "כרטיס הקבוצה | כרטיסי שחקן", the team first; the second picks a player
-   from the squad and shows his card exactly as his phone does. Everyone else
+   "כרטיס הקבוצה | כרטיסי שחקן | כרטיס המאמן", the team first; the second
+   picks a player from the squad and shows his card exactly as his phone does;
+   the third holds what parents never see — minutes and positions — so the
+   team card is the parents' own. Everyone else
    gets the screen as it was. The choices are for the visit. */
 const pane = { player: 'mine', staff: 'team', pid: null };
 
@@ -65,7 +67,8 @@ export function renderStats(s) {
   </section>` : teamHtml(s));
   }
   if (s.cardFor) {
-    return switchHtml('staff', [['team', 'כרטיס הקבוצה'], ['cards', 'כרטיסי שחקן']]) + (pane.staff === 'cards' ? cardsHtml(s) : teamHtml(s));
+    return switchHtml('staff', [['team', 'כרטיס הקבוצה'], ['cards', 'כרטיסי שחקן'], ['coach', 'כרטיס המאמן']])
+      + (pane.staff === 'cards' ? cardsHtml(s) : pane.staff === 'coach' ? seasonMinutesHtml(s) : teamHtml(s));
   }
   return teamHtml(s);
 }
@@ -113,8 +116,6 @@ function teamHtml(s) {
     ${s.squadGoalsMatch || !s.isAdmin ? '' : `<p class="note">למנהל: לשחקנים שויכו ${s.squadGoals} שערים מתוך ${s.playerGoals} של הקבוצה${s.playerGoals !== s.overall.gf ? ' (בלי גולים עצמיים של היריבה)' : ''}. תוצאה שהוזנה ידנית לא כוללת כובשים — אפשר להשלים ב"שערים לפני הלייב" בעורך השחקנים.</p>`}
   </section>`}
 
-  ${s.showMinutes ? seasonMinutesHtml(s) : ''}
-
   ${s.schedule.length ? `<section id="stats-schedule">
     ${sectionHead('לוח המשחקים', `${s.schedule.length} משחקים`, 'calendar')}
     ${sampleNote(s, SCHEDULE_SAMPLE)}
@@ -152,9 +153,10 @@ export function wireStats(root, s) {
 function wirePane(root, s) {
   root.querySelectorAll('[data-fold]').forEach((el) => foldRows(el, el.dataset.fold));
   wireMyPhotos(root, s, { asAdmin: !!s.isAdmin });
+  const unMinutes = s.showMinutes ? wireSeasonMinutes(root, s) : () => {};
   const tabs = root.querySelector('#board-tabs');
   const out = root.querySelector('#board');
-  if (!tabs || !out) return () => {};
+  if (!tabs || !out) return unMinutes;
 
   const draw = (key) => {
     const board = BOARDS.find((b) => b.key === key) || BOARDS[0];
@@ -174,6 +176,5 @@ function wirePane(root, s) {
 
   tabs.addEventListener('click', onClick);
   draw(BOARDS[0].key);
-  const unMinutes = s.showMinutes ? wireSeasonMinutes(root, s) : () => {};
   return () => { tabs.removeEventListener('click', onClick); unMinutes(); };
 }

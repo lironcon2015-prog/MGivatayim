@@ -255,6 +255,10 @@ function bodyHtml(sm, s) {
 // Player against position: a column for every position anyone held this
 // season, in the order of the pitch (keeper, defence, midfield, attack); the
 // player's most frequent one in blue, as the second series is everywhere.
+// The name column is as wide as the name, and the positions share the rest of
+// the card evenly — a square in each, as large as its column allows (the
+// owner: the card is filled on every phone). Below the floor it scrolls in
+// the card, never the page.
 const LINE_OF = { GK: 0, RB: 1, CB: 1, LB: 1, RWB: 1, LWB: 1, DM: 2, CM: 2, AM: 2, RW: 3, LW: 3, ST: 3 };
 const LINE_NAME = ['', 'הגנה', 'קישור', 'התקפה'];
 // A shirt number before a name, as in the minutes table.
@@ -276,10 +280,10 @@ function posHtml(sm) {
     const main = ranked[0]?.[0];
     return `<tr>
       <th class="nm">${named(p)}</th>
-      ${used.map((u) => { const n = p.at[u.id] || 0; return `<td class="mn-cell num${n ? (u.id === main ? ' main' : '') : ' none'}">${n || '·'}</td>`; }).join('')}
+      ${used.map((u) => { const n = p.at[u.id] || 0; return `<td class="mn-pc"><b class="mn-cell num${n ? (u.id === main ? ' main' : '') : ' none'}">${n || '·'}</b></td>`; }).join('')}
     </tr>`;
   }).join('');
-  return `<div class="card mn-map-wrap"><table class="mn-map mn-pos"><thead><tr class="mn-lines"><th></th>${lines.map((x) => `<th colspan="${x.n}">${LINE_NAME[x.l]}</th>`).join('')}</tr><tr><th></th>${used.map((u) => `<th scope="col" title="${esc(u.label)}">${esc(u.short)}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table></div>
+  return `<div class="card mn-map-wrap"><table class="mn-map mn-pos"><thead><tr class="mn-lines"><th></th>${lines.map((x) => `<th colspan="${x.n}">${LINE_NAME[x.l]}</th>`).join('')}</tr><tr><th></th>${used.map((u) => `<th scope="col" title="${esc(u.label)}" style="width:${(99 / used.length).toFixed(2)}%">${esc(u.short)}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table></div>
     <p class="note mn-legend"><span><i class="mn-cell main"></i>העמדה העיקרית</span><span>עמדה נספרת פעם אחת במשחק, מ-5 דקות.</span></p>`;
 }
 

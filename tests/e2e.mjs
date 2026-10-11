@@ -1645,6 +1645,15 @@ await step('a device the manager marks as coach sees playing time; a parent does
   expect(await coach.locator('#minutes .mn-map .mn-cell small').count() > 0, 'no position under the minutes on the map');
   await coach.locator('#minutes [data-mnview="pos"]').click();
   await coach.locator('#minutes .mn-pos .mn-cell.main').first().waitFor();
+  // The positions fill the card on every phone: the name as wide as the name,
+  // the columns sharing the rest, a square in each (the owner: a gap was left).
+  const fit = await coach.evaluate(() => {
+    const t = document.querySelector('#minutes .mn-pos'), w = t.closest('.mn-map-wrap'), cs = getComputedStyle(w);
+    const inner = w.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+    const sq = [...t.querySelectorAll('.mn-pc .mn-cell')].map((b) => b.offsetWidth - b.offsetHeight);
+    return { inner, table: t.offsetWidth, page: document.documentElement.scrollWidth - innerWidth, square: sq.every((d) => Math.abs(d) <= 1) };
+  });
+  expect(Math.abs(fit.table - fit.inner) <= 2 && fit.page <= 0 && fit.square, 'the positions do not fill the card: ' + JSON.stringify(fit));
   expect(await coach.locator('#minutes .mn-table, #minutes .mn-map:not(.mn-pos)').count() === 0, 'two views at once');
   await coach.locator('#minutes [data-mnview="map"]').click();
   await coach.locator('#minutes .mn-map:not(.mn-pos)').waitFor();

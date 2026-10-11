@@ -1731,6 +1731,8 @@ await step('a cleared phone asking again under the same name replaces its old de
   expect(after.find((u) => u.id === newId)?.status === 'approved', 'the new phone is not approved');
   expect(bridge.post({ action: 'hello', deviceKey: oldKey }).result.status === 'none', 'the old key still works');
   await admin.locator('.user-row.req').filter({ has: admin.locator(`[data-replace="${newId}"]`) }).waitFor({ state: 'detached', timeout: 5000 });
+  // A device of this step only: later steps count the holders.
+  bridge.post({ action: 'removeUser', adminCode: ADMIN, id: newId });
 });
 
 await step('before kick-off the coach sets the minimum and who came; a parent sees no minutes tab', async () => {

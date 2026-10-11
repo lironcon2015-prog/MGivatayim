@@ -970,6 +970,18 @@ input[type="checkbox"]:focus-visible { outline: 2px solid var(--gold); outline-o
 .user-row .who-name b { overflow-wrap: anywhere; }
 .role-tag { flex: none; display: inline-flex; align-items: center; gap: 3px; padding: 1px 7px; border-radius: var(--r-pill); font-size: .66rem; font-weight: 800; border: 1px solid var(--gold-line); color: var(--gold); }
 .role-tag.player { border-color: color-mix(in srgb, var(--blue) 45%, transparent); color: var(--blue); }
+/* A request that may replace an approved device (replaceSheet in admin.js). */
+.user-row.req { flex-direction: column; align-items: stretch; gap: .55rem; }
+.user-row.req .acts { justify-content: flex-start; max-width: none; }
+.user-row.req .linkish { align-self: flex-start; }
+.twin { display: grid; gap: 2px; background: var(--surface-2); border: 1px solid var(--line-strong); border-radius: var(--r-field); padding: .55rem .7rem; font-size: .8rem; }
+.twin .lbl { color: var(--muted); font-size: .72rem; }
+.twin b { display: flex; align-items: center; gap: .4rem; font-size: .92rem; }
+.twin .role-tag { border-color: var(--line-strong); color: var(--muted); }
+.twin > span:last-child { color: var(--faint); font-size: .74rem; }
+.twin-hint { margin: 0; font-size: .76rem; color: var(--gold); }
+.replace-what { margin-top: .7rem; background: var(--gold-soft); border: 1px solid var(--gold-line); border-radius: var(--r-field); padding: .6rem .75rem; font-size: .84rem; }
+.replace-what ul { margin: .3rem 0 0; padding-inline-start: 1.1rem; color: var(--muted); font-size: .8rem; }
 .user-row .who-name .role-tag svg { width: 11px; height: 11px; color: currentColor; }
 .user-row .who span { font-size: .75rem; color: var(--faint); }
 .user-row .acts { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; flex: none; max-width: 62%; }

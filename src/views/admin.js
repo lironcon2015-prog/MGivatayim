@@ -14,6 +14,22 @@ import { thumbUrl } from '../gallery.js';
 import { detectFixtureColumns, rowsToFixtures, applyFixtureImport, upcomingFixtures, fixtureKey, mergeNextMatch, playedTest, FIXTURE_FIELDS, todayInIsrael, gameOrder, firstDay } from '../fixtures.js';
 import { DAYS, weekday } from '../trainings.js';
 
+// Access: a request that may be a cleared phone asking again (replaceSheet).
+const DAY_MS = 86400000;
+const norm = (x) => String(x || '').replace(/\s+/g, ' ').trim().toLowerCase();
+const sameName = (a, b) => !!norm(a) && norm(a) === norm(b);
+const roleWord = (u) => (u.role === 'coach' ? 'מאמן' : u.role === 'player' ? 'שחקן' : 'הורה');
+// "היום 08:40", "אתמול", "לפני 5 ימים" — by the date in Israel.
+const ilDay = (d) => Date.parse(d.toLocaleDateString('en-CA', { timeZone: 'Asia/Jerusalem' }) + 'T00:00:00Z');
+function ago(iso) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '—';
+  const days = Math.round((ilDay(new Date()) - ilDay(d)) / DAY_MS);
+  if (days <= 0) return 'היום ' + d.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Jerusalem' });
+  if (days === 1) return 'אתמול';
+  return days < 60 ? `לפני ${days} ימים` : stamp(iso);
+}
+
 /* ── What the manager edits ───────────────────────────────────────────────
    One table drives every list editor: the form, the "add" template and the
    validation all come from here. Adding a field to videos or links is a line
@@ -848,10 +864,36 @@ export function mountAdmin(view, ctx) {
         <span class="acts">${u.status === 'approved' ? roleSwitch(u) : ''}${actions.map(([st, label, cls]) =>
           `<button type="button" class="btn small ${cls || ''}" data-user="${esc(u.id)}" data-set="${st}">${label}</button>`).join('')}</span>
       </div>`;
+    // A request with an approved device's name (the owner's pick, against a
+    // mockup): most likely a phone whose site data was cleared, asking again
+    // with a new key. Offered, never done by itself — the name is free text.
+    // An old device seen in the day before the request (or since) is still in
+    // use: a second device is likelier, so that button leads instead.
+    const twinOf = (u) => users.filter((x) => x.status === 'approved' && sameName(x.name, u.name))
+      .sort((a, b) => String(a.lastSeen || '').localeCompare(String(b.lastSeen || '')))[0] || null;
+    const reqRow = (u) => {
+      const twin = twinOf(u);
+      const busy = !!(twin && twin.lastSeen && Date.parse(twin.lastSeen) > Date.parse(u.requestedAt) - DAY_MS);
+      const btn = (attrs, label, cls) => `<button type="button" class="btn small ${cls}" ${attrs}>${label}</button>`;
+      const replace = twin ? btn(`data-replace="${esc(u.id)}" data-replace-to="${esc(twin.id)}"`, 'החלפת המכשיר הקודם', busy ? 'secondary' : '') : '';
+      const approve = btn(`data-user="${esc(u.id)}" data-set="approved"`, twin ? 'מכשיר נוסף' : 'אישור', twin && !busy ? 'secondary' : '');
+      const reject = btn(`data-user="${esc(u.id)}" data-set="rejected"`, 'דחייה', 'danger');
+      const others = users.some((x) => x.status === 'approved');
+      return `<div class="user-row req">
+        <span class="who"><button type="button" class="who-name" data-rename="${esc(u.id)}" aria-label="${esc(`שינוי השם של ${u.name}`)}"><b>${esc(u.name)}</b>${roleTag(u)}</button><span>ביקש ${esc(stamp(u.requestedAt))}</span></span>
+        ${twin ? `<div class="twin">
+            <span class="lbl">אותו שם כמו מכשיר מאושר</span>
+            <b>${esc(twin.name)}<span class="role-tag">${roleWord(twin)}</span></b>
+            <span>${twin.lastSeen ? `נראה לאחרונה ${esc(ago(twin.lastSeen))}` : 'עוד לא נראה'} · הצטרף ב-${esc(stamp(twin.requestedAt))}</span>
+          </div>${busy ? '<p class="twin-hint">המכשיר הקודם פעיל לאחרונה — אולי זה מכשיר נוסף (טאבלט, מחשב).</p>' : ''}` : ''}
+        <span class="acts">${busy ? approve + replace : replace + approve}${reject}</span>
+        ${!twin && others ? `<button type="button" class="linkish" data-replace="${esc(u.id)}">מכשיר חדש של מישהו? החלפת מכשיר קיים…</button>` : ''}
+      </div>`;
+    };
     const block = (title, glyph, list, actions, empty, note = '', top = '', total = list.length) => `<section>
         <div class="sec-head">${icon(glyph)}<h2>${title}</h2>${total ? `<span class="h-count num">${total}</span>` : ''}</div>
         ${total > 1 ? top : ''}
-        <div class="card rows">${list.length ? list.map((u) => row(u, actions)).join('') : `<div class="empty">${empty}</div>`}</div>
+        <div class="card rows">${list.length ? list.map((u) => (u.status === 'pending' ? reqRow(u) : row(u, actions))).join('') : `<div class="empty">${empty}</div>`}</div>
         ${note && list.length ? `<p class="note">${note}</p>` : ''}
       </section>`;
     const gone = by(['rejected', 'revoked']);
@@ -1066,6 +1108,67 @@ export function mountAdmin(view, ctx) {
         };
         go.addEventListener('click', save);
         input.addEventListener('keydown', (e) => { if (e.key === 'Enter') save(); });
+      },
+    });
+  }
+
+  // The device a request replaces (the owner's pick): the old record — name,
+  // role, the child for a player, uploads and blocks — moves to the request,
+  // and the old key stops working. Longest unseen first: that is usually the
+  // phone that was cleared. What moves is said before it happens.
+  function replaceSheet(from, to = '') {
+    const req = users?.find((x) => x.id === from);
+    if (!req) return;
+    const list = users.filter((x) => x.status === 'approved')
+      .sort((a, b) => String(a.lastSeen || '').localeCompare(String(b.lastSeen || '')));
+    let pick = to;
+    let q = '';
+    const squad = squadList();
+    const what = (u) => {
+      const p = u.role === 'player' ? squad.find((x) => x.key === u.pid) : null;
+      return [`השם "${esc(u.name)}" נשאר`,
+        u.role === 'player' ? `שחקן${p ? ` · ${esc(p.name)}${p.number != null ? ` ${esc(p.number)}` : ''}` : ''}` : u.role === 'coach' ? 'מאמן — רואה דקות ושולט בלייב' : 'הורה',
+        'התמונות שהעלה, וחסימה אם יש',
+        'המכשיר הקודם יימחק ולא יעבוד יותר'];
+    };
+    const body = () => {
+      const shown = list.filter((u) => !q || sameName(u.name, q) || norm(u.name).includes(norm(q)));
+      const sel = list.find((u) => u.id === pick);
+      return `<label class="field"><span>חיפוש שם</span><input type="search" data-replace-q value="${esc(q)}" autocomplete="off" /></label>
+        <div class="pick-list">${shown.length ? shown.map((u) => `<button type="button" class="pp-row" data-replace-pick="${esc(u.id)}" aria-pressed="${u.id === pick}">
+            <b>${esc(u.name)}</b><small>${roleWord(u)} · ${u.lastSeen ? `נראה ${esc(ago(u.lastSeen))}` : 'עוד לא נראה'}</small></button>`).join('')
+          : '<p class="sheet-text">אין מכשיר בשם הזה.</p>'}</div>
+        ${sel ? `<div class="replace-what"><b>${esc(sel.name)}</b> עובר לטלפון הזה:<ul>${what(sel).map((x) => `<li>${x}</li>`).join('')}</ul></div>` : ''}
+        <div class="sheet-actions"><button type="button" class="btn" data-go${sel ? '' : ' disabled'}>החלפה</button></div>`;
+    };
+    const sh = openSheet({
+      title: `"${req.name}" במקום…`,
+      subtitle: 'המכשירים שלא נראו הכי הרבה זמן — ראשונים',
+      tall: true,
+      body: body(),
+      onMount: ({ el }) => {
+        const paintSheet = () => {
+          const focused = document.activeElement?.matches?.('[data-replace-q]');
+          el.querySelector('.sheet-body').innerHTML = body();
+          if (focused) { const i = el.querySelector('[data-replace-q]'); i.focus(); i.setSelectionRange(i.value.length, i.value.length); }
+        };
+        el.addEventListener('input', (e) => { if (e.target.matches('[data-replace-q]')) { q = e.target.value; paintSheet(); } });
+        el.addEventListener('click', async (e) => {
+          const b = e.target.closest('[data-replace-pick]');
+          if (b) { pick = b.dataset.replacePick; paintSheet(); return; }
+          const go = e.target.closest('[data-go]');
+          if (!go || !pick) return;
+          go.disabled = true; go.textContent = 'מחליף…';
+          try {
+            const r = await call('replaceUser', { from, to: pick }, { asAdmin: true });
+            sh.close();
+            toast(`הוחלף · ${esc(r.name)} בטלפון החדש`);
+            await loadUsers();
+          } catch (err) {
+            toast(`ההחלפה לא נשמרה: ${esc(err.message)} — נסו שוב.`, { kind: 'err' });
+            go.disabled = false; go.textContent = 'החלפה';
+          }
+        });
       },
     });
   }
@@ -1560,6 +1663,7 @@ export function mountAdmin(view, ctx) {
     if (t.dataset.role === 'player') { playerSheet(t.dataset.user); return; }
     if (t.dataset.role) { t.disabled = true; setRole(t.dataset.user, t.dataset.role); return; }
     if (t.dataset.rename) { renameSheet(t.dataset.rename); return; }
+    if (t.dataset.replace) { replaceSheet(t.dataset.replace, t.dataset.replaceTo || ''); return; }
     if (t.dataset.import === 'file') { view.querySelector('[data-import-file]')?.click(); return; }
     if (t.dataset.clearGames !== undefined) { clearGamesSheet(); return; }
     if (t.dataset.inviteCopy !== undefined) { copyInvite(); return; }

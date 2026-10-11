@@ -1002,4 +1002,52 @@ console.log('gallery:');
   });
 }
 
+// A parent who cleared site data on Android comes back with a new key and asks
+// again. The manager replaces: the request takes the old record and everything
+// tied to the device, and the old key stops working.
+{
+  const R = createBridge({ adminCode: ADMIN });
+  R.setProp('CLOUDINARY_CLOUD', 'mg-demo');
+  R.setProp('CLOUDINARY_KEY', '123456');
+  R.setProp('CLOUDINARY_SECRET', 'shh-secret');
+  const users = () => R.post({ action: 'listUsers', adminCode: ADMIN }).result;
+  const idOf = (name, status) => users().find((u) => u.name === name && u.status === status).id;
+  const oldKey = 'o'.repeat(64), newKey = 'w'.repeat(64), sneak = 'x'.repeat(64);
+  R.post({ action: 'requestAccess', deviceKey: oldKey, name: 'דנה כהן' });
+  const oldId = idOf('דנה כהן', 'pending');
+  R.post({ action: 'setStatus', adminCode: ADMIN, id: oldId, status: 'approved' });
+  const sig = R.post({ action: 'signUpload', deviceKey: oldKey, kind: 'image' }).result;
+  R.post({ action: 'addGalleryItem', deviceKey: oldKey, pid: sig.public_id, w: 1600, h: 1200, match: { date: '2026-09-19', opponent: 'בני לוד' } });
+  R.post({ action: 'setRole', adminCode: ADMIN, id: oldId, role: 'player', pid: 'p7' });
+  R.post({ action: 'renameUser', adminCode: ADMIN, id: oldId, name: 'דנה (נועם 7)' });
+  R.post({ action: 'blockUploader', adminCode: ADMIN, id: oldId, blocked: true });
+  R.post({ action: 'requestAccess', deviceKey: newKey, name: 'דנה כהן', role: 'coach' });
+  const newId = idOf('דנה כהן', 'pending');
+
+  test('replacing a device: only the manager, only a request over an approved device', () => {
+    assert.equal(err(R.post({ action: 'replaceUser', deviceKey: oldKey, from: newId, to: oldId })), 'bad_code');
+    assert.equal(err(R.post({ action: 'replaceUser', adminCode: ADMIN, from: oldId, to: newId })), 'not_found', 'an approved device is not a request');
+    assert.equal(err(R.post({ action: 'replaceUser', adminCode: ADMIN, from: newId, to: newId })), 'bad_id');
+    R.post({ action: 'requestAccess', deviceKey: sneak, name: 'מישהו' });
+    assert.equal(err(R.post({ action: 'replaceUser', adminCode: ADMIN, from: newId, to: idOf('מישהו', 'pending') })), 'not_found', 'a request does not take another request');
+  });
+
+  test('the request takes the old record, its uploads and its block, and the old key is gone', () => {
+    const r = R.post({ action: 'replaceUser', adminCode: ADMIN, from: newId, to: oldId });
+    assert.equal(r.ok, true);
+    const list = users();
+    assert.ok(!list.some((u) => u.id === oldId), 'the old device is still on the list');
+    const u = list.find((x) => x.id === newId);
+    assert.deepEqual([u.status, u.name, u.role, u.pid, u.asked], ['approved', 'דנה (נועם 7)', 'player', 'p7', undefined],
+      'the manager\'s name, role and squad link carry over; the request\'s own ask does not');
+    assert.equal(R.post({ action: 'hello', deviceKey: oldKey }).result.status, 'none', 'the old key still works');
+    assert.equal(R.post({ action: 'hello', deviceKey: newKey }).result.status, 'approved');
+    const g = JSON.parse(R.driveFile('gallery.json'));
+    assert.ok(g.items.every((it) => it.by === newId), 'the uploads stayed with the old key');
+    assert.deepEqual(g.blocked, [newId], 'the upload block did not carry over');
+    const mine = R.post({ action: 'getGallery', deviceKey: newKey }).result.items;
+    assert.ok(mine.length && mine.every((it) => it.mine), 'the new phone cannot tell its own uploads');
+  });
+}
+
 console.log(`\nbridge: ${passed} passed`);

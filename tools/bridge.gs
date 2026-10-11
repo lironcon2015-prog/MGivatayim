@@ -135,6 +135,7 @@ function handle_(req) {
     case 'setRole':       return setRole_(req);
     case 'renameUser':    return renameUser_(req);
     case 'removeUser':    return removeUser_(req);
+    case 'replaceUser':   return replaceUser_(req);
     case 'putSeason':     return putSeason_(req);
     case 'makePoster':    return makePoster_(req);
     case 'expandMapLink': return expandMapLink_(req);
@@ -1551,6 +1552,48 @@ function removeUser_(req) {
     delete a.users[String(req.id || '')];
     writeJson_(ACCESS_FILE, a);
     return { id: req.id };
+  });
+}
+
+/* החלפת מכשיר (בקשת בעל הריפו, נבחר מול מוקאפ): הורה שניקה באנדרואיד את נתוני
+   האתר מקבל מפתח מכשיר חדש ומבקש גישה שוב. המנהל מחליף — הבקשה (`from`) לוקחת את
+   הרשומה המאושרת (`to`): שם, תפקיד, שחקן מהסגל והצטרפות. מה שקשור למכשיר עובר
+   איתו — ההעלאות שלו (אחרת לא היה יכול למחוק אותן), חסימת העלאות, תוספת תמונות,
+   ושליטה במשחק החי — והמפתח הישן נמחק. מנהל בלבד, ותמיד בבחירה: השם בבקשה הוא
+   טקסט חופשי, וכתובת הגשר ציבורית — מי שכותב את שם המאמן לא יורש את התפקיד. */
+function replaceUser_(req) {
+  requireAdmin_(req);
+  const from = String(req.from || ''), to = String(req.to || '');
+  if (!from || from === to) throw fail_('בחירה לא תקינה', 'bad_id');
+  return withLock_(() => {
+    const a = access_();
+    const nu = a.users[from], old = a.users[to];
+    if (!nu || nu.status !== 'pending') throw fail_('הבקשה לא נמצאה', 'not_found');
+    if (!old || old.status !== 'approved') throw fail_('המכשיר הקודם לא נמצא', 'not_found');
+    const now = new Date().toISOString();
+    const moved = Object.assign({}, old, { decidedAt: now, replacedAt: now });
+    delete moved.lastSeen;
+    delete moved.asked;
+    a.users[from] = moved;
+    delete a.users[to];
+    writeJson_(ACCESS_FILE, a);
+
+    const g = gallery_();
+    let touched = false;
+    g.items.forEach((it) => {
+      if (it.by === to) { it.by = from; touched = true; }
+      if (it.hiddenBy && it.hiddenBy.id === to) { it.hiddenBy.id = from; touched = true; }
+    });
+    if (g.blocked.indexOf(to) >= 0) { g.blocked = g.blocked.map((x) => (x === to ? from : x)); touched = true; }
+    if (g.extra[to]) { g.extra[from] = g.extra[to]; delete g.extra[to]; touched = true; }
+    if (touched) saveGallery_(g);
+
+    const l = live_();
+    if ((l.meta.controllers || []).indexOf(to) >= 0) {
+      l.meta.controllers = l.meta.controllers.map((x) => (x === to ? from : x));
+      writeJson_(LIVE_FILE, l);
+    }
+    return { id: from, name: moved.name, role: moved.role || 'parent', pid: moved.pid || null };
   });
 }
 

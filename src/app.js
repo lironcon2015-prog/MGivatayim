@@ -740,4 +740,10 @@ navShrink();
 start();
 // An update never reloads under someone mid-action: an unsaved edit, a
 // sheet open (a goal half entered), or live actions still to be sent.
+// The device key is the phone's whole access (store.js). Asking the browser to
+// keep this site's storage stops it being dropped when the phone runs short of
+// space; clearing site data by hand still clears it — the manager replaces the
+// device then (replaceSheet in admin.js).
+try { navigator.storage?.persist?.().catch(() => {}); } catch { /* not offered */ }
+
 startUpdater({ isBusy: () => hasUnsavedWork() || document.documentElement.classList.contains('sheet-open') || session.pending.length > 0 });

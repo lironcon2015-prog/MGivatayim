@@ -1705,6 +1705,34 @@ await step('the access holders sort by last seen, or by joining', async () => {
   expect(await admin.locator('.holders-sort + .card .role-tag, .holders-sort + .card .who-name svg').count() === 0, 'a holder carries a tag or a pencil');
 });
 
+await step('a cleared phone asking again under the same name replaces its old device', async () => {
+  // Android clears the device key with "site data": the same parent comes back
+  // with a new key. The request offers the approved device of that name.
+  const users = () => bridge.post({ action: 'listUsers', adminCode: ADMIN }).result;
+  const oldKey = 'r'.repeat(64), newKey = 'u'.repeat(64);
+  bridge.post({ action: 'requestAccess', deviceKey: oldKey, name: 'הורה שניקה' });
+  const oldId = users().find((u) => u.name === 'הורה שניקה').id;
+  bridge.post({ action: 'setStatus', adminCode: ADMIN, id: oldId, status: 'approved' });
+  bridge.post({ action: 'requestAccess', deviceKey: newKey, name: '  הורה   שניקה ' });
+  const newId = users().find((u) => u.status === 'pending' && u.name === 'הורה שניקה').id;
+  await admin.goto(APP + '#/admin');
+  await admin.reload();
+  await admin.click('[data-tab="access"]');
+  const req = admin.locator('.user-row.req').filter({ has: admin.locator(`[data-replace-to="${oldId}"]`) });
+  await req.locator('.twin').waitFor({ timeout: 8000 });
+  // Never seen since: replacing leads, a second device is the other button.
+  expect(await req.locator('.acts .btn').first().getAttribute('data-replace') === newId, 'replacing does not lead for an idle old device');
+  await req.locator(`[data-replace-to="${oldId}"]`).click();
+  await admin.locator('.sheet .replace-what').waitFor();
+  await admin.locator('.sheet [data-go]').click();
+  await admin.locator('.toast', { hasText: 'הוחלף' }).waitFor({ timeout: 5000 });
+  const after = users();
+  expect(!after.some((u) => u.id === oldId), 'the old device is still on the list');
+  expect(after.find((u) => u.id === newId)?.status === 'approved', 'the new phone is not approved');
+  expect(bridge.post({ action: 'hello', deviceKey: oldKey }).result.status === 'none', 'the old key still works');
+  await admin.locator('.user-row.req').filter({ has: admin.locator(`[data-replace="${newId}"]`) }).waitFor({ state: 'detached', timeout: 5000 });
+});
+
 await step('before kick-off the coach sets the minimum and who came; a parent sees no minutes tab', async () => {
   await asAdmin('clearLive');
   await admin.goto(APP + '#/live');

@@ -1299,6 +1299,34 @@ await step('a pasted schedule becomes the next match and the list after it', asy
   expect(tags.length && tags.every((t) => t === 'בית' || t === 'חוץ'), 'a schedule row without its plaque and home/away tag: ' + JSON.stringify(tags));
 });
 
+await step('the game message from WhatsApp, pasted, updates its game and only what it says', async () => {
+  await admin.goto(APP + '#/admin');
+  await adminTab(admin, 'games');
+  await admin.evaluate((x) => navigator.clipboard.writeText(x), [
+    'בשעה טובה , מחזור ליגה 8',
+    'יום שישי 1/11/2030 משחק נגד לוח',
+    'הגעה - 16:45',
+    'תחילת משחק - 17:45',
+    'סיום משוער - 19:00',
+    'מיקום - הרצל 5 לוד.',
+    'יש להגיע לבושים עם גרביים צהובים , בתיק חולצה לבנה , מגינים , מים .',
+  ].join('\n'));
+  await admin.click('[data-game-msg]');
+  await admin.locator('[data-gm-apply]').waitFor({ timeout: 5000 });
+  const shown = await admin.locator('.sheet').innerText();
+  expect(shown.includes('הפועל לוח') && shown.includes('17:30') && shown.includes('17:45'), 'the preview: ' + shown.replace(/\s+/g, ' '));
+  await admin.click('[data-gm-apply]');
+  await admin.click('#save');
+  await waitSaved(admin);
+  const { fixtures } = JSON.parse(bridge.driveFile('season.json')).season;
+  const f = fixtures.find((x) => x.opponent === 'הפועל לוח');
+  expect(f.date === '2030-11-01' && f.time === '17:45' && f.arrival === '16:45' && f.venue.address === 'הרצל 5 לוד'
+    && f.kit === 'גרביים צהובים, בתיק חולצה לבנה' && f.home === false && f.round === 8, 'the game: ' + JSON.stringify(f));
+  expect(fixtures.find((x) => x.opponent === 'בני לוח').time === '', 'another game changed');
+  await parent.reload();
+  await parent.locator('.hero', { hasText: 'גרביים צהובים' }).waitFor({ timeout: 8000 });
+});
+
 await step('back on the home screen, the crest is the one already loaded, not a new one that shows empty first', async () => {
   // Leaving the home screen and coming back drew the next match's crest as
   // a new <img>: empty for a couple of frames, then there — it jumped.

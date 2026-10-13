@@ -308,3 +308,133 @@ export function mergeNextMatch(season) {
   if (i >= 0) fixtures[i] = row; else fixtures.push(row);
   return { fixtures, merged: true };
 }
+
+/* ── The game message from WhatsApp ────────────────────────────────────── */
+
+// What the team gets on WhatsApp before each game, pasted by the manager:
+//   בשעה טובה , מחזור ליגה 1
+//   שישי  הקרוב  משחק נגד רמת השרון צפון
+//   הגעה - 14:30 / תחילת משחק - 15:30 / סיום משוער - 17:00
+//   מיקום - דרך דודו דותן 2 רמה"ש.
+//   יש להגיע לבושים עם גרביים ומכנסיים צהובים, בתיק חולצה לבנה, מגינים…
+// Pure: text and today in, what it says out (only what it says — a field it
+// does not mention is left out, not emptied). The end time is not kept.
+const DAYS = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
+// A weekday word is a day only where it reads as one — "ביום שישי", "בשבת",
+// "שישי הקרוב", or opening a line — not "המשחק הראשון", "החלק השני".
+const DAY_ALT = DAYS.join('|');
+const DAY_RE = new RegExp(`(?:(?:^|[\\s,(])(?:ב?יום\\s+|ב)(${DAY_ALT})|^(${DAY_ALT})|(?:^|[\\s,(])(${DAY_ALT})(?=\\s+(?:הקרוב|הקרובה|הבא|הזה|\\d)))(?=[\\s,.)!]|$)`, 'm');
+const hhmm = (s) => { const m = /(\d{1,2})[:.](\d{2})(?!\d)/.exec(s); return m && Number(m[1]) < 24 && Number(m[2]) < 60 ? `${pad(m[1])}:${m[2]}` : ''; };
+// The value after "הגעה - " / "מיקום: ".
+const after = (line, word) => line.slice(line.search(word)).replace(word, '').replace(/^\s*[-–:]\s*/, '').trim();
+// The kit sentence runs on into what to bring; it stops at the first item
+// that names no garment and no colour ("מגינים", "ליטר וחצי מים").
+const GARMENT = /חולצ|מכנס|גרבי|אימונית|טרנינג|סווטשירט|ערכה|מדים|שורט|צהוב|כחול|לבנ|לבן|שחור|אדומ|אדום|ירוק|אפור|כתומ|כתום|סגול|זהב/;
+
+export function parseGameMessage(text, today = todayInIsrael()) {
+  const lines = String(text || '').normalize('NFC').replace(/[‎‏‪-‮⁦-⁩]/g, '')
+    .split(/\r?\n/).map((l) => l.replace(/\s+/g, ' ').trim()).filter(Boolean);
+  const all = lines.join('\n');
+  const out = {};
+  const round = /מחזור(?:\s+ליגה)?\s*(?:מס(?:פר|')?\s*)?(\d{1,2})(?!\d)/.exec(all);
+  if (round) out.round = Number(round[1]);
+  if (/משחק\s+(?:אימון|ידידות)/.test(all)) out.friendly = true;
+  const opp = /(?:^|\s)(?:נגד|מול)\s+([^\n,!.]+)/.exec(all);
+  if (opp) out.opponent = opp[1].replace(/\s*[-–]\s*$/, '').replace(/\s+(?:ב|ה)?(?:בית|חוץ)$/, '').trim();
+  if (/משחק\s+(?:ה)?בית|(?:^|\s)בבית(?=[\s,.]|$)|במגרש\s+הביתי/.test(all)) out.home = true;
+  else if (/משחק\s+(?:ה)?חוץ|(?:^|\s)בחוץ(?=[\s,.]|$)/.test(all)) out.home = false;
+
+  // The day: a date written out wins; then "מחר"/"היום"; then a weekday,
+  // the nearest one from today (today included).
+  // "17/10", "17.10.26"; "17.10" alone only after a weekday or "תאריך" —
+  // "15.30" is how some write a time.
+  const dated = /(?:^|[\s(])(\d{1,2})\/(\d{1,2})(?:\/(\d{2}|\d{4}))?(?=[\s,.)]|$)/m.exec(all)
+    || /(?:^|[\s(])(\d{1,2})\.(\d{1,2})\.(\d{2}|\d{4})(?=[\s,)]|\.?$)/m.exec(all)
+    || new RegExp(`(?:${DAY_ALT}|תאריך)\\s*[-–:]?\\s*(\\d{1,2})\\.(\\d{1,2})()(?=[\\s,)]|$)`, 'm').exec(all);
+  if (dated && Number(dated[1]) <= 31 && Number(dated[2]) <= 12) {
+    let y = dated[3] ? (dated[3].length === 2 ? '20' + dated[3] : dated[3]) : today.slice(0, 4);
+    let iso = `${y}-${pad(dated[2])}-${pad(dated[1])}`;
+    if (!dated[3] && iso < shiftDays(today, -60)) iso = `${Number(y) + 1}${iso.slice(4)}`;
+    if (parseDate(iso).date) out.date = iso;
+  }
+  if (!out.date) {
+    if (/(?:^|\s)מחרתיים(?=[\s,.]|$)/.test(all)) out.date = shiftDays(today, 2);
+    else if (/(?:^|\s)מחר(?=[\s,.]|$)/.test(all)) out.date = shiftDays(today, 1);
+    else if (/(?:^|\s)היום(?=[\s,.]|$)/.test(all)) out.date = today;
+    else {
+      const d = DAY_RE.exec(all);
+      if (d) { out.day = DAYS.indexOf(d[1] || d[2] || d[3]); out.date = shiftDays(today, (out.day - dow(today) + 7) % 7); }
+    }
+  }
+
+  for (const line of lines) {
+    const t = hhmm(line);
+    if (t && /סיום|עד\s+השעה|חזרה|איסוף\s+מ/.test(line)) continue;
+    if (t && /הגעה|התכנסות|להגיע\s+(?:ב|עד)|איסוף|ריכוז/.test(line)) out.arrival ??= t;
+    else if (t && /תחילת|שריקת|שעת\s+(?:ה)?משחק|משחק\s*(?:[-–:]|ב-?\s*\d|בשעה)|פתיחה|קיק/.test(line)) out.time ??= t;
+    if (/^(?:מיקום|כתובת|מקום)(?:\s+(?:ה)?משחק)?\s*[-–:]/.test(line)) out.address ??= after(line, /^(?:מיקום|כתובת|מקום)(?:\s+(?:ה)?משחק)?/).replace(/[.\s]+$/, '');
+    else if (/^מגרש\s*[-–:]/.test(line)) out.venue ??= after(line, /^מגרש/).replace(/[.\s]+$/, '');
+    const kit = /(?:לבושים|לבושות|ללבוש|תלבושת)\s*[-–:]?\s*(?:עם\s+|ב)?(.+)/.exec(line);
+    if (kit && !out.kit) {
+      const keep = [];
+      for (const part of kit[1].split(',').map((s) => s.replace(/[.\s]+$/, '').trim()).filter(Boolean)) {
+        if (!GARMENT.test(part)) break;
+        keep.push(part);
+      }
+      if (keep.length) out.kit = keep.join(', ').slice(0, 120);
+    }
+  }
+  if (!out.time) {
+    // A message with one time and nothing to say what it is: the kickoff.
+    const times = lines.filter((l) => !/סיום|הגעה|התכנסות/.test(l)).map(hhmm).filter(Boolean);
+    if (times.length === 1) out.time = times[0];
+  }
+  return out;
+}
+
+const words = (s) => String(s || '').normalize('NFC').replace(/[׳'"״`.\-–]/g, ' ').replace(/\s+/g, ' ').trim().split(' ').filter(Boolean);
+
+// The schedule row a game message is about: the opponent (its words in the
+// row's name or the other way round — "רמת השרון צפון" is "הפועל רמת השרון
+// צפון"), and the round; among equals, the nearest game still to come.
+// Returns the index, or -1.
+export function gameMessageRow(fixtures, msg, matches = [], today = todayInIsrael()) {
+  const played = playedTest(matches);
+  const want = words(msg.opponent);
+  let best = -1, top = 0, bestOrder = '';
+  (fixtures || []).forEach((f, i) => {
+    if (!f || played(f) || lastDay(f) < shiftDays(today, -7)) return;
+    const have = words(f.opponent);
+    let s = 0;
+    if (want.length && have.length) {
+      const shared = want.filter((w) => have.includes(w)).length;
+      if (shared === Math.min(want.length, have.length)) s += 4;
+      else if (shared * 2 >= want.length) s += 2;
+    }
+    if (msg.round != null && f.round === msg.round) s += 3;
+    if (msg.date && msg.date >= firstDay(f) && msg.date <= lastDay(f)) s += 1;
+    if (!s || (want.length && s < 3)) return;
+    const order = gameOrder(f);
+    if (s > top || (s === top && order < bestOrder)) { best = i; top = s; bestOrder = order; }
+  });
+  return best;
+}
+
+// The row as the message leaves it: only what the message says changes.
+// A weekday for a game whose day was still to be set falls in that game's
+// week. A new address drops the old ground's name and Waze link — they
+// would lead to the old place.
+export function applyGameMessage(f, msg, today = todayInIsrael()) {
+  const row = { ...f, venue: { name: '', address: '', waze: '', ...(f.venue || {}) } };
+  let date = msg.date;
+  if (msg.day != null && isTbd(f) && lastDay(f) >= today) date = shiftDays(firstDay(f), msg.day);
+  if (date) { row.date = date; delete row.tbd; }
+  if (msg.time) row.time = msg.time;
+  if (msg.arrival) row.arrival = msg.arrival;
+  if (msg.kit) row.kit = msg.kit;
+  if (msg.round != null && row.round == null && !row.friendly) row.round = msg.round;
+  if (typeof msg.home === 'boolean') row.home = msg.home;
+  if (msg.address && msg.address !== row.venue.address) row.venue = { name: msg.venue || '', address: msg.address, waze: '' };
+  else if (msg.venue) row.venue = { ...row.venue, name: msg.venue };
+  return row;
+}

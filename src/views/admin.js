@@ -11,7 +11,7 @@ import { roundText, oppLogo, keepFocus, skeleton } from '../components.js';
 import { preparePosters, uploadLogo, uploadQr, hydratePosters } from '../posters.js';
 import { logoKey } from '../season.js';
 import { thumbUrl } from '../gallery.js';
-import { detectFixtureColumns, rowsToFixtures, applyFixtureImport, upcomingFixtures, fixtureKey, mergeNextMatch, playedTest, FIXTURE_FIELDS, todayInIsrael, gameOrder, firstDay } from '../fixtures.js';
+import { detectFixtureColumns, rowsToFixtures, applyFixtureImport, upcomingFixtures, fixtureKey, mergeNextMatch, playedTest, FIXTURE_FIELDS, todayInIsrael, gameOrder, firstDay, parseGameMessage, gameMessageRow, applyGameMessage } from '../fixtures.js';
 import { DAYS, weekday } from '../trainings.js';
 
 // Access: a request that may be a cleared phone asking again (replaceSheet).
@@ -613,6 +613,97 @@ export function mountAdmin(view, ctx) {
           sh.close('next');
           if (fixtures) fixturePreview(rows, 'הדבקה');
           else importPreview(rows, 'הדבקה');
+        });
+      },
+    });
+  }
+
+  // The message the team gets on WhatsApp before each game (round, day,
+  // opponent, gathering, kickoff, place, kit), pasted: it finds its row in the
+  // schedule and shows what changes — only what the message says — before
+  // anything does. Like the lineup paste, the button reads the clipboard by
+  // itself (inside the tap, for iOS); refused or nothing usable → the box.
+  let gameText = '';
+  function gameMessageSheet() {
+    let read;
+    try { read = navigator.clipboard?.readText ? navigator.clipboard.readText() : null; } catch { read = null; }
+    Promise.resolve(read).catch(() => '').then((clip) => openGameMessage(String(clip || '')));
+  }
+  function openGameMessage(clip) {
+    const usable = (m) => m.opponent || m.round != null || (m.date && (m.time || m.arrival));
+    let msg = clip.trim() ? parseGameMessage(clip, today()) : {};
+    let at = -1;
+    const fit = () => { at = gameMessageRow(draft.fixtures, msg, draft.matches, today()); };
+    if (usable(msg)) { gameText = clip; fit(); } else msg = null;
+    const inputHtml = () => `<p class="sheet-text">מעתיקים את ההודעה על המשחק מהוואטסאפ ומדביקים כאן. מה שכתוב בה — יום, שעת הגעה, תחילת משחק, מיקום ותלבושת — מתעדכן במשחק שלה בלוח, וכל השאר נשאר.</p>
+      <textarea class="paste-box" rows="9" dir="auto" data-gm-text placeholder="מחזור ליגה 1&#10;שישי הקרוב משחק נגד הפועל רמת גן&#10;הגעה - 14:30&#10;תחילת משחק - 15:30&#10;מיקום - …">${esc(gameText)}</textarea>
+      <div class="sheet-actions"><button type="button" class="btn" data-gm-go>המשך</button></div>`;
+    const games = () => (draft.fixtures || []).map((f, i) => [f, i]).filter(([f]) => f && !playedTest(draft.matches)(f) && f.date)
+      .sort(([a], [b]) => gameOrder(a).localeCompare(gameOrder(b)));
+    const when = (f) => (f.tbd === true ? `שבוע ${shortDate(f.date)}` : shortDate(f.date));
+    const previewHtml = () => {
+      const isNew = at === -2;
+      const f = isNew ? { date: msg.date || today(), opponent: msg.opponent || '', home: true, round: msg.round ?? null, ...(msg.friendly ? { friendly: true } : {}) } : draft.fixtures[at];
+      const next = f ? applyGameMessage(f, msg, today()) : null;
+      const v = (x) => x || '—';
+      const lines = next ? [
+        ['תאריך', f.tbd === true && !isNew ? `טרם נקבע (${when(f)})` : shortDate(f.date), next.tbd === true ? `טרם נקבע (${when(next)})` : shortDate(next.date)],
+        ['תחילת משחק', f.time, next.time],
+        ['התכנסות', f.arrival, next.arrival],
+        ['מגרש', f.venue?.name, next.venue?.name],
+        ['כתובת', f.venue?.address, next.venue?.address],
+        ['קישור Waze', f.venue?.waze ? 'יש' : '', next.venue?.waze ? 'יש' : ''],
+        ['תלבושת', f.kit, next.kit],
+        ['בית / חוץ', f.home === false ? 'חוץ' : 'בית', next.home === false ? 'חוץ' : 'בית'],
+      ].filter(([, a, b]) => isNew ? b : (a || '') !== (b || '')) : [];
+      const opt = ([g, i]) => `<option value="${i}"${i === at ? ' selected' : ''}>${esc(`${when(g)} · ${g.opponent || 'משחק'}${roundText(g.round, g.friendly) ? ` · ${roundText(g.round, g.friendly)}` : ''}`)}</option>`;
+      return `<label class="field"><span>המשחק בלוח${msg.opponent ? ` · בהודעה: <bdi>${esc(msg.opponent)}</bdi>` : ''}</span>
+          <select data-gm-row>${at === -1 ? '<option value="-1" selected>— לבחור משחק —</option>' : ''}${games().map(opt).join('')}
+            ${msg.opponent ? `<option value="-2"${isNew ? ' selected' : ''}>+ משחק חדש בלוח</option>` : ''}</select></label>
+        ${next ? (lines.length ? `<div class="imp-list">${lines.map(([k, a, b]) => `<div class="imp-row"><span class="imp-name"><small>${esc(k)}</small>
+            <b>${isNew ? '' : `<s class="gm-was">${esc(v(a))}</s> ← `}${esc(v(b))}</b></span></div>`).join('')}</div>`
+          : '<div class="empty">ההודעה לא משנה כלום במשחק הזה.</div>') : at === -1 ? '<p class="form-error">לא נמצא בלוח משחק שמתאים להודעה. בחרו אותו מהרשימה.</p>' : ''}
+        ${msg.day != null && f?.tbd === true && !isNew ? '<p class="note">היום מההודעה נקבע בשבוע של המשחק.</p>' : ''}
+        <div class="sheet-actions">
+          <button type="button" class="btn" data-gm-apply${next && lines.length ? '' : ' disabled'}>עדכון המשחק</button>
+          <button type="button" class="btn secondary" data-gm-back>עריכת הטקסט</button>
+        </div>`;
+    };
+    const sh = openSheet({
+      title: 'הודעת המשחק',
+      tall: true,
+      body: msg ? previewHtml() : inputHtml(),
+      onMount: ({ el }) => {
+        const body = el.querySelector('.sheet-body') || el;
+        body.addEventListener('change', (e) => {
+          if (!e.target.matches('[data-gm-row]')) return;
+          at = Number(e.target.value);
+          body.innerHTML = previewHtml();
+        });
+        body.addEventListener('click', (e) => {
+          const b = e.target.closest('button');
+          if (!b) return;
+          if (b.matches('[data-gm-back]')) { body.innerHTML = inputHtml(); return; }
+          if (b.matches('[data-gm-go]')) {
+            gameText = body.querySelector('[data-gm-text]').value;
+            const m = parseGameMessage(gameText, today());
+            if (!usable(m)) { toast('לא נמצאו בהודעה פרטי משחק', { kind: 'err' }); return; }
+            msg = m; fit();
+            body.innerHTML = previewHtml();
+            return;
+          }
+          if (b.matches('[data-gm-apply]')) {
+            const isNew = at === -2;
+            const base = isNew ? { ...LISTS[0].blank(), date: msg.date || today(), opponent: msg.opponent, round: msg.round ?? null, ...(msg.friendly ? { friendly: true, round: null } : {}) } : draft.fixtures[at];
+            const row = applyGameMessage(base, msg, today());
+            for (const g of draft.fixtures || []) if (g) delete g.__open;
+            row.__open = true;
+            if (isNew) { row.__new = Date.now(); draft.fixtures.push(row); } else draft.fixtures[at] = row;
+            gameText = '';
+            sh.close('done');
+            touch(); paint();
+            toast(`${esc(row.opponent || 'המשחק')} עודכן. לחצו "שמירה" כדי שכולם יראו.`, { ms: 6000 });
+          }
         });
       },
     });
@@ -1221,6 +1312,7 @@ export function mountAdmin(view, ctx) {
     return `<section>
       <div class="sec-head">${icon(list.glyph)}<h2>${esc(list.title)}</h2>${items.length ? `<span class="h-count num">${items.length}</span>` : ''}
         <span class="aside head-acts">
+          ${list.path === 'fixtures' ? `<button type="button" class="chip-tool" data-game-msg>${icon('clipboard')} הודעה</button>` : ''}
           ${list.importer ? `<button type="button" class="chip-tool" data-tools="${list.path}" aria-expanded="${tools}">${icon('upload')} ייבוא</button>` : ''}
           <button type="button" class="chip-tool is-add" data-add="${list.path}">+ ${esc(list.add)}</button>
         </span></div>
@@ -1681,6 +1773,7 @@ export function mountAdmin(view, ctx) {
     if (t.dataset.inviteKind) { inviteKind = t.dataset.inviteKind; paint(); return; }
     if (t.dataset.import === 'fixtures-file') { view.querySelector('[data-import-fixtures]')?.click(); return; }
     if (t.dataset.import === 'fixtures-paste') { pasteSheet('fixtures'); return; }
+    if (t.matches('[data-game-msg]')) { gameMessageSheet(); return; }
     if (t.dataset.import === 'paste') { pasteSheet(); return; }
     if (t.dataset.add) {
       const list = LISTS.find((l) => l.path === t.dataset.add);

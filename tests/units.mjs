@@ -257,6 +257,44 @@ await test('fixtures: our-view format (opponent, home/away, our goals)', async (
   assert.equal(out.skipped, 1, 'the row without a date is counted, the empty row is not');
 });
 
+await test('fixtures: the game message from WhatsApp updates its row, and only what it says', async () => {
+  const F = await import('../src/fixtures.js');
+  const text = `בשעה טובה , מחזור ליגה 1 
+שישי  הקרוב  משחק נגד רמת השרון צפון 
+הגעה - 14:30
+תחילת משחק - 15:30
+סיום משוער - 17:00
+מיקום - דרך דודו דותן 2 רמה"ש.
+יש להגיע לבושים  עם גרביים ומכנסיים צהובים  , בתיק חולצה לבנה , מגינים , ליטר וחצי מים .
+בהצלחה 💙💛`;
+  const today = '2026-10-13';   // a Tuesday
+  const m = F.parseGameMessage(text, today);
+  assert.deepEqual(m, { round: 1, opponent: 'רמת השרון צפון', day: 5, date: '2026-10-16', arrival: '14:30', time: '15:30',
+    address: 'דרך דודו דותן 2 רמה"ש', kit: 'גרביים ומכנסיים צהובים, בתיק חולצה לבנה' }, 'the end time is not kept, nor what to bring');
+  const fixtures = [
+    { date: '2026-10-03', opponent: 'הפועל רמת השרון צפון', round: 3 },   // past: not this one
+    { date: '2026-10-10', opponent: 'מכבי יפו', round: 1, home: true },
+    { date: '2026-10-17', opponent: 'הפועל רמת השרון צפון', round: 1, home: false, tbd: true, time: '', venue: { name: 'ישן', address: 'ישנה', waze: 'https://waze.com/x' }, arrival: '', kit: '' },
+  ];
+  const at = F.gameMessageRow(fixtures, m, [{ date: '2026-10-10', opponent: 'מכבי יפו' }], today);
+  assert.equal(at, 2, 'the opponent\'s words in the row\'s name, and the round');
+  const row = F.applyGameMessage(fixtures[at], m, today);
+  assert.equal(row.date, '2026-10-16');
+  assert.equal(row.tbd, undefined, 'a day from the message sets the date');
+  assert.equal(row.home, false, 'home/away the message does not say stays');
+  assert.deepEqual(row.venue, { name: '', address: 'דרך דודו דותן 2 רמה"ש', waze: '' }, 'a new address drops the old ground and Waze link');
+  assert.equal(row.opponent, 'הפועל רמת השרון צפון', 'the schedule keeps its name (the crest is kept by it)');
+  // A weekday for a game still to be dated falls in its own week, not this one.
+  assert.equal(F.applyGameMessage({ date: '2026-10-24', tbd: true, opponent: 'x' }, m, today).date, '2026-10-23');
+  // Words that are no day, and a time with a dot.
+  const m2 = F.parseGameMessage('המשחק הראשון בעונה נגד בני יהודה\nמשחק ב-15.30\nבחלק השני', today);
+  assert.equal(m2.date, undefined);
+  assert.equal(m2.time, '15:30');
+  assert.equal(F.parseGameMessage('ביום שני 20.10 נגד בני יהודה', today).date, '2026-10-20');
+  assert.equal(F.parseGameMessage('מחר נגד בני יהודה', today).date, '2026-10-14');
+  assert.equal(F.gameMessageRow(fixtures, { opponent: 'קבוצה אחרת' }, [], today), -1, 'no row for an opponent not on it');
+});
+
 await test('fixtures: league format (home team, away team, home/away goals)', async () => {
   const F = await import('../src/fixtures.js');
   const rows = [

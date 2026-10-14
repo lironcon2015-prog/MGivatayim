@@ -137,6 +137,23 @@ const LISTS = [
     ],
   },
   {
+    // The ground of an opponent, by name (the owner: a Waze link set once, for
+    // every away game there). An away game with no ground of its own gets it
+    // on every load (withAwayVenue in season.js), like the home ground.
+    path: 'opponentVenues', title: 'מגרשי יריבות', glyph: 'pin', add: 'מגרש', tab: 'games',
+    order: (a, b) => String(a.opponent || '').localeCompare(String(b.opponent || ''), 'he'),
+    note: 'משחק חוץ בלי מגרש משלו מקבל את המגרש של היריבה — בלוח, במשחק הבא וב-Waze. מגרש שהוזן למשחק עצמו גובר.',
+    blank: () => ({ opponent: '', venue: { name: '', address: '', waze: '' } }),
+    label: (o) => o.opponent || 'מגרש חדש',
+    sum: (o) => ({ title: o.opponent || 'מגרש חדש', sub: [o.venue?.name, o.venue?.address, o.venue?.waze && 'קישור Waze'].filter(Boolean).join(' · ') }),
+    fields: [
+      { key: 'opponent', label: 'יריבה', required: true, list: 'opp-names', hint: 'בשם שבלוח המשחקים' },
+      { key: 'venue.name', label: 'מגרש' },
+      { key: 'venue.address', label: 'כתובת', wide: true },
+      WAZE_FIELD,
+    ],
+  },
+  {
     path: 'matches', title: 'תוצאות משחקים', glyph: 'trophy', add: 'תוצאה', tab: 'games', limit: 5,
     order: (a, b) => gameKey(b).localeCompare(gameKey(a)),   // latest first
     blank: () => ({ date: today(), opponent: '', home: true, round: null, gf: 0, ga: 0 }),
@@ -310,7 +327,7 @@ function fieldHtml(field, path, value, obj) {
       const extra = field.type === 'number' ? ' inputmode="numeric" min="0" step="1"'
         : field.type === 'url' ? ' dir="ltr" inputmode="url"'
         : field.type === 'nav' ? ' dir="ltr" autocapitalize="off" spellcheck="false"' : '';
-      input = `<input type="${type}" ${attrs}${extra} value="${esc(value ?? '')}"${field.placeholder ? ` placeholder="${esc(field.placeholder)}"` : ''} />`;
+      input = `<input type="${type}" ${attrs}${extra}${field.list ? ` list="${field.list}"` : ''} value="${esc(value ?? '')}"${field.placeholder ? ` placeholder="${esc(field.placeholder)}"` : ''} />`;
     }
   }
   return `<label class="field${field.type === 'textarea' || field.wide ? ' span-2' : ''}" for="${id}"><span>${esc(field.label)}${req}</span>${input}${hint}</label>`;
@@ -1380,6 +1397,13 @@ export function mountAdmin(view, ctx) {
 
   // Every opponent on the schedule and in the results, for the start of a
   // season: one tap per crest, kept by name for every game against them.
+  // Every opponent on the schedule and in the results, to pick from when
+  // naming the one whose ground this is: the ground is found by that name.
+  function oppNames() {
+    const names = new Set([...(draft.fixtures || []), ...(draft.matches || [])].map((g) => logoKey(g?.opponent)).filter(Boolean));
+    return `<datalist id="opp-names">${[...names].map((n) => `<option value="${esc(n)}"></option>`).join('')}</datalist>`;
+  }
+
   function crestsHtml() {
     const names = [];
     for (const g of [...(draft.fixtures || []), ...[...(draft.matches || [])].reverse()]) {
@@ -1407,7 +1431,7 @@ export function mountAdmin(view, ctx) {
       // The schedule first: its top row is the next match, the weekly edit.
       // Crests after the results; trainings last: the routine is set once,
       // and a change is the odd week.
-      games: () => list('fixtures') + list('matches') + crestsHtml() + list('trainings') + list('trainingChanges'),
+      games: () => list('fixtures') + list('matches') + crestsHtml() + list('opponentVenues') + oppNames() + list('trainings') + list('trainingChanges'),
       players: () => lists('players'),
       media: () => `${galleryAdminHtml()}${lists('media')}
         <section>

@@ -1327,6 +1327,21 @@ await step('the game message from WhatsApp, pasted, updates its game and only wh
   await parent.locator('.hero', { hasText: 'גרביים צהובים' }).waitFor({ timeout: 8000 });
 });
 
+await step('an opponent\'s ground is set once, by name, in the games tab', async () => {
+  await admin.goto(APP + '#/admin');
+  await adminTab(admin, 'games');
+  const at = await newRow(admin, 'opponentVenues');
+  expect(await admin.locator(`[data-path="${at.split('.').slice(0, 2).join('.')}.opponent"]`).getAttribute('list') === 'opp-names', 'the opponent field offers the schedule\'s names');
+  expect(await admin.locator('#opp-names option[value="בני לוח"]').count() === 1, 'the schedule\'s opponents are not offered');
+  const base = at.split('.').slice(0, 2).join('.');
+  await admin.fill(`[data-path="${base}.opponent"]`, 'בני לוח');
+  await admin.fill(`[data-path="${base}.venue.waze"]`, '32.095,34.956');
+  await admin.click('#save');
+  await waitSaved(admin);
+  const { opponentVenues } = JSON.parse(bridge.driveFile('season.json')).season;
+  expect(opponentVenues?.length === 1 && opponentVenues[0].opponent === 'בני לוח' && opponentVenues[0].venue.waze === '32.095,34.956', 'saved: ' + JSON.stringify(opponentVenues));
+});
+
 await step('back on the home screen, the crest is the one already loaded, not a new one that shows empty first', async () => {
   // Leaving the home screen and coming back drew the next match's crest as
   // a new <img>: empty for a couple of frames, then there — it jumped.

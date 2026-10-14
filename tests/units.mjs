@@ -295,6 +295,28 @@ await test('fixtures: the game message from WhatsApp updates its row, and only w
   assert.equal(F.gameMessageRow(fixtures, { opponent: 'קבוצה אחרת' }, [], today), -1, 'no row for an opponent not on it');
 });
 
+await test('an away game with no ground of its own gets the opponent\'s ground, set once by name', async () => {
+  const { buildSeason } = await import('../src/season.js');
+  const waze = 'https://waze.com/ul?ll=32.1,34.9&navigate=yes';
+  const s = buildSeason({
+    team: { homeVenue: { name: 'בית', address: 'כצנלסון 1' } },
+    opponentVenues: [{ opponent: 'הפועל  ראש העין', venue: { name: 'עירוני', address: '', waze } }, { opponent: 'ריק', venue: {} }],
+    fixtures: [
+      { date: '2030-01-01', opponent: 'הפועל ראש העין', home: false },
+      { date: '2030-01-08', opponent: 'הפועל ראש העין', home: false, venue: { name: '', address: 'אחרת 2' } },
+      { date: '2030-01-15', opponent: 'הפועל ראש העין', home: true },
+      { date: '2030-01-22', opponent: 'ריק', home: false },
+    ],
+  }, new Date('2029-12-01T10:00:00Z'));
+  const [a, b, c, d] = s.fixtures;
+  assert.deepEqual(a.venue, { name: 'עירוני', address: '', waze }, 'the opponent\'s ground, matched with spaces evened out');
+  assert.equal(b.venue.address, 'אחרת 2', 'a ground set for the game wins');
+  assert.equal(b.venue.waze, undefined);
+  assert.equal(c.venue.name, 'בית', 'a home game stays at home');
+  assert.ok(!d.venue?.name && !d.venue?.waze, 'an opponent with an empty ground gives nothing');
+  assert.equal(s.nextMatch.venue.waze, waze, 'the next match carries it too');
+});
+
 await test('fixtures: league format (home team, away team, home/away goals)', async () => {
   const F = await import('../src/fixtures.js');
   const rows = [

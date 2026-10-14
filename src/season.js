@@ -58,6 +58,28 @@ function withHomeVenue(game, home) {
   return { ...game, venue: { ...v, name: home.name || '', address: home.address || '' } };
 }
 
+// An away game with no venue of its own is at the opponent's ground, when the
+// manager set one for that opponent (opponentVenues, by name — the owner: a
+// Waze link entered once, for every game there). Like the home ground: filled
+// in on every load, never written to the games.
+function withAwayVenue(game, grounds) {
+  if (!game || game.home !== false) return game;
+  const v = game.venue || {};
+  if (v.name || v.address || v.waze) return game;
+  const g = grounds.get(logoKey(game.opponent));
+  if (!g) return game;
+  return { ...game, venue: { name: g.name, address: g.address, waze: g.waze } };
+}
+function opponentGrounds(list) {
+  const out = new Map();
+  for (const o of Array.isArray(list) ? list : []) {
+    const v = o?.venue || {};
+    const g = { name: String(v.name || ''), address: String(v.address || ''), waze: String(v.waze || '') };
+    if (logoKey(o?.opponent) && (g.name || g.address || g.waze)) out.set(logoKey(o.opponent), g);
+  }
+  return out;
+}
+
 // Opponent crests: { [opponent name]: ref }, a ref being a Drive file id in
 // the bridge's posters folder (putLogo, fetched with getPoster). Keyed by
 // name, so the crest follows the opponent to the next-match card, the live
@@ -82,11 +104,12 @@ export function buildSeason(input, now = new Date()) {
   // Every list may be missing or empty: the data file is filled in by hand,
   // often section by section, and a season that has not kicked off yet has
   // no matches at all. None of that should take the page down.
+  const grounds = opponentGrounds(input.opponentVenues);
   const raw = {
     ...input,
     team: { name: 'מכבי גבעתיים', ...(input.team ?? {}) },
     matches: (input.matches ?? []).filter(Boolean).map(cleanPlayedMatch),
-    fixtures: (input.fixtures ?? []).map((f) => withHomeVenue(f, input.team?.homeVenue)),
+    fixtures: (input.fixtures ?? []).map((f) => withAwayVenue(withHomeVenue(f, input.team?.homeVenue), grounds)),
     players: input.players ?? [],
     // Who is in a video (player ids; the infrastructure for "who is in the
     // photo" — nothing shows it yet). Ids only: they may land in attributes.

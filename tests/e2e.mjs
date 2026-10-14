@@ -1689,6 +1689,7 @@ await step('a device the manager marks as coach sees playing time; a parent does
   // Air between the view switch and the head under it.
   const gap = await coach.evaluate(() => document.querySelector('#mn-body > .sec-head').getBoundingClientRect().top - document.querySelector('#mn-tabs').getBoundingClientRect().bottom);
   expect(gap >= 16, 'the head sits on the view switch: ' + gap);
+  expect((await coach.locator('#minutes [data-mnview="map"] small').textContent()) === 'לפי משחק', 'the map does not say it is per match');
   await coach.locator('#minutes [data-mnview="pos"]').click();
   await coach.locator('#minutes .mn-pos .mn-cell.main').first().waitFor();
   // The positions fill the card on every phone: the name as wide as the name,

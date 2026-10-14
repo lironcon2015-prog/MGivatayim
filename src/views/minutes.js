@@ -224,10 +224,12 @@ export function coachSheet(state, getCfg, save) {
    the player's own card (once a match, five minutes or more). The tab is the
    only entry and it is drawn for coach and manager alone, so no
    "(רק למאמן)" inside. The view is for the visit. */
+// Under each name, what it covers (the owner: the map's strength is that it
+// is per match, and that should show before it is opened).
 const VIEWS = [
-  ['table', 'טבלה', 'clock', 'דקות לעונה'],
-  ['map', 'מפה', 'clock', 'דקות בכל משחק'],
-  ['pos', 'עמדות', 'shirt', 'מספר משחקים בעמדה'],
+  ['table', 'טבלה', 'clock', 'דקות לעונה', 'לעונה'],
+  ['map', 'מפה', 'clock', 'דקות בכל משחק', 'לפי משחק'],
+  ['pos', 'עמדות', 'shirt', 'מספר משחקים בעמדה', 'לעונה'],
 ];
 let view = 'table';
 
@@ -240,7 +242,7 @@ export function seasonMinutesHtml(s) {
   return `<section id="minutes">
     ${kpis([[sm.matches.length, 'משחקים מתועדים'], [sm.belowTotal, 'פעמים מתחת לרף', sm.belowTotal > 0], [sm.playersBelow, 'שחקנים מתחת לרף']])}
     <div class="seg" role="tablist" id="mn-tabs">
-      ${VIEWS.map(([k, l]) => `<button role="tab" type="button" data-mnview="${k}" aria-selected="${view === k}">${l}</button>`).join('')}
+      ${VIEWS.map(([k, l, , , sub]) => `<button role="tab" type="button" data-mnview="${k}" aria-selected="${view === k}">${l}<small>${sub}</small></button>`).join('')}
     </div>
     <div id="mn-body">${bodyHtml(sm, s)}</div>
   </section>`;

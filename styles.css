@@ -81,7 +81,7 @@
   /* Smoked, not clear (the owner, 1.81.1, from screenshots of the app): clear
      glass let white labels vanish over a yellow photo or the gold Waze button;
      the glass brings its own dark, so white reads over anything. */
-  --glass-bg: linear-gradient(180deg, rgba(20, 30, 48, .74), rgba(10, 16, 28, .68));
+  --glass-bg: linear-gradient(180deg, rgba(20, 30, 48, .58), rgba(10, 16, 28, .5));
   --glass-filter: blur(16px) saturate(1.4);
   --glass-rim: rgba(255, 255, 255, .18);
   --glass-shine: inset 0 1px 1px rgba(255, 255, 255, .45), inset 0 -1px 1px rgba(255, 255, 255, .12), inset 0 0 18px rgba(255, 255, 255, .05);
@@ -2133,6 +2133,8 @@ section { scroll-margin-top: 12px; }
   -webkit-backdrop-filter: var(--glass-filter); backdrop-filter: var(--glass-filter);
   box-shadow: var(--glass-shine), var(--glass-shadow);
 }
+/* A little more see-through (the owner, 1.81.2): a soft shadow keeps the white over gold. */
+.nav a, .live-dock.fab button, .live-mini, .gl-fab { text-shadow: 0 1px 2px rgba(0, 0, 0, .45); }
 .nav a { color: var(--text); }
 .nav a[aria-current="page"] {
   color: var(--gold); background: rgba(232, 185, 49, .16);

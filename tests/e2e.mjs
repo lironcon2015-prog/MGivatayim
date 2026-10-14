@@ -1684,8 +1684,11 @@ await step('a device the manager marks as coach sees playing time; a parent does
   await admin.locator('#minutes .mn-table').waitFor({ timeout: 8000 });
   await coach.locator('#minutes [data-mnview="map"]').click();
   await coach.locator('#minutes .mn-map .mn-cell').first().waitFor();
-  // Under the minutes, the position he held longest in that match.
-  expect(await coach.locator('#minutes .mn-map .mn-cell small').count() > 0, 'no position under the minutes on the map');
+  // Minutes only (the owner: positions under them crowded the map).
+  expect(await coach.locator('#minutes .mn-map .mn-cell small').count() === 0, 'a position under the minutes on the map');
+  // Air between the view switch and the head under it.
+  const gap = await coach.evaluate(() => document.querySelector('#mn-body > .sec-head').getBoundingClientRect().top - document.querySelector('#mn-tabs').getBoundingClientRect().bottom);
+  expect(gap >= 16, 'the head sits on the view switch: ' + gap);
   await coach.locator('#minutes [data-mnview="pos"]').click();
   await coach.locator('#minutes .mn-pos .mn-cell.main').first().waitFor();
   // The positions fill the card on every phone: the name as wide as the name,

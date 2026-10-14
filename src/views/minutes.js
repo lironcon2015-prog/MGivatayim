@@ -13,7 +13,7 @@ import { icon } from '../icons.js';
 import { openSheet } from '../ui/sheet.js';
 import { sectionHead, COACH_ONLY, foldRows } from '../components.js';
 import { outcomeOf } from '../season.js';
-import { posLabel, position, POSITIONS } from '../positions.js';
+import { posLabel, POSITIONS } from '../positions.js';
 
 const mins = (n) => M.ltr(`${n}'`);
 const total = (format) => format.reduce((a, b) => a + b, 0) || 1;
@@ -219,14 +219,14 @@ export function coachSheet(state, getCfg, save) {
 /* The coach's card on the stats screen (a third pane, the owner's pick
    against a mockup): one switch for the whole card — "טבלה | מפה | עמדות" —
    one view at a time, no switch inside a switch. The table is the season's
-   minutes; the map is minutes per match with the position held longest under
-   each; positions is player against position over the season, counted as on
+   minutes; the map is minutes per match (minutes only — the owner: a
+   position under them crowded it); positions is player against position over the season, counted as on
    the player's own card (once a match, five minutes or more). The tab is the
    only entry and it is drawn for coach and manager alone, so no
    "(רק למאמן)" inside. The view is for the visit. */
 const VIEWS = [
   ['table', 'טבלה', 'clock', 'דקות לעונה'],
-  ['map', 'מפה', 'clock', 'דקות ועמדה בכל משחק'],
+  ['map', 'מפה', 'clock', 'דקות בכל משחק'],
   ['pos', 'עמדות', 'shirt', 'מספר משחקים בעמדה'],
 ];
 let view = 'table';
@@ -313,12 +313,13 @@ function mapHtml(sm, s) {
         const c = x.cells[p.id];
         if (!c) return '<td class="mn-cell none"></td>';
         if (c.absent) return '<td class="mn-cell x">—</td>';
-        const at = position(c.pos);
-        return `<td class="mn-cell num${c.short ? ' short' : ''}">${c.minutes}${at ? `<small>${esc(at.short)}</small>` : ''}</td>`;
+        // Minutes only (the owner: the position under them crowded the map and
+        // read unclear; positions have their own view).
+        return `<td class="mn-cell num${c.short ? ' short' : ''}">${c.minutes}</td>`;
       }).join('')}
     </tr>`).join('');
   return `<div class="card mn-map-wrap"><table class="mn-map"><thead><tr><th></th>${cols}</tr></thead><tbody>${rows}</tbody></table></div>
-    <p class="note mn-legend"><span><i class="mn-cell short"></i>מתחת לרף</span><span><i class="mn-cell"></i>מעל</span><span><i class="mn-cell x"></i>לא הגיע</span><span>מתחת לדקות: העמדה במשחק</span></p>`;
+    <p class="note mn-legend"><span><i class="mn-cell short"></i>מתחת לרף</span><span><i class="mn-cell"></i>מעל</span><span><i class="mn-cell x"></i>לא הגיע</span></p>`;
 }
 
 function playerSheet(sm, s, pid) {

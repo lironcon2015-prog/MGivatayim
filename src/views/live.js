@@ -123,10 +123,13 @@ export function timelineHtml(state, { interactive = false, us: usName = '' } = {
 // plays there.
 // `swap` — the formation change preview: a tap marks a player (`selected`),
 // a tap on another swaps their positions.
-function pitchHtml(state, slots, { interactive, edit = false, swap = false, selected = null }) {
+// `wave` — the substitutions sheet: a tap marks a player going off (the set
+// of those marked), where he stands — the owner knows the left winger from
+// the touchline before he knows his name or number.
+function pitchHtml(state, slots, { interactive, edit = false, swap = false, selected = null, wave = null }) {
   const placed = layout(slots);
-  const tag = interactive || edit || swap ? 'button' : 'div';
-  return `<div class="pitch" dir="ltr">
+  const tag = interactive || edit || swap || wave ? 'button' : 'div';
+  return `<div class="pitch${wave ? ' wave' : ''}" dir="ltr">
     <svg class="pitch-lines" viewBox="0 0 100 133" preserveAspectRatio="none" aria-hidden="true">
       <rect x="3" y="3" width="94" height="127" rx="2"/><line x1="3" y1="66.5" x2="97" y2="66.5"/><circle cx="50" cy="66.5" r="11"/>
       <rect x="24" y="3" width="52" height="19"/><rect x="24" y="111" width="52" height="19"/>
@@ -139,7 +142,8 @@ function pitchHtml(state, slots, { interactive, edit = false, swap = false, sele
           <span class="pl-num">+</span><span class="pl-name">${esc(posLabel(s.pos) || 'עמדה')}</span></button>`;
       }
       const p = who(state, s.pid);
-      const act = swap ? ` type="button" data-swap="${esc(s.pid)}" aria-pressed="${s.pid === selected}" aria-label="${esc(`${p.name}, ${posLabel(s.pos)}`)}"`
+      const act = wave ? ` type="button" data-out="${esc(s.pid)}" aria-pressed="${wave.has(s.pid)}" aria-label="${esc(`${p.number ?? ''} ${p.name}, ${posLabel(s.pos)} — יוצא`.trim())}"`
+        : swap ? ` type="button" data-swap="${esc(s.pid)}" aria-pressed="${s.pid === selected}" aria-label="${esc(`${p.name}, ${posLabel(s.pos)}`)}"`
         : edit ? ` type="button" data-slotp="${esc(s.pid)}" data-slot="${esc(s.pos)}" aria-label="${esc(`${p.name}, ${posLabel(s.pos)} — החלפה`)}"`
         : interactive ? ` type="button" data-field="${esc(s.pid)}" aria-label="${esc(`${p.name}, ${posLabel(s.pos)} — חילוף`)}"` : '';
       return `<${tag} class="pl${isKeeper(s.pos) ? ' gk' : ''}${swap && s.pid === selected ? ' sel' : ''}" ${at}${act}>
@@ -1255,12 +1259,15 @@ export function mountLive(view, ctx) {
       const since = st.events.some((e) => (e.type === 'sub' || e.type === 'shape') && e.period === st.period && e.atMs > 0);
       if (start && !since && timing.stamp.atMs < WAVE_GRACE_MS) timing.stamp = start.stamp;
     };
-    const tile = (p, kind, on) => `<button type="button" class="wave-tile" data-${kind}="${esc(p.id)}" aria-pressed="${on}"
-      aria-label="${esc(`${p.number ?? ''} ${p.name}`.trim())}"><b class="num">${p.number ?? '·'}</b><span>${esc(shortName(p.name))}</span></button>`;
+    // The bench: full name first, the number and position under it.
+    const tile = (p, on) => `<button type="button" class="wave-tile" data-in="${esc(p.id)}" aria-pressed="${on}"
+      aria-label="${esc(`${p.number ?? ''} ${p.name}`.trim())}"><b>${esc(p.name)}</b><small><span class="num">${p.number ?? '·'}</span>${
+        p.pos ? ` · ${esc(posLabel(p.pos))}` : ''}</small></button>`;
 
     const html = () => {
       const st = state();
-      const field = M.onField(st).map((f) => M.playerById(st, f.pid)).filter(Boolean).sort(byNumber);
+      const slots = M.onField(st);
+      const field = slots.map((f) => M.playerById(st, f.pid)).filter(Boolean);
       const benchP = [...M.bench(st)].sort(byNumber);
       // Marks that a change from another phone made stale are dropped.
       for (const pid of outs) if (!field.some((p) => p.id === pid)) outs.delete(pid);
@@ -1276,13 +1283,18 @@ export function mountLive(view, ctx) {
       const status = !n && !m ? 'מסמנים מי יוצא ומי נכנס, בכל סדר'
         : `נכנסים <b class="num">${m}</b> · יוצאים <b class="num">${n}</b>`;
       const ready = n > 0 && n === m;
+      // Who goes off and who comes on, by name, in the order marked: seen
+      // before "record" — the pairing itself follows the freed slots.
+      const name = (pid) => esc(shortName(who(st, pid).name));
+      const o = [...outs], i_ = [...ins];
+      const pairs = Array.from({ length: Math.max(n, m) }, (_, j) => `<div><span class="o">${o[j] ? name(o[j]) : '…'}</span><span aria-hidden="true">←</span><span class="i">${i_[j] ? name(i_[j]) : '…'}</span></div>`).join('');
       const go = ready ? (n === 1 ? 'רישום החילוף' : `רישום ${n} חילופים`) : m > n ? `חסר ${m - n === 1 ? 'יוצא אחד' : `${m - n} יוצאים`}` : n > m ? `חסר ${n - m === 1 ? 'נכנס אחד' : `${n - m} נכנסים`}` : 'רישום';
       return `${when}
-        <p class="wave-lbl">על המגרש · לחיצה = יוצא</p>
-        <div class="wave-grid">${field.map((p) => tile(p, 'out', outs.has(p.id))).join('')}</div>
+        <p class="wave-lbl">על המגרש · לחיצה על שחקן = יוצא</p>
+        ${pitchHtml(st, slots, { wave: outs })}
         <p class="wave-lbl">ספסל · לחיצה = נכנס</p>
-        <div class="wave-grid">${benchP.map((p) => tile(p, 'in', ins.has(p.id))).join('') || '<p class="sheet-text">אין שחקנים על הספסל.</p>'}</div>
-        <div class="wave-bar"><span>${status}</span><button type="button" class="btn small" data-wave-go${ready ? '' : ' disabled'}>${go}</button></div>
+        <div class="wave-grid">${benchP.map((p) => tile(p, ins.has(p.id))).join('') || '<p class="sheet-text">אין שחקנים על הספסל.</p>'}</div>
+        <div class="wave-bar">${pairs ? `<div class="wave-pairs">${pairs}</div>` : ''}<div class="wave-st"><span>${status}</span><button type="button" class="btn small" data-wave-go${ready ? '' : ' disabled'}>${go}</button></div></div>
         ${waves.length ? `<div class="wave-log">${waves.map((w, i) => `<div class="wave-row"><span>${w.label}</span>
           <button type="button" class="btn secondary small" data-wave-undo="${i}" aria-label="ביטול הגל">${icon('undo')}</button></div>`).join('')}</div>` : ''}`;
     };
@@ -1315,7 +1327,7 @@ export function mountLive(view, ctx) {
 
     const sh = openSheet({
       title: 'חילופים',
-      subtitle: 'לפי מספרי החולצות',
+      subtitle: 'יוצאים מהמגרש, נכנסים מהספסל',
       tall: true,
       body: html(),
       onMount: ({ body }) => {

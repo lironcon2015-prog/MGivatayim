@@ -803,14 +803,15 @@ await step('the substitutions mode: numbers marked off and on in any order, reco
   const sheet = admin.locator('.sheet');
   try {
   await sheet.locator('.wave-grid').first().waitFor();
-  const offs = sheet.locator('.wave-tile[data-out]');
+  // The field is a pitch, each player where he stands; the bench by name.
+  const offs = sheet.locator('.pitch.wave .pl:not(.gk)[data-out]');
   const ons = sheet.locator('.wave-tile[data-in]');
   // As big a wave as the test squad allows (two when the bench has two).
   const k = Math.min(2, await ons.count());
   expect(k >= 1, 'no one on the bench to bring on');
   const outIds = [], inIds = [];
   for (let i = 0; i < k; i++) {
-    outIds.push(await offs.nth(i + 1).getAttribute('data-out'));
+    outIds.push(await offs.nth(i).getAttribute('data-out'));
     inIds.push(await ons.nth(i).getAttribute('data-in'));
   }
   // Coming on first, then going off: any order.
@@ -821,6 +822,10 @@ await step('the substitutions mode: numbers marked off and on in any order, reco
   await sheet.locator(`[data-out="${outIds[0]}"]`).click();
   expect(await sheet.locator(`[data-out="${outIds[0]}"]`).getAttribute('aria-pressed') === 'false', 'a second tap did not unmark');
   for (const id of outIds) await sheet.locator(`[data-out="${id}"]`).click();
+  // The bar names who goes off and who comes on before anything is recorded.
+  expect(await sheet.locator('.wave-pairs > div').count() === k, 'the bar does not name each pair');
+  const firstIn = liveFile().players.find((p) => p.id === inIds[0]).name.split(' ')[0];
+  expect((await sheet.locator('.wave-pairs .i').first().innerText()).includes(firstIn), 'the bar does not name who comes on');
   const atStart = /תחילת/.test(await sheet.locator('[data-timing][aria-checked="true"], .timing-fixed').first().innerText());
   // A sub already recorded after this period's whistle: the wave cannot go
   // before it, so the default is now. (Put first, it brought on a player who
@@ -837,12 +842,12 @@ await step('the substitutions mode: numbers marked off and on in any order, reco
   expect(wave.every((e) => e.period === wave[0].period && e.atMs === wave[0].atMs), 'a wave at two minutes: ' + JSON.stringify(wave));
   expect(!!wave[0].atStart === atStart, 'the minute shown is not the one recorded: ' + JSON.stringify(wave[0]));
   // The sheet stays open for the next wave, the players moved sides.
-  await sheet.locator(`.wave-tile[data-out="${inIds[0]}"]`).waitFor();
+  await sheet.locator(`.pl[data-out="${inIds[0]}"]`).waitFor();
   await sheet.locator(`.wave-tile[data-in="${outIds[0]}"]`).waitFor();
   // One undo for the whole wave.
   await sheet.locator('[data-wave-undo="0"]').click();
   await poll(() => subs().length === before, 'the wave to be undone');
-  await sheet.locator(`.wave-tile[data-out="${outIds[0]}"]`).waitFor();
+  await sheet.locator(`.pl[data-out="${outIds[0]}"]`).waitFor();
   } catch (e) {
     console.log('     sheet:', (await sheet.count()) ? (await sheet.innerText()).replace(/\s+/g, ' ') : '(closed)');
     console.log('     subs on the bridge:', JSON.stringify(subs().slice(-3)));

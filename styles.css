@@ -1102,24 +1102,34 @@ body.with-nav .toast { bottom: calc(var(--nav-float) + 10px); }
    the field above and the bench below. A tile going off is solid gold, one
    coming on gold-outlined — the two sides read apart at a glance. */
 .wave-lbl { margin: .7rem .2rem .35rem; font-size: .74rem; font-weight: 800; color: var(--faint); }
-.wave-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.wave-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
 .wave-tile {
-  display: grid; justify-items: center; gap: 1px; min-height: 56px; padding: .45rem .2rem .35rem;
+  display: grid; justify-items: start; align-content: center; gap: 1px; min-height: 52px; padding: .4rem .65rem; text-align: start;
   background: var(--surface-2); border: 1px solid var(--line); border-radius: 14px; color: var(--text);
   font: inherit; cursor: pointer; touch-action: manipulation;
 }
-.wave-tile b { font-size: 1.3rem; line-height: 1.1; font-variant-numeric: tabular-nums; }
-.wave-tile span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .86rem; font-weight: 700; color: var(--muted); }
+.wave-tile b { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 1rem; font-weight: 800; }
+.wave-tile small { font-size: .74rem; color: var(--faint); }
+.wave-tile small .num { color: var(--muted); }
 .wave-tile:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
-.wave-tile[data-out][aria-pressed="true"] { background: var(--gold-fill); border-color: var(--gold); color: var(--on-gold); }
-.wave-tile[data-out][aria-pressed="true"] span { color: var(--on-gold); }
-.wave-tile[data-in][aria-pressed="true"] { background: var(--gold-soft); border-color: var(--gold); box-shadow: inset 0 0 0 1px var(--gold); }
-.wave-tile[data-in][aria-pressed="true"] b { color: var(--gold); }
+.wave-tile[aria-pressed="true"] { background: var(--gold-soft); border-color: var(--gold); box-shadow: inset 0 0 0 1px var(--gold); }
+.wave-tile[aria-pressed="true"] b { color: var(--gold); }
+/* The field in the substitutions sheet: shorter than the lineup's, the
+   players quiet until marked off (then gold), the names readable. */
+.pitch.wave { aspect-ratio: 10 / 9; }
+.pitch.wave .pl { touch-action: manipulation; }
+.pitch.wave .pl-num, .pitch.wave .pl.gk .pl-num { background: var(--surface-solid); color: var(--text); border-color: var(--line-strong); box-shadow: 0 4px 12px rgba(0, 0, 0, .45); }
+.pitch.wave .pl-name { font-size: .82rem; }
+.pitch.wave .pl[aria-pressed="true"] .pl-num { background: var(--gold-fill); color: var(--on-gold); border-color: var(--gold); box-shadow: 0 0 16px rgba(232, 185, 49, .4); }
+.pitch.wave .pl[aria-pressed="true"] .pl-name { color: var(--gold); }
 .wave-bar {
-  position: sticky; bottom: 0; display: flex; align-items: center; justify-content: space-between; gap: .6rem;
-  margin-top: .8rem; padding: .6rem 0; background: var(--surface-solid); font-size: .86rem; color: var(--muted);
+  position: sticky; bottom: 0; margin-top: .8rem; padding: .6rem 0; background: var(--surface-solid); font-size: .86rem; color: var(--muted);
 }
-.wave-bar .btn { flex: none; }
+.wave-st { display: flex; align-items: center; justify-content: space-between; gap: .6rem; }
+.wave-st .btn { flex: none; }
+.wave-pairs { display: grid; gap: 2px; margin-bottom: .45rem; font-size: .9rem; }
+.wave-pairs div { display: flex; gap: .4rem; align-items: center; }
+.wave-pairs .i { color: var(--gold); font-weight: 700; }
 .wave-log { display: grid; gap: .4rem; margin-top: .4rem; border-top: 1px solid var(--line); padding-top: .6rem; }
 .wave-row { display: flex; align-items: center; justify-content: space-between; gap: .6rem; font-size: .88rem; }
 .wave-row small { display: block; color: var(--faint); }

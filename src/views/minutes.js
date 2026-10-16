@@ -232,26 +232,34 @@ const VIEWS = [
   ['pos', 'עמדות', 'shirt', 'מספר משחקים בעמדה', 'לעונה'],
 ];
 let view = 'table';
+// Training matches in the card: off by default, for the visit (the owner's
+// pick: a small switch beside the match count).
+let withFriendly = false;
+const compute = (s) => MN.seasonMinutes(s, s.coach, { friendly: withFriendly });
 
 export function seasonMinutesHtml(s) {
-  const sm = MN.seasonMinutes(s, s.coach);
-  if (!sm.matches.length) {
-    return `<section id="minutes">${sectionHead('דקות ועמדות', '', 'clock')}
-      <div class="card"><div class="empty">עוד לא נשמר משחק חי. הדקות והעמדות נספרות מההרכב והחילופים של משחקים שתועדו בלייב.</div></div></section>`;
+  return `<section id="minutes">${innerHtml(compute(s), s)}</section>`;
+}
+
+function innerHtml(sm, s) {
+  if (!sm.matches.length && !sm.friendlies) {
+    return `${sectionHead('דקות ועמדות', '', 'clock')}
+      <div class="card"><div class="empty">עוד לא נשמר משחק חי. הדקות והעמדות נספרות מההרכב והחילופים של משחקים שתועדו בלייב.</div></div>`;
   }
-  return `<section id="minutes">
-    ${kpis([[sm.matches.length, 'משחקים מתועדים'], [sm.belowTotal, 'פעמים מתחת לרף', sm.belowTotal > 0], [sm.playersBelow, 'שחקנים מתחת לרף']])}
+  return `${kpis([[sm.matches.length, 'משחקים מתועדים'], [sm.belowTotal, 'פעמים מתחת לרף', sm.belowTotal > 0], [sm.playersBelow, 'שחקנים מתחת לרף']])}
     <div class="seg" role="tablist" id="mn-tabs">
       ${VIEWS.map(([k, l, , , sub]) => `<button role="tab" type="button" data-mnview="${k}" aria-selected="${view === k}">${l}<small>${sub}</small></button>`).join('')}
     </div>
-    <div id="mn-body">${bodyHtml(sm, s)}</div>
-  </section>`;
+    <div id="mn-body">${bodyHtml(sm, s)}</div>`;
 }
 
 function bodyHtml(sm, s) {
   const [, , glyph, title] = VIEWS.find((v) => v[0] === view);
-  const body = view === 'map' ? mapHtml(sm, s) : view === 'pos' ? posHtml(sm) : tableHtml(sm);
-  return sectionHead(title, `<span class="num">${sm.matches.length}</span> משחקים`, glyph) + body;
+  const body = !sm.matches.length ? '<div class="card"><div class="empty">עוד לא תועד משחק ליגה. משחקי האימון נכנסים עם "כולל אימון".</div></div>'
+    : view === 'map' ? mapHtml(sm, s) : view === 'pos' ? posHtml(sm) : tableHtml(sm);
+  const toggle = sm.friendlies
+    ? ` · <button type="button" class="mn-fr" data-mnfr aria-pressed="${withFriendly}"><i class="mini-switch" aria-hidden="true"></i>כולל אימון</button>` : '';
+  return sectionHead(title, `<span class="num">${sm.matches.length}</span> משחקים${toggle}`, glyph) + body;
 }
 
 // Player against position: a column for every position anyone held this
@@ -307,7 +315,7 @@ function tableHtml(sm) {
 function mapHtml(sm, s) {
   const cols = sm.matches.map((x) => {
     const idx = s.recent.indexOf(x.match);
-    return `<th><button type="button" class="mn-col" data-match="${idx}" aria-label="${esc(`מול ${x.match.opponent}, ${shortDate(x.match.date)}`)}"><span class="num">${dm(x.match.date)}</span><i class="mn-res ${outcomeOf(x.match)}"></i></button></th>`;
+    return `<th><button type="button" class="mn-col" data-match="${idx}" aria-label="${esc(`מול ${x.match.opponent}, ${shortDate(x.match.date)}`)}">${x.match.friendly === true ? '<small class="mn-fr-col">אימון</small>' : ''}<span class="num">${dm(x.match.date)}</span><i class="mn-res ${outcomeOf(x.match)}"></i></button></th>`;
   }).join('');
   const rows = sm.players.map((p) => `<tr>
       <th class="nm">${named(p)}</th>
@@ -357,19 +365,27 @@ function playerSheet(sm, s, pid) {
 }
 
 export function wireSeasonMinutes(root, s) {
-  const tabs = root.querySelector('#mn-tabs');
   const body = root.querySelector('#mn-body');
   const box = root.querySelector('#minutes');
   if (!box) return () => {};
-  const sm = MN.seasonMinutes(s, s.coach);
+  let sm = compute(s);
   if (view === 'table') foldRows(body?.querySelector('tbody'), 'minutes');
   const onClick = (e) => {
+    // Training matches in or out: the whole card follows (the tiles, every view).
+    if (e.target.closest('[data-mnfr]')) {
+      withFriendly = !withFriendly;
+      sm = compute(s);
+      box.innerHTML = innerHtml(sm, s);
+      if (view === 'table') foldRows(box.querySelector('#mn-body tbody'), 'minutes');
+      return;
+    }
     const v = e.target.closest('[data-mnview]');
-    if (v && tabs && body) {
-      tabs.querySelectorAll('button').forEach((b) => b.setAttribute('aria-selected', String(b === v)));
+    if (v) {
+      const tabsNow = box.querySelector('#mn-tabs'), bodyNow = box.querySelector('#mn-body');
+      tabsNow?.querySelectorAll('button').forEach((b) => b.setAttribute('aria-selected', String(b === v)));
       view = v.dataset.mnview;
-      body.innerHTML = bodyHtml(sm, s);
-      if (view === 'table') foldRows(body.querySelector('tbody'), 'minutes');
+      if (bodyNow) bodyNow.innerHTML = bodyHtml(sm, s);
+      if (view === 'table') foldRows(bodyNow?.querySelector('tbody'), 'minutes');
       return;
     }
     const p = e.target.closest('[data-mnp]');

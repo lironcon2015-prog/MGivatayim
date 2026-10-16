@@ -161,9 +161,14 @@ export function stintSpans(format, list) {
 // the roster how many of them they attended, the minutes they played, their
 // average over the matches they attended, and how often they ended under
 // that match's minimum.
-export function seasonMinutes(season, coach) {
-  const matches = season.chronological
-    .filter((m) => m.liveId && Array.isArray(m.lineup) && Array.isArray(m.format) && Array.isArray(m.events))
+// Training matches are left out unless asked for (the owner: the season's
+// minutes are the league's; "including training" is a switch on the card).
+// `friendlies` counts the recorded ones either way, for the switch.
+export function seasonMinutes(season, coach, { friendly = false } = {}) {
+  const recorded = season.chronological
+    .filter((m) => m.liveId && Array.isArray(m.lineup) && Array.isArray(m.format) && Array.isArray(m.events));
+  const friendlies = recorded.filter((m) => m.friendly === true).length;
+  const matches = recorded.filter((m) => friendly || m.friendly !== true)
     .map((m) => {
       const state = { format: m.format, events: m.events, lineup: m.lineup, players: m.players || [], status: 'ended' };
       const cfg = coachFor(coach, m.liveId, m.fixture?.date);
@@ -201,6 +206,7 @@ export function seasonMinutes(season, coach) {
   players.sort((a, b) => (a.games ? 0 : 1) - (b.games ? 0 : 1) || a.avg - b.avg || (a.number ?? 999) - (b.number ?? 999));
   return {
     matches,
+    friendlies,
     players,
     belowTotal: players.reduce((n, p) => n + p.below, 0),
     playersBelow: players.filter((p) => p.below).length,

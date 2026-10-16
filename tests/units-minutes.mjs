@@ -158,6 +158,18 @@ export async function run(test) {
     assert.deepEqual(r.players.find((p) => p.id === 'd').at, {}, 'came, never on the field');
   });
 
+  await test('the season card leaves training matches out unless asked', () => {
+    const s = M.newLive({ id: 'L', opponent: 'x', format: [30, 30, 20], players: squad });
+    const m = (liveId, friendly) => ({ liveId, date: '2026-09-01', format: s.format, lineup: [{ pid: 'g', pos: 'GK' }], events: [], players: squad, ...(friendly ? { friendly: true } : {}) });
+    const season = { chronological: [m('L1'), m('F1', true), m('L2')], players: squad };
+    const off = MN.seasonMinutes(season, {});
+    assert.deepEqual([off.matches.length, off.friendlies], [2, 1]);
+    assert.ok(off.matches.every((x) => x.match.friendly !== true));
+    const on = MN.seasonMinutes(season, {}, { friendly: true });
+    assert.deepEqual([on.matches.length, on.friendlies], [3, 1]);
+    assert.equal(on.players.find((p) => p.id === 'g').games, 3);
+  });
+
   await test('an absent player gets no match and no zero', () => {
     const s = M.newLive({ id: 'Z', opponent: 'x', format: [30, 30, 20], players: squad });
     const m = { liveId: 'Z', date: '2026-09-01', format: s.format, lineup: [{ pid: 'g', pos: '' }], events: [], players: squad };

@@ -2192,3 +2192,21 @@ section { scroll-margin-top: 12px; }
 @keyframes view-in { from { opacity: 0; left: var(--enter-x, 0); } to { opacity: 1; left: 0; } }
 @media (prefers-reduced-motion: reduce) { .view-enter { animation: none; } }
 
+
+/* "Including training" in the coach's card (the owner's pick, option א): a
+   small switch beside the match count, the app's sliding switch at two
+   thirds; gold when on. The map marks a training match's column. */
+.mn-fr {
+  display: inline-flex; align-items: center; gap: .35rem; font: inherit; font-size: .76rem; font-weight: 600;
+  color: var(--faint); background: none; border: 0; padding: .2rem 0; cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.mn-fr[aria-pressed="true"] { color: var(--gold); }
+.mn-fr:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; border-radius: 6px; }
+.mini-switch { position: relative; flex: none; width: 30px; height: 18px; border-radius: var(--r-pill); background: var(--well); border: 1px solid var(--line-strong); transition: background .15s, border-color .15s; }
+.mini-switch::before { content: ''; position: absolute; top: 2px; inset-inline-end: 2px; width: 12px; height: 12px; border-radius: 50%; background: var(--faint); transition: inset-inline-end .15s, background .15s; }
+.mn-fr[aria-pressed="true"] .mini-switch { background: var(--gold-soft); border-color: var(--gold-line); }
+.mn-fr[aria-pressed="true"] .mini-switch::before { inset-inline-end: 14px; background: var(--gold); }
+.mn-fr-col { display: block; font-size: .58rem; font-weight: 700; color: var(--faint); line-height: 1; margin-bottom: 2px; }
+.mn-map:not(.mn-pos) thead th { vertical-align: bottom; }
+@media (prefers-reduced-motion: reduce) { .mini-switch, .mini-switch::before { transition: none; } }
+.sec-head .aside:has(.mn-fr) { display: inline-flex; align-items: center; gap: .3rem; white-space: nowrap; }

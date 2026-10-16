@@ -61,20 +61,10 @@ export function timelineHtml(state, { interactive = false, us: usName = '' } = {
   const chrono = [...state.events].map((e, i) => ({ e, i })).sort((a, b) => a.e.period - b.e.period || a.e.atMs - b.e.atMs || a.i - b.i);
   const after = new Map();
   const atEnd = new Map();
-  // Every sub shows a position: the one it names, else the slot's (from the
-  // lineup and earlier subs), else the incoming player's own.
-  const slot = new Map(state.lineup.map((l) => [l.pid, l.pos]));
-  const subPos = new Map();
   let us = 0, them = 0;
   for (const { e } of chrono) {
     if (e.type === 'goal') { e.side === 'them' ? them++ : us++; after.set(e.id, [us, them]); }
     if (e.type === 'period_end') atEnd.set(e, [us, them]);
-    if (e.type === 'sub') {
-      const pos = e.pos || slot.get(e.out) || M.playerById(state, e.in)?.pos || '';
-      if (M.takes(slot, e)) { slot.delete(e.out); slot.set(e.in, pos); }
-      subPos.set(e.id, pos);
-    }
-    if (e.type === 'shape') for (const m of e.moves || []) if (slot.has(m.pid)) slot.set(m.pid, m.pos);
   }
   // Ours on the right, in gold, like every score (written LTR: theirs first).
   const scoreHtml = ([a, b]) => `${b}-<b>${a}</b>`;
@@ -116,10 +106,11 @@ export function timelineHtml(state, { interactive = false, us: usName = '' } = {
     // A formation change or a swap of positions is not an event of the match
     // to the owner: it moves the pitch and the positions on later subs only.
     if (e.type === 'shape') return '';
+    // No position on a sub (the owner): the coach often swaps one for one
+    // and then moves players around, so the outgoing player's slot misleads.
     if (e.type === 'sub') {
-      const pos = subPos.get(e.id);
       return row('us sub', `<span class="ev-pair"><i class="ev-dot in">${icon('arrowIn')}</i><i class="ev-dot out">${icon('arrowOut')}</i></span>
-        <span class="ev-txt"><b class="in">${esc(whoText(state, e.in))}</b><span class="out">${esc(whoText(state, e.out))}${pos ? ` · ${esc(posLabel(pos))}` : ''}</span>${note('')}</span>`);
+        <span class="ev-txt"><b class="in">${esc(whoText(state, e.in))}</b><span class="out">${esc(whoText(state, e.out))}</span>${note('')}</span>`);
     }
     return '';
   }).filter(Boolean);

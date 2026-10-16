@@ -1019,10 +1019,10 @@ await step('a result on the home screen opens its match; every game is on the st
   expect(await parent.locator('.sheet .ms-scorers + .ev-sides').count() === 1, 'the scorers are not right above the timeline');
   const liveSide = await usOnRight(parent);
   expect(!liveSide.length, 'not on the right in a live match\'s sheet: ' + liveSide.join(', '));
-  // Every sub names a position: a parent has no past lineup, so the slot's
-  // is unknown here and the incoming player's own stands in.
+  // A sub names who came on and off, never a position (the owner: the coach
+  // swaps one for one and then moves players, so a position misleads).
   const sub = await parent.locator('.sheet .ev.sub .ev-txt .out').first().innerText();
-  expect(/ · \S/.test(sub), 'a sub without a position: ' + sub);
+  expect(!sub.includes(' · '), 'a sub shows a position: ' + sub);
   await parent.locator('.sheet-x').click();
   await parent.locator('.sheet').waitFor({ state: 'detached' });
   await parent.getByRole('link', { name: 'לכל המשחקים' }).click();

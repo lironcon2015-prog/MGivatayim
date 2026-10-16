@@ -127,6 +127,26 @@ export async function run(test) {
     assert.deepEqual(M.bench(s).map((p) => p.id).sort(), ['a', 'd']);
   });
 
+  await test('a sub that would bring on a player already on the field takes nobody off', () => {
+    // The owner, mid-match: a player vanished. The first sub's incoming player
+    // corrected to the one a later sub brings on — that later sub then took b
+    // off and put nobody on.
+    let s = M.reduce(base(), { t: 'start', at: T0 });
+    s = M.reduce(s, { t: 'sub', id: 's1', out: 'a', in: 'd', period: 0, atMs: 10 * MIN });
+    s = M.reduce(s, { t: 'sub', id: 's2', out: 'b', in: 'e', period: 0, atMs: 20 * MIN });
+    s = M.reduce(s, { t: 'edit', id: 's1', patch: { in: 'e' } });
+    assert.deepEqual(M.onField(s).map((f) => f.pid).sort(), ['b', 'c', 'e', 'g']);
+    s = M.reduce(s, { t: 'end', period: 0, at: T0 + 30 * MIN });
+    const mins = M.minutesPlayed(s);
+    assert.deepEqual([mins.b, mins.e, mins.a, mins.d ?? 0], [30, 20, 10, 0]);
+    // Moving a sub's minute past another one does the same.
+    let t = M.reduce(base(), { t: 'start', at: T0 });
+    t = M.reduce(t, { t: 'sub', id: 'x1', out: 'a', in: 'd', period: 0, atMs: 10 * MIN });
+    t = M.reduce(t, { t: 'sub', id: 'x2', out: 'c', in: 'a', period: 0, atMs: 15 * MIN });
+    t = M.reduce(t, { t: 'edit', id: 'x1', patch: { atMs: 20 * MIN } });
+    assert.equal(M.onField(t).length, 4, JSON.stringify(M.onField(t)));
+  });
+
   await test('a sub into a different position moves the slot', () => {
     let s = M.reduce(base(), { t: 'start', at: T0 });
     s = M.reduce(s, { t: 'sub', id: 's1', out: 'a', in: 'e', pos: 'CB', period: 0, atMs: MIN });

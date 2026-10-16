@@ -374,6 +374,14 @@ export function score(state) {
 // substitution and formation change applied in match order. A sub keeps the
 // slot's position unless it names its own; a formation change moves the
 // players it names who are still on.
+// A sub takes effect only if the one going off is on the field and the one
+// coming on is not. A sub bringing on a player already there (its incoming
+// player corrected to one a later sub brings on, or its minute moved past
+// another sub) took the one going off away and put nobody in his place: a
+// player vanished from the pitch mid-match (the owner). Such a sub is left
+// out, everywhere a match is replayed, and the bridge does the same.
+export const takes = (field, e) => !!e.in && field.has(e.out) && !field.has(e.in);
+
 export function onField(state) {
   const field = new Map(state.lineup.map((l) => [l.pid, l.pos]));
   const changes = state.events.map((e, i) => ({ e, i })).filter(({ e }) => e.type === 'sub' || e.type === 'shape')
@@ -383,7 +391,7 @@ export function onField(state) {
       for (const m of e.moves || []) if (field.has(m.pid)) field.set(m.pid, m.pos);
       continue;
     }
-    if (!field.has(e.out)) continue;
+    if (!takes(field, e)) continue;
     const pos = e.pos || field.get(e.out);
     field.delete(e.out);
     field.set(e.in, pos);
@@ -454,7 +462,7 @@ export function minutesPlayed(state, now = null) {
 
   function credit(d) { if (d > 0) for (const pid of field.keys()) ms.set(pid, (ms.get(pid) || 0) + d); }
   function apply(e) {
-    if (!field.has(e.out)) return;
+    if (!takes(field, e)) return;
     const pos = e.pos || field.get(e.out);
     field.delete(e.out);
     field.set(e.in, pos);
@@ -530,7 +538,7 @@ function positionTimes(state) {
       for (const m of e.moves || []) if (field.has(m.pid)) stand(m.pid, m.pos);
       return;
     }
-    if (!field.has(e.out)) return;
+    if (!takes(field, e)) return;
     const pos = e.pos || field.get(e.out);
     field.delete(e.out);
     stand(e.in, pos);

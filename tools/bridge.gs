@@ -509,7 +509,8 @@ function positionsPlayed_(m) {
       (e.moves || []).forEach((mv) => { if (mv && field[mv.pid]) stand(mv.pid, mv.pos); });
       return;
     }
-    if (!field[e.out]) return;
+    // As M.takes: a sub bringing on a player already there is left out.
+    if (!e.in || !field[e.out] || field[e.in]) return;
     const pos = e.pos || field[e.out];
     delete field[e.out];
     stand(e.in, pos);

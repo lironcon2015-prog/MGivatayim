@@ -71,8 +71,7 @@ export function timelineHtml(state, { interactive = false, us: usName = '' } = {
     if (e.type === 'period_end') atEnd.set(e, [us, them]);
     if (e.type === 'sub') {
       const pos = e.pos || slot.get(e.out) || M.playerById(state, e.in)?.pos || '';
-      slot.delete(e.out);
-      slot.set(e.in, pos);
+      if (M.takes(slot, e)) { slot.delete(e.out); slot.set(e.in, pos); }
       subPos.set(e.id, pos);
     }
     if (e.type === 'shape') for (const m of e.moves || []) if (slot.has(m.pid)) slot.set(m.pid, m.pos);

@@ -136,7 +136,7 @@ export function stints(state) {
   };
   const subs = state.events.filter((e) => e.type === 'sub').sort((a, b) => a.period - b.period || a.atMs - b.atMs);
   for (const e of subs) {
-    if (!open.has(e.out)) continue;
+    if (!M.takes(open, e)) continue;
     const at = Math.min(Math.max(e.atMs, 0), lengths[e.period] || e.atMs);
     close(e.out, e.period, at);
     open.set(e.in, { p: e.period, from: at });

@@ -1453,7 +1453,7 @@ export function mountLive(view, ctx) {
       <p class="formation-note">${selected ? `<b>${esc(shortName(who(st, selected).name))}</b> — הקישו על שחקן להחלפת עמדות` : 'הקישו על שני שחקנים כדי להחליף ביניהם עמדות'}</p>
       ${pitchHtml(st, moves, { interactive: false, swap: true, selected })}
       ${timingHtml(st, timing)}
-      <div class="sheet-actions"><button type="button" class="btn" data-shape-go${changed() ? '' : ' disabled'}>${fid !== was ? `מעבר ל-<span class="num" dir="ltr">${fid}</span>` : 'שמירת העמדות'}</button></div>`;
+      <div class="sheet-go"><button type="button" class="btn" data-shape-go${changed() ? '' : ' disabled'}>${fid !== was ? `מעבר ל-<span class="num" dir="ltr">${fid}</span>` : 'שמירת העמדות'}</button></div>`;
     const sh = openSheet({
       title: 'שינוי מערך',
       subtitle: `עכשיו: <span class="num" dir="ltr">${esc(was)}</span>`,

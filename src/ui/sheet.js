@@ -145,7 +145,7 @@ export function openSheet({ title, subtitle = '', body = '', onMount, onClose, t
   }
 
   requestAnimationFrame(() => { back.classList.add('in'); sheet.classList.add('in'); });
-  const api = { el: sheet, body: sheet.querySelector('.sheet-body'), close, setBody(html) { api.body.innerHTML = html; } };
+  const api = { el: sheet, body: sheet.querySelector('.sheet-body'), close, setBody(html) { api.body.innerHTML = html; api.body.scrollTop = 0; requestAnimationFrame(() => { api.body.scrollTop = 0; }); } };
   onMount?.(api);
   const focusTarget = sheet.querySelector('[autofocus]') || sheet.querySelector('.sheet-x');
   setTimeout(() => focusTarget?.focus({ preventScroll: true }), reduceMotion() ? 0 : 60);

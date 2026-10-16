@@ -715,6 +715,13 @@ await step('the formation changes during the match: positions move from that min
   const [p1, p2] = await admin.locator('.sheet [data-swap]').evaluateAll((els) => els.slice(0, 2).map((b) => b.dataset.swap));
   await admin.locator(`.sheet [data-swap="${p1}"]`).click();
   await admin.locator(`.sheet [data-swap="${p2}"][aria-pressed="false"]`).click();
+  // The save button sits at the sheet's bottom edge, not below the pitch.
+  const reach = await admin.evaluate(() => {
+    const body = document.querySelector('.sheet-body').getBoundingClientRect();
+    const r = document.querySelector('[data-shape-go]').getBoundingClientRect();
+    return r.top >= body.top && r.bottom <= body.bottom + 1;
+  });
+  expect(reach, 'the formation save button needs a scroll');
   await admin.click('[data-shape-go]');
   let ev;
   for (let k = 0; k < 80 && !(ev = liveFile().events.find((e) => e.type === 'shape')); k++) await new Promise((r) => setTimeout(r, 100));

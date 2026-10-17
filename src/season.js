@@ -257,8 +257,9 @@ export function cardMe(season, pid) {
 // matches, newest first — every result but a live match he missed (the owner:
 // everyone plays every match, and a result typed by hand has no lineup) — each
 // with where he played (live matches only) and his goals and assists in it.
-// Friendlies are listed, tagged, and counted in no number. The positions are
-// counted once per match he played them in; the main one is the most played,
+// Friendlies are listed, tagged, and counted in no number — the positions
+// neither (the owner): the tile says "league games". The positions are
+// counted once per league match he played them in; the main one is the most played,
 // his registered one on a tie. Position ids from the bridge are checked
 // against the known ones: they land in the page.
 export function playerCard(season, me) {
@@ -285,7 +286,7 @@ export function playerCard(season, me) {
     journal.push({ match: m, pos: m.liveId ? known(me.positions?.[m.liveId]) : [], goals, assists, friendly: !!m.friendly });
   }
   const count = new Map();
-  for (const r of journal) for (const x of new Set(r.pos)) count.set(x, (count.get(x) || 0) + 1);
+  for (const r of journal) if (!r.friendly) for (const x of new Set(r.pos)) count.set(x, (count.get(x) || 0) + 1);
   const mine = primaryPos(p);
   const positions = [...count].sort((a, b) => b[1] - a[1] || (b[0] === mine) - (a[0] === mine)).map(([id, n]) => ({ id, n }));
   return {

@@ -1033,7 +1033,8 @@ await test('a player\'s card: his matches but a live one he missed, where he pla
   const c = playerCard(s, me);
   assert.deepEqual(c.journal.map((r) => [r.match.opponent, r.pos]), [['ידני', []], ['יריבה L3', ['RB']], ['יריבה L1', ['CB', 'RB']]]);
   assert.equal(c.games, 2, 'the friendly is listed, not counted');
-  assert.deepEqual(c.positions, [{ id: 'RB', n: 2 }, { id: 'CB', n: 1 }]);
+  // Positions count league matches only: the friendly's RB is listed, not counted (a tie → his registered CB first).
+  assert.deepEqual(c.positions, [{ id: 'CB', n: 1 }, { id: 'RB', n: 1 }]);
   assert.equal(c.journal[2].assists.length, 1);
   // From the bridge: a position it never knew is dropped before it reaches the page.
   const odd = playerCard(s, { pid: 'p1', positions: { L1: ['<img>', 'CB'] }, missed: [] });

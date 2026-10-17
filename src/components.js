@@ -335,8 +335,8 @@ export function myCardHtml(s, { limit = Infinity, card = s.card, extra = '' } = 
   const short = limit !== Infinity;
   const zero = !c.goals && !c.assists && c.positions.length;
   const tiles = zero
-    ? `<div class="tiles">${tile({ value: c.games, label: 'משחקים' })}${tile({ value: c.positions.length, label: 'עמדות', tone: 'accent' })}</div>`
-    : `<div class="tiles three">${tile({ value: c.games, label: 'משחקים' })}${tile({ value: c.goals, label: 'שערים', tone: 'accent' })}${tile({ value: c.assists, label: 'בישולים' })}</div>`;
+    ? `<div class="tiles">${tile({ value: c.games, label: 'משחקי ליגה' })}${tile({ value: c.positions.length, label: 'עמדות', tone: 'accent' })}</div>`
+    : `<div class="tiles three">${tile({ value: c.games, label: 'משחקי ליגה' })}${tile({ value: c.goals, label: 'שערים', tone: 'accent' })}${tile({ value: c.assists, label: 'בישולים' })}</div>`;
   const places = c.positions.length && !short ? `<p class="my-sub">${icon('pin')}העמדות שלי העונה</p>
     <div class="my-pos">
       <div class="my-pitch" aria-hidden="true">${c.positions.map(({ id }, i) => {

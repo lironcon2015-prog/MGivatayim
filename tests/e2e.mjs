@@ -2351,6 +2351,7 @@ await step('a player sees his own card and no leaderboard; the coach\'s message 
   expect(await kid.locator('#board-tabs, #board').count() === 0, 'the player got the leaderboard');
   expect(!(await kid.locator('#view').innerText()).includes('תרומת המוביל'), 'the player got "the leader\'s share"');
   expect((await kid.locator('#stats-mine .tile.accent b').innerText()).trim() === goals, `the card's goals are not the table's (${goals})`);
+  expect((await kid.locator('#stats-mine .tile .label').first().innerText()).trim() === 'משחקי ליגה', 'the card does not say only league games count');
   expect(await kid.locator('#stats-mine .my-row').count() > 0, 'the card lists no matches');
   // His card and the team are two panes: the card first, the team a tap away,
   // and a link from home into a team section opens the team pane on it.

@@ -2239,11 +2239,33 @@ await step('several items are deleted at once by picking them; a parent picks on
   await parent.locator('[data-gallery] .gl-album').first().waitFor();
   expect(await parent.evaluate(() => window.scrollY) === 0, 'back to the gallery left the page scrolled');
   await parent.locator('[data-gallery] .gl-album').first().click();
+  // Anything can be picked — to save several at once; delete only one's own.
+  // On an iPhone "save" is the share sheet, with every picked file fetched.
+  await parent.evaluate(() => {
+    Object.defineProperty(navigator, 'userAgent', { value: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Version/18.0 Mobile/15E148 Safari/604.1', configurable: true });
+    window.__shared = [];
+    navigator.canShare = () => true;
+    navigator.share = async (d) => { window.__shared.push(d.files.map((f) => f.name)); };
+  });
   await parent.click('[data-sel="start"]');
   expect(await parent.locator('[data-upload-here]').count() === 0, 'the upload bar stayed under the picking bar');
-  expect(await parent.locator('.gl-tile.pick.nopick').count() === 1, 'another parent\'s photo is pickable');
+  expect(await parent.locator('.gl-tile.pick').count() === 3 && await parent.locator('.gl-tile.pick.own').count() === 2, 'not every photo is pickable, or the own ones are not marked');
   await parent.click('[data-sel="all"]');
-  expect(await parent.locator('.gl-tile.pick.on').count() === 2, 'select all did not take both of mine');
+  expect(await parent.locator('.gl-tile.pick.on').count() === 3, 'select all did not take all three');
+  expect(await parent.locator('[data-sel="delete"]').isDisabled(), 'delete is open with another parent\'s photo picked');
+  const fits = await parent.evaluate(() => {
+    const bar = document.querySelector('.gl-selbar').getBoundingClientRect();
+    return [...document.querySelectorAll('.gl-selbar .btn')].every((b) => { const r = b.getBoundingClientRect(); return r.left >= bar.left - 0.5 && r.right <= bar.right + 0.5; });
+  });
+  expect(fits, 'a button sticks out of the picking bar');
+  await parent.locator('[data-sel="save"]:not([disabled])').waitFor({ timeout: 8000 });
+  await parent.click('[data-sel="save"]');
+  await parent.waitForFunction(() => window.__shared.length === 1 && window.__shared[0].length === 3, null, { timeout: 5000 })
+    .catch(async () => { throw new Error('save did not share the three files: ' + JSON.stringify(await parent.evaluate(() => window.__shared))); });
+  await parent.locator('.gl-selbar').waitFor({ state: 'detached' });
+  await parent.evaluate(() => { delete navigator.userAgent; delete navigator.canShare; delete navigator.share; });
+  await parent.click('[data-sel="start"]');
+  for (const tile of await parent.locator('.gl-tile.pick.own').all()) await tile.click();
   await parent.click('[data-sel="delete"]');
   await parent.click('.sheet [data-ok]');
   await parent.locator('.gl-selbar').waitFor({ state: 'detached' });
@@ -2255,7 +2277,7 @@ await step('the manager picks anyone\'s items; the uploads switch answers at onc
   await admin.goto(APP + '#/media');
   await admin.locator('[data-gallery] .gl-album').first().click();
   await admin.click('[data-sel="start"]');
-  await admin.locator('.gl-tile.pick:not(.nopick)').first().click();
+  await admin.locator('.gl-tile.pick').first().click();
   await admin.click('[data-sel="delete"]');
   await admin.click('.sheet [data-ok]');
   await admin.locator('.gl-selbar').waitFor({ state: 'detached' });

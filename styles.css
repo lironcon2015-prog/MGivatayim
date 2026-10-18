@@ -2051,8 +2051,6 @@ button.match:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px
 .gl-tile.pick.on { box-shadow: inset 0 0 0 3px var(--gold); }
 .gl-tile.pick.on .gl-check { background: var(--gold); border-color: var(--gold); }
 .gl-tile.pick.on img { opacity: .8; }
-.gl-tile.nopick { cursor: default; }
-.gl-tile.nopick img { opacity: .3; }
 .gl-selbar {
   position: fixed; z-index: 45; inset-inline: 12px; bottom: calc(12px + env(safe-area-inset-bottom));
   max-width: calc(var(--shell) - 8px); margin: 0 auto;
@@ -2063,6 +2061,7 @@ button.match:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px
 body.with-nav .gl-selbar { bottom: calc(var(--nav-float) + .5rem); }
 .gl-selbar > span { flex: 1; min-width: 0; font-size: .85rem; font-weight: 700; }
 .gl-selbar .btn { flex: none; }
+.gl-selbar .btn.icon-only { width: 34px; padding-inline: 0; justify-content: center; }
 [data-gallery]:has(.gl-selbar) { padding-bottom: 72px; }
 .field .saving { color: var(--gold); font-weight: 700; margin-inline-start: .35rem; }
 .seg.busy button[aria-selected="true"] { animation: seg-saving 1s ease-in-out infinite; }

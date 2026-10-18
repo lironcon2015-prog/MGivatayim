@@ -53,19 +53,20 @@ const videos_ = (n) => plural(n, 'סרטון אחד', 'שני סרטונים', '
 // "3 תמונות וסרטון אחד", "תמונה אחת ו-2 סרטונים".
 const and = (a, b) => (!a ? b : !b ? a : `${a} ו${/^\d/.test(b) ? '-' : ''}${b}`);
 
-// Selection (several items deleted at once): a parent picks among their own
-// uploads, the manager among all. The bridge checks the same rule.
-const canPick = (it, asAdmin) => asAdmin || it.mine;
+// Selection: anything can be picked, to save several at once (the owner);
+// delete only what one may delete — a parent their own uploads, the manager
+// all. The bridge checks the same rule.
+const canDelete = (it, asAdmin) => asAdmin || it.mine;
 
 function tile(g, it, sel) {
   const own = it.mine && it.status !== 'live'
     ? `<span class="gl-flag">${it.status === 'hidden' ? 'מוסתרת' : 'ממתינה'}</span>` : '';
   const label = `${it.kind === 'video' ? 'סרטון' : 'תמונה'} של ${esc(it.byName)}`;
   if (sel?.on) {
-    const ok = canPick(it, sel.asAdmin), on = sel.ids.has(it.id);
-    return `<button type="button" class="gl-tile pick${on ? ' on' : ''}${ok ? '' : ' nopick'}" data-pick="${esc(it.id)}" aria-pressed="${on}" aria-label="${label}"${ok ? '' : ' disabled'}>
+    const on = sel.ids.has(it.id);
+    return `<button type="button" class="gl-tile pick${on ? ' on' : ''}${canDelete(it, sel.asAdmin) ? ' own' : ''}" data-pick="${esc(it.id)}" aria-pressed="${on}" aria-label="${label}">
       <img src="${esc(thumbUrl(g, it))}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.remove()" />
-      ${ok ? `<span class="gl-check" aria-hidden="true">${on ? icon('check') : ''}</span>` : ''}
+      <span class="gl-check" aria-hidden="true">${on ? icon('check') : ''}</span>
     </button>`;
   }
   return `<button type="button" class="gl-tile${it.status !== 'live' ? ' dim' : ''}" data-open="${esc(it.id)}" aria-label="${label}">
@@ -85,13 +86,19 @@ function tabFor(photos, videoCount) {
   return !photos.length && videoCount ? 'videos' : 'photos';
 }
 
+// "Save" waits until every picked file is fetched (iPhone): the share sheet
+// must open on the tap itself. "Delete" — only when everything picked is
+// one's own (`sel.deletable`), and not for a player, who deletes nothing.
 function selBar(sel) {
   const n = sel.ids.size;
+  const saving = sel.busy === 'save', deleting = sel.busy === 'delete';
+  const ready = n && !sel.busy && !sel.fetching;
   return `<div class="gl-selbar" role="region" aria-label="בחירה">
-    <span>${!n ? 'בחרו למחיקה' : `<b class="num">${n}</b> ${n === 1 ? 'נבחר' : 'נבחרו'}`}</span>
+    <span>${!n ? 'בחרו תמונות' : `<b class="num">${n}</b> ${n === 1 ? 'נבחר' : 'נבחרו'}`}</span>
     <button type="button" class="btn small secondary" data-sel="all">הכל</button>
-    <button type="button" class="btn small danger" data-sel="delete"${n && !sel.busy ? '' : ' disabled'}>${icon('trash')} ${sel.busy ? 'מוחק…' : 'מחיקה'}</button>
-    <button type="button" class="btn small secondary" data-sel="cancel"${sel.busy ? ' disabled' : ''}>ביטול</button>
+    <button type="button" class="btn small" data-sel="save"${ready ? '' : ' disabled'}>${icon('download')} ${sel.fetching && n ? 'מכין…' : saving ? 'שומר…' : 'שמירה'}</button>
+    ${viewOnly ? '' : `<button type="button" class="btn small danger" data-sel="delete"${n && !sel.busy && sel.deletable ? '' : ' disabled'}>${icon('trash')} ${deleting ? 'מוחק…' : 'מחיקה'}</button>`}
+    <button type="button" class="btn small secondary icon-only" data-sel="cancel" aria-label="ביטול"${sel.busy ? ' disabled' : ''}>${icon('x')}</button>
   </div>`;
 }
 
@@ -182,11 +189,10 @@ function albumHtml(g, grp, sel) {
   const photos = photosOf(grp.items), clips = clipsOf(grp.items);
   const list = shownTab === 'videos' ? clips : photos;
   const parents = new Set(grp.items.map((it) => it.byName)).size;
-  const pickable = list.some((it) => canPick(it, sel.asAdmin));
   return `<section>
     <button type="button" class="gl-back" data-back>${icon('chevron')} הגלריה</button>
     <div class="sec-head">${icon('photo')}<h2>${gameTitle(grp.match)}</h2>
-      ${pickable && !sel.on ? `<span class="aside"><button type="button" class="chip-tool" data-sel="start">${icon('check')} בחירה</button></span>` : ''}</div>
+      ${list.length && !sel.on ? `<span class="aside"><button type="button" class="chip-tool" data-sel="start">${icon('check')} בחירה</button></span>` : ''}</div>
     <p class="note gl-meta num">${grp.match ? `${esc(shortDate(grp.match.date))} · ` : ''}${noun(shownTab === 'videos' ? 'video' : 'image', list.length)} ${parents === 1 ? 'מהורה אחד' : `מ-${parents} הורים`}</p>
     ${tabsHtml(shownTab, photos.length, clips.length)}
     ${list.length ? `<div class="gl-grid gl-album-grid">${list.map((it) => tile(g, it, sel)).join('')}</div>`
@@ -221,7 +227,7 @@ function helpSheet(g) {
 
       <h3>${icon('eyeoff')} הסתרה ומחיקה</h3>
       <p>תמונה של הילד שלכם שאתם מעדיפים שלא תופיע, או משהו שלא מתאים? פותחים אותה ← <b>"הסתרה"</b>. היא נעלמת מיד אצל כולם.</p>
-      <p>העלאה שלכם אפשר למחוק בכל זמן. כמה בבת אחת: בעמוד של משחק ← <b>"בחירה"</b>.</p>
+      <p>העלאה שלכם אפשר למחוק בכל זמן. לשמור או למחוק כמה בבת אחת: בעמוד של משחק ← <b>"בחירה"</b>.</p>
 
       <h3>${icon('shield')} לאן התמונות עולות</h3>
       <p>לשירות אחסון תמונות (Cloudinary), ורק מי שקיבל גישה לאפליקציה רואה אותן. נתוני המיקום (GPS) מוסרים לפני ההעלאה.</p>
@@ -320,6 +326,36 @@ function tagsHtml(it, asAdmin = tags.admin) {
     ? `<button type="button" data-v="untag" data-pid="${esc(t.pid)}" aria-label="${esc(`הסרת התיוג של ${t.name}`)}">${icon('x')}</button>` : ''}</span>`).join('')}</div>`;
 }
 
+// On an iPhone a download lands in Files, never in Photos, and a web app
+// cannot write to Photos: the share sheet's "Save Image" is the shortest way
+// there. So there "save" is the share sheet (the owner), and the files are
+// fetched ahead — as an item opens, as it is picked: fetched after the tap,
+// the sheet waited on the network, and Safari may refuse a share that no
+// longer follows the tap.
+const viaShare = () => !!(navigator.canShare && navigator.share) && platform() === 'ios';
+const files = new Map();
+function fileFor(g, it) {
+  if (!files.has(it.id)) {
+    files.set(it.id, fetch(it.kind === 'video' ? fullUrl(g, it) : saveUrl(g, it))
+      .then((r) => (r.ok ? r.blob() : Promise.reject(new Error(String(r.status)))))
+      .then((blob) => new File([blob], `${it.id}.${it.kind === 'video' ? 'mp4' : 'jpg'}`, { type: blob.type }))
+      .catch((err) => { files.delete(it.id); throw err; }));
+  }
+  return files.get(it.id);
+}
+// Elsewhere a download saves it: one after another, for several.
+async function download(g, items) {
+  for (const it of items) {
+    const a = document.createElement('a');
+    a.href = saveUrl(g, it);
+    a.download = '';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    if (items.length > 1) await new Promise((ok) => setTimeout(ok, 400));
+  }
+}
+
 function viewer(g, list, start, { asAdmin, onChange }) {
   let i = start;
   const el = document.createElement('div');
@@ -330,22 +366,8 @@ function viewer(g, list, start, { asAdmin, onChange }) {
   document.body.appendChild(el);
   document.documentElement.classList.add('sheet-open');
   const canShare = !!(navigator.canShare && navigator.share);
-  // On an iPhone a download lands in Files, never in Photos, and a web app
-  // cannot write to Photos: the share sheet's "Save Image" is the shortest
-  // way there. So one button does both (the owner), and the file is fetched
-  // as the item opens — fetched after the tap, the sheet waited on the
-  // network, and Safari may refuse a share that no longer follows the tap.
-  const oneButton = canShare && platform() === 'ios';
-  const files = new Map();
-  const fileFor = (it) => {
-    if (!files.has(it.id)) {
-      files.set(it.id, fetch(it.kind === 'video' ? fullUrl(g, it) : saveUrl(g, it))
-        .then((r) => (r.ok ? r.blob() : Promise.reject(new Error(String(r.status)))))
-        .then((blob) => new File([blob], it.kind === 'video' ? 'video.mp4' : 'photo.jpg', { type: blob.type }))
-        .catch((err) => { files.delete(it.id); throw err; }));
-    }
-    return files.get(it.id);
-  };
+  // One button on an iPhone, "save / share": both are the share sheet there.
+  const oneButton = viaShare();
 
   function draw() {
     const it = list[i];
@@ -375,7 +397,7 @@ function viewer(g, list, start, { asAdmin, onChange }) {
             : viewOnly ? '' : `<button type="button" class="btn secondary" data-v="hide">${icon('eyeoff')} הסתרה</button>`}
         </div>
       </div>`;
-    if (oneButton) fileFor(it).catch(() => {});
+    if (oneButton) fileFor(g, it).catch(() => {});
   }
 
   // Back closes the viewer, and so does a route change (as a sheet): it
@@ -420,7 +442,7 @@ function viewer(g, list, start, { asAdmin, onChange }) {
     if (v === 'next') return go(1);
     if (v === 'share') {
       try {
-        const file = await fileFor(it);
+        const file = await fileFor(g, it);
         if (navigator.canShare({ files: [file] })) await navigator.share({ files: [file] });
       } catch { /* dismissed, or the phone cannot share files */ }
       return;
@@ -566,8 +588,21 @@ export function wireGallery(root, s, { isAdmin = () => false } = {}) {
   const asAdmin = isAdmin();
   viewOnly = !asAdmin && !!s.isPlayer;
   setTagState(s, asAdmin);
-  const sel = { on: false, ids: new Set(), busy: false, asAdmin };
+  const sel = { on: false, ids: new Set(), busy: false, fetching: 0, deletable: false, asAdmin };
   const endSelect = () => { sel.on = false; sel.ids.clear(); sel.busy = false; };
+  // After every change to the picks: may they all be deleted, and (iPhone)
+  // fetch each file now, so "save" opens the share sheet on the tap.
+  const picked = () => (openAlbum()?.items || []).filter((it) => sel.ids.has(it.id));
+  const onPicks = () => {
+    const items = picked();
+    sel.deletable = items.length > 0 && items.every((it) => canDelete(it, asAdmin));
+    if (!viaShare()) return;
+    const pending = items.map((it) => fileFor(g, it));
+    const mark = ++sel.round;
+    sel.fetching = 1;
+    Promise.allSettled(pending).then(() => { if (mark === sel.round && alive) { sel.fetching = 0; paint(); } });
+  };
+  sel.round = 0;
   const kindOk = (it) => (shownTab === 'videos' ? it.kind === 'video' : it.kind !== 'video');
   // The game page open, if it still has anything in it.
   const openAlbum = () => (album === null ? null : groups(visible(g)).find((grp) => grp.key === album) || null);
@@ -624,31 +659,58 @@ export function wireGallery(root, s, { isAdmin = () => false } = {}) {
     if (t.dataset.gtab) { shownTab = t.dataset.gtab; tabFixed = true; endSelect(); paint(); return; }
     if (t.dataset.pick) {
       if (sel.ids.has(t.dataset.pick)) sel.ids.delete(t.dataset.pick); else sel.ids.add(t.dataset.pick);
+      onPicks();
       paint();
       return;
     }
     if (t.dataset.sel === 'start') { sel.on = true; paint(); return; }
     if (t.dataset.sel === 'cancel') { endSelect(); paint(); return; }
     if (t.dataset.sel === 'all') {
-      const all = inTab().filter((it) => canPick(it, asAdmin)).map((it) => it.id);
+      const all = inTab().map((it) => it.id);
       const every = all.every((id) => sel.ids.has(id));
       sel.ids = every ? new Set() : new Set(all);
+      onPicks();
       paint();
       return;
     }
     if (t.dataset.sel === 'delete') { deleteSelected(); return; }
+    if (t.dataset.sel === 'save') { saveSelected(); return; }
     if (t.dataset.open) {
       // What the viewer swipes through: this game's page, or the latest row.
       const list = album !== null ? inTab() : photosOf(visible(g)).slice(0, STRIP);
       viewer(g, list, Math.max(0, list.findIndex((it) => it.id === t.dataset.open)), { asAdmin, onChange: refresh });
     }
   });
+  async function saveSelected() {
+    const items = picked();
+    if (!items.length || sel.busy || sel.fetching) return;
+    if (viaShare()) {
+      try {
+        const list = await Promise.all(items.map((it) => fileFor(g, it)));
+        if (!navigator.canShare({ files: list })) throw new Error('cannot share');
+        sel.busy = 'save';
+        paint();
+        await navigator.share({ files: list });
+        endSelect();
+      } catch (err) {
+        sel.busy = false;
+        if (err?.name !== 'AbortError') toast('לא הצלחנו להכין את הקבצים. נסו שוב, או שמרו אחד-אחד.', { kind: 'err' });
+      }
+      paint();
+      return;
+    }
+    sel.busy = 'save';
+    paint();
+    await download(g, items);
+    endSelect();
+    paint();
+  }
   async function deleteSelected() {
     const n = sel.ids.size;
-    if (!n || sel.busy) return;
+    if (!n || sel.busy || !sel.deletable) return;
     const what = plural(n, 'פריט אחד', 'שני פריטים', 'פריטים');
     if (!(await confirmSheet({ title: `למחוק ${what}?`, text: 'הם יימחקו לגמרי מהגלריה, אצל כולם.', ok: 'מחיקה', cancel: 'חזרה', danger: true }))) return;
-    sel.busy = true;
+    sel.busy = 'delete';
     paint();
     try {
       await deleteItems([...sel.ids], { asAdmin });

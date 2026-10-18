@@ -2098,6 +2098,19 @@ await step('another parent hides it: gone for everyone else, still there for the
   await other.locator('#nav').waitFor();
   await other.goto(APP + '#/media');
   await other.locator('[data-gallery] .gl-tile').first().click();
+  // A portrait phone video (1080×1920) is taller than the stage: it shrinks
+  // into it like a photo, and never covers who uploaded it or the buttons.
+  const fit = await other.evaluate(() => {
+    const stage = document.querySelector('.gv-stage');
+    const v = document.createElement('video');
+    v.width = 1080; v.height = 1920;
+    stage.querySelector('img').replaceWith(v);
+    const r = v.getBoundingClientRect(), cap = document.querySelector('.gv-cap').getBoundingClientRect();
+    const out = { bottom: Math.round(r.bottom), cap: Math.round(cap.top) };
+    v.remove();
+    return out;
+  });
+  expect(fit.bottom <= fit.cap, `a portrait video runs over the caption: ${JSON.stringify(fit)}`);
   await other.locator('.gv [data-v="hide"]').click();
   await other.locator('.sheet [data-hide]').click();
   await other.locator('.gv').waitFor({ state: 'detached' });

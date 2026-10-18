@@ -8,6 +8,7 @@ import { linkedVideosHtml, sortedVideos, videosOnly } from './media.js';
 import { photoMatches } from '../fixtures.js';
 import { hydratePosters } from '../posters.js';
 import { keepImages, warmImages } from '../components.js';
+import { platform } from '../install.js';
 
 /* ── The team's gallery, on the media screen ──────────────────────────────
    Everything a parent uploads is up at once, under their name; any parent
@@ -329,6 +330,22 @@ function viewer(g, list, start, { asAdmin, onChange }) {
   document.body.appendChild(el);
   document.documentElement.classList.add('sheet-open');
   const canShare = !!(navigator.canShare && navigator.share);
+  // On an iPhone a download lands in Files, never in Photos, and a web app
+  // cannot write to Photos: the share sheet's "Save Image" is the shortest
+  // way there. So one button does both (the owner), and the file is fetched
+  // as the item opens — fetched after the tap, the sheet waited on the
+  // network, and Safari may refuse a share that no longer follows the tap.
+  const oneButton = canShare && platform() === 'ios';
+  const files = new Map();
+  const fileFor = (it) => {
+    if (!files.has(it.id)) {
+      files.set(it.id, fetch(it.kind === 'video' ? fullUrl(g, it) : saveUrl(g, it))
+        .then((r) => (r.ok ? r.blob() : Promise.reject(new Error(String(r.status)))))
+        .then((blob) => new File([blob], it.kind === 'video' ? 'video.mp4' : 'photo.jpg', { type: blob.type }))
+        .catch((err) => { files.delete(it.id); throw err; }));
+    }
+    return files.get(it.id);
+  };
 
   function draw() {
     const it = list[i];
@@ -350,13 +367,15 @@ function viewer(g, list, start, { asAdmin, onChange }) {
         ${tagsHtml(it)}
         <div class="gv-acts">
           ${tags.me && it.status === 'live' ? `<button type="button" class="btn secondary${it.players?.includes(tags.me) ? ' is-on' : ''}" data-v="me" aria-pressed="${!!it.players?.includes(tags.me)}">${icon(it.players?.includes(tags.me) ? 'check' : 'user')} אני בתמונה</button>` : ''}
-          <a class="btn secondary" href="${esc(saveUrl(g, it))}" download>${icon('download')} שמירה</a>
-          ${canShare ? `<button type="button" class="btn secondary" data-v="share">${icon('share')} שיתוף</button>` : ''}
+          ${oneButton ? `<button type="button" class="btn secondary" data-v="share">${icon('download')} שמירה / שיתוף</button>`
+            : `<a class="btn secondary" href="${esc(saveUrl(g, it))}" download>${icon('download')} שמירה</a>
+          ${canShare ? `<button type="button" class="btn secondary" data-v="share">${icon('share')} שיתוף</button>` : ''}`}
           ${it.mine || asAdmin
             ? `<button type="button" class="btn secondary" data-v="delete">${icon('trash')} מחיקה</button>`
             : viewOnly ? '' : `<button type="button" class="btn secondary" data-v="hide">${icon('eyeoff')} הסתרה</button>`}
         </div>
       </div>`;
+    if (oneButton) fileFor(it).catch(() => {});
   }
 
   // Back closes the viewer, and so does a route change (as a sheet): it
@@ -401,8 +420,7 @@ function viewer(g, list, start, { asAdmin, onChange }) {
     if (v === 'next') return go(1);
     if (v === 'share') {
       try {
-        const blob = await (await fetch(it.kind === 'video' ? fullUrl(g, it) : saveUrl(g, it))).blob();
-        const file = new File([blob], it.kind === 'video' ? 'video.mp4' : 'photo.jpg', { type: blob.type });
+        const file = await fileFor(it);
         if (navigator.canShare({ files: [file] })) await navigator.share({ files: [file] });
       } catch { /* dismissed, or the phone cannot share files */ }
       return;

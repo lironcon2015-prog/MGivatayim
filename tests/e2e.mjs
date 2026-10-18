@@ -1970,7 +1970,7 @@ async function fakeCloudinary(page) {
     uploads.push({ url: r.request().url(), body: r.request().postDataBuffer()?.toString('latin1') || '' });
     await r.fulfill({ status: 200, contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: '{"public_id":"ok"}' });
   });
-  await page.context().route('https://res.cloudinary.com/**', (r) => r.fulfill({ status: 200, contentType: 'image/png', body: PNG }));
+  await page.context().route('https://res.cloudinary.com/**', (r) => r.fulfill({ status: 200, contentType: 'image/png', headers: { 'Access-Control-Allow-Origin': '*' }, body: PNG }));
 }
 let other;
 const galleryFile = () => JSON.parse(bridge.driveFile('gallery.json') || '{"items":[]}');
@@ -2111,6 +2111,22 @@ await step('another parent hides it: gone for everyone else, still there for the
     return out;
   });
   expect(fit.bottom <= fit.cap, `a portrait video runs over the caption: ${JSON.stringify(fit)}`);
+  // On an iPhone "save" and "share" are one button: the share sheet is the
+  // way to Photos. It shares the file it fetched as the photo opened.
+  await other.click('.gv [data-v="close"]');
+  await other.locator('.gv').waitFor({ state: 'detached' });
+  await other.evaluate(() => {
+    Object.defineProperty(navigator, 'userAgent', { value: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Version/18.0 Mobile/15E148 Safari/604.1', configurable: true });
+    window.__shared = [];
+    navigator.canShare = () => true;
+    navigator.share = async (d) => { window.__shared.push(d.files.map((f) => f.name)); };
+  });
+  await other.locator('[data-gallery] .gl-tile').first().click();
+  const acts = await other.locator('.gv .gv-acts').innerText();
+  expect(acts.includes('שמירה / שיתוף') && !(await other.locator('.gv a[download]').count()), 'iPhone: not one save/share button — ' + acts);
+  await other.click('.gv [data-v="share"]');
+  await other.waitForFunction(() => window.__shared.length === 1, null, { timeout: 5000 }).catch(() => { throw new Error('iPhone: the save/share button shared nothing'); });
+  await other.evaluate(() => { delete navigator.userAgent; delete navigator.canShare; delete navigator.share; });
   await other.locator('.gv [data-v="hide"]').click();
   await other.locator('.sheet [data-hide]').click();
   await other.locator('.gv').waitFor({ state: 'detached' });

@@ -1,9 +1,11 @@
-# Deploy from this folder:  npx wrangler deploy
-# Settings and secrets: see the top of worker.js and README.md ("השרת בקלאודפלייר").
+# Deployed by Cloudflare from GitHub (Workers Builds, root directory: server) on every push to main.
+# The guide: README.md, "השרת בקלאודפלייר". The name must stay "mgivatayim" — the Worker's name in the dashboard.
 name = "mgivatayim"
 main = "worker.js"
 compatibility_date = "2026-07-01"
 compatibility_flags = ["nodejs_compat"]
+# Settings typed in the dashboard survive every deploy from GitHub.
+keep_vars = true
 
 [[durable_objects.bindings]]
 name = "TEAM"

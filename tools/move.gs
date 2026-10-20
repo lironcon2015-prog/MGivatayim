@@ -20,6 +20,9 @@
  *                to read a Drive video's thumbnail — only the owner's account can.
  *
  * Functions to run from the editor (the function menu → Run):
+ *   newHelperToken      makes HELPER_TOKEN here and logs it, to paste in Cloudflare
+ *   compareWithServer   asks this bridge and the server the same questions (as
+ *                       the manager) and says where the answers differ
  *   moveToServer        copy every file and image to the server, then compare
  *                       each one's fingerprint (server: ALLOW_IMPORT=1)
  *   backupFromServer    the server's data, into Drive: MGivatayim-backup/<date>
@@ -91,18 +94,61 @@ function helper_(req) {
 
 /* ---------- talking to the server ---------- */
 
-function serverAdmin_(op, body) {
+// POST to the server: path '' is the bridge itself, 'admin/<op>' the move.
+function serverPost_(path, body) {
   const url = moveProp_('SERVER_URL').replace(/\/+$/, '');
   if (!url) throw new Error('SERVER_URL לא הוגדר ב-Script properties');
-  const res = UrlFetchApp.fetch(url + '/admin/' + op, {
+  const res = UrlFetchApp.fetch(url + '/' + path, {
     method: 'post', contentType: 'text/plain', muteHttpExceptions: true,
     payload: JSON.stringify(Object.assign({ adminCode: adminCode_() }, body || {})),
   });
   let out = null;
   try { out = JSON.parse(res.getContentText()); } catch (err) { /* below */ }
   if (!out) throw new Error('השרת החזיר ' + res.getResponseCode() + ' בלי JSON: ' + res.getContentText().slice(0, 200));
+  return out;
+}
+
+function serverAdmin_(op, body) {
+  const out = serverPost_('admin/' + op, body);
   if (!out.ok) throw new Error('השרת סירב (' + op + '): ' + out.error + ' [' + out.code + ']');
   return out.result;
+}
+
+/* ---------- setup and the rehearsal ---------- */
+
+// A long random secret, kept here and logged once, for Cloudflare's HELPER_TOKEN.
+function newHelperToken() {
+  const token = (Utilities.getUuid() + Utilities.getUuid()).replace(/-/g, '');
+  PropertiesService.getScriptProperties().setProperty('HELPER_TOKEN', token);
+  Logger.log('HELPER_TOKEN (להעתיק לקלאודפלייר): ' + token);
+  return token;
+}
+
+// The same questions, as the manager, to this bridge (directly) and to the
+// server: every answer must be the same, apart from the clock — and from
+// "last seen", which a phone still on this bridge moves forward by reading.
+const COMPARE_ACTIONS = ['getSeason', 'getLive', 'getGallery', 'listUsers', 'adminPing'];
+const COMPARE_SKIP = ['serverNow', 'push', 'lastSeen'];
+function compareWithServer() {
+  const strip = function (o) {
+    return JSON.stringify(o, function (k, v) { return COMPARE_SKIP.indexOf(k) >= 0 ? undefined : v; });
+  };
+  const differ = [];
+  COMPARE_ACTIONS.forEach(function (action) {
+    let here;
+    try { here = { ok: true, result: handle_({ action: action, adminCode: adminCode_() }) }; }
+    catch (err) { here = { ok: false, code: (err && err.code) || 'error' }; }
+    const there = serverPost_('', { action: action });
+    const a = here.ok ? strip(here.result) : 'error:' + here.code;
+    const b = there.ok ? strip(there.result) : 'error:' + there.code;
+    if (a !== b) differ.push(action);
+  });
+  const summary = differ.length
+    ? 'יש הבדלים בין השרתים: ' + differ.join(', ')
+    : 'השרתים עונים אותו דבר (' + COMPARE_ACTIONS.length + ' שאלות).';
+  Logger.log(summary);
+  if (differ.length) throw new Error(summary);
+  return { same: COMPARE_ACTIONS.length };
 }
 
 function hex_(bytes) {

@@ -510,6 +510,27 @@ if (Miniflare) {
       assert.match(JSON.stringify((await srv({ action: 'getSeason', deviceKey: dev('m') })).result.message), /אימון בשש/);
     });
 
+    await test('the rehearsal: after the move both bridges answer the manager the same', () => {
+      const r = gas.fn('compareWithServer')();
+      assert.equal(r.same, 5);
+    });
+
+    await test('a difference between the bridges is found and named', async () => {
+      const v = (await srv({ action: 'getSeason', adminCode: ADMIN })).result.version;
+      await srv({ action: 'putSeason', adminCode: ADMIN, season: { team: { name: 'רק בשרת' }, players: [] }, baseVersion: v });
+      assert.throws(() => gas.fn('compareWithServer')(), /getSeason/);
+      gas.fn('moveToServer')();
+      assert.equal(gas.fn('compareWithServer')().same, 5);
+    });
+
+    await test('newHelperToken keeps a long random secret here and returns it once', () => {
+      const t = gas.fn('newHelperToken')();
+      assert.ok(t.length >= 60 && /^[0-9a-f]+$/.test(t));
+      assert.equal(gas.prop('HELPER_TOKEN'), t);
+      assert.notEqual(gas.fn('newHelperToken')(), t);
+      gas.setProp('HELPER_TOKEN', '');
+    });
+
     await test('moving again replaces and never doubles', async () => {
       gas.fn('moveToServer')();
       const d = (await srv({ adminCode: ADMIN }, '/admin/digest')).result;

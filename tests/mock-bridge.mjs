@@ -6,7 +6,7 @@
 //   node tests/mock-bridge.mjs [port]        → HTTP server, like the /exec URL
 //   import { createBridge } from './mock-bridge.mjs'   → in-process, for units
 import { readFileSync } from 'node:fs';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { createServer } from 'node:http';
 import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
@@ -91,7 +91,7 @@ export function createBridge({ adminCode = 'test-admin-code-1234', files = [], f
   const sandbox = {
     console,
     JSON, Date, Math, Object, String, Number, Array, Error, RegExp,
-    PropertiesService: { getScriptProperties: () => ({ getProperty: (k) => props.get(k) ?? null }) },
+    PropertiesService: { getScriptProperties: () => ({ getProperty: (k) => props.get(k) ?? null, setProperty: (k, v) => { props.set(k, String(v)); } }) },
     // Apps Script refuses a value over 100KB — bytes, not characters: a
     // Hebrew letter is two. The limit is held here so a bridge that sizes
     // by characters fails the tests as it fails in production.
@@ -118,6 +118,7 @@ export function createBridge({ adminCode = 'test-admin-code-1234', files = [], f
       base64Encode: (bytes) => Buffer.from(bytes.map((b) => b & 0xff)).toString('base64'),
       base64Decode: (str) => [...Buffer.from(str, 'base64')].map((b) => (b > 127 ? b - 256 : b)),
       newBlob: (bytes, type, name) => makeBlob(bytes, type, name),
+      getUuid: () => randomUUID(),
     },
     DriveApp: {
       getFoldersByName: (n) => { walks++; return iterator(folders.filter((f) => f.name === n)); },
@@ -183,6 +184,7 @@ export function createBridge({ adminCode = 'test-admin-code-1234', files = [], f
     fileById: (id) => byId.get(id) ?? null,
     driveFileId: (name) => folders[0]?.files.find((f) => f.name === name)?.getId() ?? null,
     setProp: (k, v) => props.set(k, v),
+    prop: (k) => props.get(k) ?? null,
     get writes() { return writes; },
     get walks() { return walks; },
     driveFiles: (name) => folders[0]?.files.filter((f) => f.name === name) ?? [],

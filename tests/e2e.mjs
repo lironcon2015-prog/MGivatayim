@@ -2426,6 +2426,13 @@ await step('a player sees his own card and no leaderboard; the coach\'s message 
   await admin.locator('.pick-grid').waitFor({ timeout: 5000 });
   await admin.click('[data-pane="staff:team"]');
   await admin.locator('#board .leader').first().waitFor({ timeout: 5000 });
+  // The switch starts where every screen's first section does — it sat flush
+  // under the header.
+  const paneTop = await admin.evaluate(() => document.querySelector('.stats-pane').getBoundingClientRect().top + scrollY);
+  await admin.goto(APP + '#/');
+  await admin.locator('#view > section').first().waitFor({ timeout: 5000 });
+  const homeTop = await admin.evaluate(() => document.querySelector('#view > :first-child').getBoundingClientRect().top + scrollY);
+  expect(Math.abs(paneTop - homeTop) < 2, `the stats switch is at ${paneTop}px, the home screen starts at ${homeTop}px`);
   await kid.goto(APP + '#/media');
   await kid.locator('[data-gallery] .sec-head').first().waitFor({ timeout: 8000 });
   expect(await kid.locator('.gl-dock, [data-upload]').count() === 0, 'the player can upload');

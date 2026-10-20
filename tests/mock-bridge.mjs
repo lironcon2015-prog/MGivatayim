@@ -18,7 +18,10 @@ function iterator(items) {
   return { hasNext: () => i < items.length, next: () => items[i++] };
 }
 
-export function createBridge({ adminCode = 'test-admin-code-1234' } = {}) {
+// files: more .gs files of the same Apps Script project, loaded after
+// bridge.gs (tools/move.gs). fetchHook(url, opts): answers UrlFetchApp before
+// the registered pages — {code, body, type} — or undefined to fall through.
+export function createBridge({ adminCode = 'test-admin-code-1234', files = [], fetchHook = null } = {}) {
   const folders = [];
   const cache = new Map();
   const props = new Map([['ADMIN_CODE', adminCode]]);
@@ -49,9 +52,12 @@ export function createBridge({ adminCode = 'test-admin-code-1234' } = {}) {
       getName: () => name,
       getDescription: () => folder.description,
       setDescription: (d) => { folder.description = d; },
-      isTrashed: () => false,
+      isTrashed: () => !!folder.trashed,
+      setTrashed: (t) => { folder.trashed = t; },
       getFilesByName: (n) => iterator(files.filter((f) => f.name === n && !f.trashed)),
       getFoldersByName: (n) => iterator(subs.filter((f) => f.name === n)),
+      getFolders: () => iterator(subs.slice()),
+      getFiles: () => iterator(files.slice()),
       createFolder: (n) => { const f = makeFolder(n, folder); subs.push(f); return f; },
       // createFile(name, text) for JSON, createFile(blob) for images — as in Apps Script.
       createFile: (a, text) => {
@@ -60,6 +66,7 @@ export function createBridge({ adminCode = 'test-admin-code-1234' } = {}) {
         const f = {
           name: blob ? blob.getName() : a, text, trashed: false, blob,
           getId: () => fid,
+          getName: () => f.name,
           isTrashed: () => f.trashed,
           setTrashed: (t) => { f.trashed = t; },
           getParents: () => iterator([folder]),
@@ -106,7 +113,8 @@ export function createBridge({ adminCode = 'test-admin-code-1234' } = {}) {
       Charset: { UTF_8: 'utf8' },
       // Apps Script hands back *signed* bytes; the bridge masks them with
       // & 0xff, and an unsigned shim would hide a missing mask.
-      computeDigest: (alg, str) => [...createHash(alg).update(str, 'utf8').digest()].map((b) => (b > 127 ? b - 256 : b)),
+      // A string (with a charset) or a byte array, as in Apps Script.
+      computeDigest: (alg, v) => [...createHash(alg).update(Array.isArray(v) ? Buffer.from(v.map((b) => b & 0xff)) : String(v), 'utf8').digest()].map((b) => (b > 127 ? b - 256 : b)),
       base64Encode: (bytes) => Buffer.from(bytes.map((b) => b & 0xff)).toString('base64'),
       base64Decode: (str) => [...Buffer.from(str, 'base64')].map((b) => (b > 127 ? b - 256 : b)),
       newBlob: (bytes, type, name) => makeBlob(bytes, type, name),
@@ -125,6 +133,11 @@ export function createBridge({ adminCode = 'test-admin-code-1234' } = {}) {
       fetchAll: (reqs) => reqs.map((r) => sandbox.UrlFetchApp.fetch(r.url, r)),
       fetch: (url, opts) => {
         fetched.push({ url, opts });
+        const hooked = fetchHook && fetchHook(url, opts || {});
+        if (hooked) {
+          const b = Buffer.from(hooked.body ?? '');
+          return { getResponseCode: () => hooked.code ?? 200, getContentText: () => b.toString('utf8'), getBlob: () => makeBlob([...b], hooked.type || 'application/json'), getHeaders: () => ({}) };
+        }
         const hit = web.get(url);
         // A registered redirect answers 302 with its Location, as Apps Script
         // shows it when asked not to follow (followRedirects: false).
@@ -148,8 +161,10 @@ export function createBridge({ adminCode = 'test-admin-code-1234' } = {}) {
       createTextOutput: (text) => ({ text, setMimeType() { return this; } }),
     },
   };
+  sandbox.Logger = { log: () => {} };
   vm.createContext(sandbox);
   vm.runInContext(readFileSync(GS, 'utf8'), sandbox, { filename: 'bridge.gs' });
+  for (const f of files) vm.runInContext(readFileSync(new URL('../' + f, import.meta.url), 'utf8'), sandbox, { filename: f });
 
   return {
     post(body) {
@@ -171,6 +186,8 @@ export function createBridge({ adminCode = 'test-admin-code-1234' } = {}) {
     get writes() { return writes; },
     get walks() { return walks; },
     driveFiles: (name) => folders[0]?.files.filter((f) => f.name === name) ?? [],
+    // Every top-level folder by name (backups live beside the team's folder).
+    topFolder: (name) => folders.find((f) => f.name === name) ?? null,
     // A function of bridge.gs itself, to hold it to its twin in src/.
     fn: (name) => sandbox[name],
   };

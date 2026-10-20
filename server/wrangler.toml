@@ -1,0 +1,14 @@
+# Deploy from this folder:  npx wrangler deploy
+# Settings and secrets: see the top of worker.js and README.md ("השרת בקלאודפלייר").
+name = "mgivatayim"
+main = "worker.js"
+compatibility_date = "2026-07-01"
+compatibility_flags = ["nodejs_compat"]
+
+[[durable_objects.bindings]]
+name = "TEAM"
+class_name = "Team"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Team"]

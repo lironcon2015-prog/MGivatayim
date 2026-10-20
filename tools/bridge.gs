@@ -92,6 +92,14 @@ const WATCH_TTL_S = 120;
 /* ---------- הכניסה ---------- */
 
 function doPost(e) {
+  // The move to the Cloudflare server (tools/move.gs, a second file in the
+  // same Apps Script project): while moving, writes wait; after it, this
+  // deployment passes requests on, and does the owner's errands for the
+  // server. Without move.gs — and on the server itself — there is no gate.
+  if (typeof gate_ === 'function') {
+    const gated = gate_(e);
+    if (gated) return gated;
+  }
   try {
     const req = JSON.parse((e && e.postData && e.postData.contents) || '{}');
     return json_({ ok: true, result: handle_(req) });

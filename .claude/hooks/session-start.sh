@@ -22,10 +22,13 @@ fi
 cd "${CLAUDE_PROJECT_DIR:-$(dirname "$0")/../..}"
 
 # הבדיקות מריצות את ה-Chromium שבתמונה (/opt/pw-browsers) ישירות, ולכן כל
-# גרסת playwright מספיקה; מתקינים רק אם חסר. node_modules מוחרג ב-.gitignore.
-if [ ! -f node_modules/playwright/package.json ]; then
-  echo "מתקין playwright"
-  npm install --no-audit --no-fund --no-save --silent playwright || echo "אזהרה: התקנת playwright נכשלה"
+# גרסת playwright מספיקה; miniflare מריץ את השרת בקלאודפלייר (tests/server.mjs)
+# ב-workerd האמיתי. מתקינים רק אם חסר, ושניהם **בפקודה אחת**: בלי package.json,
+# `npm install --no-save X` מסיר כל חבילה אחרת שאינה X, כך שהתקנה נפרדת של
+# השנייה מחקה את הראשונה. node_modules מוחרג ב-.gitignore.
+if [ ! -f node_modules/playwright/package.json ] || [ ! -f node_modules/miniflare/package.json ]; then
+  echo "מתקין playwright ו-miniflare"
+  npm install --no-audit --no-fund --no-save --silent playwright miniflare || echo "אזהרה: ההתקנה נכשלה"
 else
-  echo "playwright כבר מותקן"
+  echo "playwright ו-miniflare כבר מותקנים"
 fi

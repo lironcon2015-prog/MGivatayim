@@ -12,7 +12,8 @@ import { existsSync } from 'node:fs';
 import { deflateSync, crc32 } from 'node:zlib';
 import { extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createBridge, serveBridge } from './mock-bridge.mjs';
+// BRIDGE=server: the same run against the Cloudflare server's bridge (tests/server-bridge.mjs).
+const { createBridge, serveBridge } = await import(process.env.BRIDGE === 'server' ? './server-bridge.mjs' : './mock-bridge.mjs');
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const ADMIN = 'test-admin-code-1234';

@@ -1,6 +1,8 @@
 // Server-side rules of tools/bridge.gs, run against the real file.
-//   node tests/bridge.mjs
-import { createBridge } from './mock-bridge.mjs';
+//   node tests/bridge.mjs                 → as Apps Script runs it
+//   BRIDGE=server node tests/bridge.mjs   → as the Cloudflare server runs it
+// (tests/server.mjs runs the second; every rule here holds on both.)
+const { createBridge } = await import(process.env.BRIDGE === 'server' ? './server-bridge.mjs' : './mock-bridge.mjs');
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 

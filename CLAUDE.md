@@ -183,7 +183,8 @@ deployments → New version). בלי זה הכתובת ממשיכה להריץ �
 **המעבר** (`tools/move.gs`, ראו README): `MODE` = `readonly` (כתיבה נענית `moving`, ותור הלייב
 מחכה ולא נזרק) → `moveToServer` (טביעת אצבע לכל קובץ) → החלפת `BRIDGE_URL` → `MODE` = `forward`
 (טלפון בגרסה ישנה עובר דרך גוגל לשרת; שרת שלא עונה = `network`, שהטלפון מנסה שוב) →
-`installDailyBackup`. חזרה: `rollbackFromServer`. **עד יום המעבר `BRIDGE_URL` נשאר של גוגל.**
+`installDailyBackup`. חזרה: `rollbackFromServer`. **המעבר בוצע ב-1.87.0**: `BRIDGE_URL` הוא
+`https://mgivatayim.lironcon.workers.dev`; הגשר בגוגל במצב `forward` ועוזר לשרת. הנתונים בשרת, הגיבוי בדרייב.
 
 **פריסת השרת: מגיטהאב, לא ממחשב** (בעל הריפו: "למה אני צריך node?"). Workers Builds של קלאודפלייר מחובר
 לריפו (תיקיית שורש `server`) ופורס בכל דחיפה ל-`main` — שינוי ב-`server/` או ב-`bridge-core.js` עולה לבד.

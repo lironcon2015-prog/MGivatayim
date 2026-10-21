@@ -70,3 +70,10 @@ export function forgetAccess() {
 // storage only, never from the URL: a link that could redirect the app to a
 // foreign bridge would be a way to harvest the manager's code.
 export const bridgeOverride = () => get('bridge') || '';
+// And at a second one, standing in for the way around (see bridge.js).
+export const fallbackOverride = () => get('bridgeFallback') || '';
+// Until when this phone goes the way around: a network that cannot reach the
+// server answered through Google. Kept across restarts — the same phone on the
+// same network would otherwise fail its first request at every opening.
+export const getVia = () => Number(get('via')) || 0;
+export const setVia = (until) => set('via', until ? String(until) : null);

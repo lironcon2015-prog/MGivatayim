@@ -2665,6 +2665,46 @@ await step("a parent's copy of the season is never put up for the manager to edi
   await admin.locator('.admin-body:not([inert])').waitFor({ timeout: 8000 });
 });
 
+await step('a network that cannot reach the server goes around it, and a write is sent once', async () => {
+  // The owner's cellular network did not reach workers.dev; his wifi did.
+  const DEAD = `http://localhost:${BRIDGE_PORT + 50}/exec`;
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  await ctx.addInitScript(([dead, alt, code]) => {
+    try {
+      localStorage.setItem('mg:bridge', dead); localStorage.setItem('mg:bridgeFallback', alt);
+      localStorage.setItem('mg:admin', code);
+    } catch {}
+  }, [DEAD, BRIDGE, ADMIN]);
+  const page = await ctx.newPage();
+  const sent = { dead: [], alt: [] };
+  page.on('request', (r) => {
+    if (r.method() !== 'POST') return;
+    const a = JSON.parse(r.postData() || '{}').action;
+    if (r.url() === DEAD) sent.dead.push(a); else if (r.url() === BRIDGE) sent.alt.push(a);
+  });
+  try {
+    await page.goto(APP + '#/');
+    await page.locator('#view .sec-head').first().waitFor({ timeout: 10000 });
+    expect(await page.evaluate(() => Number(localStorage.getItem('mg:via')) > Date.now()), 'the phone did not remember to go around');
+    const deadReads = sent.dead.length;
+    const say = (text) => page.evaluate(async (t) => (await import('./src/bridge.js')).call('setMessage', { text: t }, { asAdmin: true }), text);
+    await say('דרך גוגל');
+    expect(sent.dead.length === deadReads, `a request went to the server while going around: ${sent.dead.slice(deadReads)}`);
+    // The time is up: a write still goes around, once, while a hello asks the server.
+    await page.evaluate(() => localStorage.setItem('mg:via', '1'));
+    sent.dead.length = 0; sent.alt.length = 0;
+    await say('שוב דרך גוגל');
+    await until(() => sent.dead.includes('hello'), 'no hello asked the server');
+    expect(sent.dead.every((a) => a === 'hello'), `the write went to the server: ${sent.dead}`);
+    expect(sent.alt.filter((a) => a === 'setMessage').length === 1, `the write was sent ${sent.alt.filter((a) => a === 'setMessage').length} times`);
+    await page.waitForFunction(() => Number(localStorage.getItem('mg:via')) > Date.now(), null, { timeout: 8000 })
+      .catch(() => { throw new Error('the failed hello did not keep the phone going around'); });
+  } finally {
+    await bridge.post({ action: 'setMessage', adminCode: ADMIN, text: '' });
+    await ctx.close();
+  }
+});
+
 await step('no page errors and no CORS preflight on any device', async () => {
   const errs = [...parent.errors, ...admin.errors, ...(coach?.errors || []), ...(other?.errors || [])];
   expect(!errs.length, errs.join(' | '));

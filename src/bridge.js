@@ -1,10 +1,30 @@
-import { BRIDGE_URL } from './config.js';
-import { bridgeOverride, deviceKey, getAdminCode } from './store.js';
+import { BRIDGE_URL, FALLBACK_URL } from './config.js';
+import { bridgeOverride, fallbackOverride, deviceKey, getAdminCode, getVia, setVia } from './store.js';
 
 const TIMEOUT_MS = 30000;
 
 export const bridgeUrl = () => bridgeOverride() || BRIDGE_URL;
 export const bridgeConfigured = () => !!bridgeUrl();
+// A test's local bridge has no way around unless the test gives it one.
+const fallbackUrl = () => (bridgeOverride() ? fallbackOverride() : FALLBACK_URL);
+
+// The way around (config.js). A read the server never answered — the network
+// failed, or nothing came back in time — is asked again through Google at
+// once; when that answers, the network is the problem, and every request goes
+// around for VIA_MS. Then a read tries the server again, and a write goes
+// around while a 'hello' asks whether the server is back: a write is sent
+// once, never to a server that may not be there (see RETRY_SAFE).
+// A network that blocks the server only ever answers a read through Google,
+// so a phone back from the background, with no network at all, does not switch.
+const VIA_MS = 10 * 60 * 1000;
+const goAround = () => setVia(Date.now() + VIA_MS);
+const unreached = (e) => e.code === 'network';
+let probing = null;
+function probe() {
+  probing ||= send(bridgeUrl(), JSON.stringify({ action: 'hello', deviceKey: deviceKey() }))
+    .then(() => setVia(0), (e) => { if (unreached(e)) goAround(); })
+    .finally(() => { probing = null; });
+}
 
 export class BridgeError extends Error {
   constructor(message, code) {
@@ -38,10 +58,25 @@ export async function call(action, params = {}, { asAdmin = false } = {}) {
   if (asAdmin) body.adminCode = params.adminCode ?? getAdminCode();
   const text = JSON.stringify(body);
 
+  const alt = fallbackUrl();
+  const read = RETRY_SAFE.has(action);
+  const via = alt ? getVia() : 0;
+  if (via > Date.now()) return send(alt, text);
+  if (via && !read) { probe(); return send(alt, text); }
+
   try {
-    return await send(url, text);
+    const r = await send(url, text);
+    if (via) setVia(0);
+    return r;
   } catch (e) {
-    if (!RETRY_SAFE.has(action) || !RETRY_CODES.has(e.code) || e.timeout || (e.code === 'http' && e.status < 500)) throw e;
+    if (read && alt && unreached(e)) {
+      let r;
+      // Any answer through Google, a refusal included, says the way around works.
+      try { r = await send(alt, text); } catch (e2) { if (!unreached(e2)) goAround(); throw e2; }
+      goAround();
+      return r;
+    }
+    if (!read || !RETRY_CODES.has(e.code) || e.timeout || (e.code === 'http' && e.status < 500)) throw e;
     await new Promise((r) => setTimeout(r, RETRY_AFTER_MS));
     return send(url, text);
   }

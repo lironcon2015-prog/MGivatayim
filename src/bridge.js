@@ -17,12 +17,19 @@ const fallbackUrl = () => (bridgeOverride() ? fallbackOverride() : FALLBACK_URL)
 // A network that blocks the server only ever answers a read through Google,
 // so a phone back from the background, with no network at all, does not switch.
 const VIA_MS = 10 * 60 * 1000;
-const goAround = () => setVia(Date.now() + VIA_MS);
+const route = (until) => {
+  setVia(until, bridgeUrl());
+  // The footer says which way this phone goes (app.js) — the owner asked how to tell.
+  const el = typeof document !== 'undefined' && document.getElementById('app-route');
+  if (el) el.hidden = !until;
+};
+const goAround = () => route(Date.now() + VIA_MS);
+export const goingAround = () => !!fallbackUrl() && getVia(bridgeUrl()) > Date.now();
 const unreached = (e) => e.code === 'network';
 let probing = null;
 function probe() {
   probing ||= send(bridgeUrl(), JSON.stringify({ action: 'hello', deviceKey: deviceKey() }))
-    .then(() => setVia(0), (e) => { if (unreached(e)) goAround(); })
+    .then(() => route(0), (e) => { if (unreached(e)) goAround(); })
     .finally(() => { probing = null; });
 }
 
@@ -60,13 +67,13 @@ export async function call(action, params = {}, { asAdmin = false } = {}) {
 
   const alt = fallbackUrl();
   const read = RETRY_SAFE.has(action);
-  const via = alt ? getVia() : 0;
+  const via = alt ? getVia(url) : 0;
   if (via > Date.now()) return send(alt, text);
   if (via && !read) { probe(); return send(alt, text); }
 
   try {
     const r = await send(url, text);
-    if (via) setVia(0);
+    if (via) route(0);
     return r;
   } catch (e) {
     if (read && alt && unreached(e)) {

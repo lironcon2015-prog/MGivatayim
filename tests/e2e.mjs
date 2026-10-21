@@ -2685,20 +2685,28 @@ await step('a network that cannot reach the server goes around it, and a write i
   try {
     await page.goto(APP + '#/');
     await page.locator('#view .sec-head').first().waitFor({ timeout: 10000 });
-    expect(await page.evaluate(() => Number(localStorage.getItem('mg:via')) > Date.now()), 'the phone did not remember to go around');
+    const viaUntil = () => Number((localStorage.getItem('mg:via') || '').split('|')[0]);
+    expect(await page.evaluate(`(${viaUntil})() > Date.now()`), 'the phone did not remember to go around');
+    // The footer says so — the owner asked how to tell which way the phone goes.
+    await page.locator('#app-route:not([hidden])').waitFor({ timeout: 5000 });
     const deadReads = sent.dead.length;
     const say = (text) => page.evaluate(async (t) => (await import('./src/bridge.js')).call('setMessage', { text: t }, { asAdmin: true }), text);
     await say('דרך גוגל');
     expect(sent.dead.length === deadReads, `a request went to the server while going around: ${sent.dead.slice(deadReads)}`);
     // The time is up: a write still goes around, once, while a hello asks the server.
-    await page.evaluate(() => localStorage.setItem('mg:via', '1'));
+    await page.evaluate((dead) => localStorage.setItem('mg:via', '1|' + dead), DEAD);
     sent.dead.length = 0; sent.alt.length = 0;
     await say('שוב דרך גוגל');
     await until(() => sent.dead.includes('hello'), 'no hello asked the server');
     expect(sent.dead.every((a) => a === 'hello'), `the write went to the server: ${sent.dead}`);
     expect(sent.alt.filter((a) => a === 'setMessage').length === 1, `the write was sent ${sent.alt.filter((a) => a === 'setMessage').length} times`);
-    await page.waitForFunction(() => Number(localStorage.getItem('mg:via')) > Date.now(), null, { timeout: 8000 })
+    await page.waitForFunction(`(${viaUntil})() > Date.now()`, null, { timeout: 8000 })
       .catch(() => { throw new Error('the failed hello did not keep the phone going around'); });
+    // Going around for another server's address (the one before 1.87.3) does not count.
+    await page.evaluate(() => localStorage.setItem('mg:via', (Date.now() + 600000) + '|https://old.example'));
+    sent.dead.length = 0;
+    await say('לשרת').catch(() => {});   // the server here is down: it fails, which is the point
+    expect(sent.dead.includes('setMessage'), 'a stale going-around kept the write from the server');
   } finally {
     await bridge.post({ action: 'setMessage', adminCode: ADMIN, text: '' });
     await ctx.close();

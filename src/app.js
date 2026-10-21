@@ -3,7 +3,7 @@ import { esc, seasonLabel, byNumber } from './format.js';
 import { crestImg, keepImages, keepFocus } from './components.js';
 import { icon } from './icons.js';
 import { DEFAULT_CREST } from './config.js';
-import { call, bridgeConfigured } from './bridge.js';
+import { call, bridgeConfigured, goingAround } from './bridge.js';
 import * as store from './store.js';
 import { renderHome, wireHome } from './views/home.js';
 import { renderStats, wireStats, statsJump } from './views/stats.js';
@@ -383,7 +383,7 @@ function chrome(team) {
       </div>
     </header>
     <main class="shell" id="view" tabindex="-1"></main>
-    <footer class="app-foot">גרסה <span class="num" id="app-version">${esc(appVersion() || '—')}</span></footer>
+    <footer class="app-foot">גרסה <span class="num" id="app-version">${esc(appVersion() || '—')}</span><span id="app-route"${goingAround() ? '' : ' hidden'}> · דרך גוגל</span></footer>
     ${nav}`;
 }
 

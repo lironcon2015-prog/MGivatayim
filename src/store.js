@@ -74,6 +74,7 @@ export const bridgeOverride = () => get('bridge') || '';
 export const fallbackOverride = () => get('bridgeFallback') || '';
 // Until when this phone goes the way around: a network that cannot reach the
 // server answered through Google. Kept across restarts — the same phone on the
-// same network would otherwise fail its first request at every opening.
-export const getVia = () => Number(get('via')) || 0;
-export const setVia = (until) => set('via', until ? String(until) : null);
+// same network would otherwise fail its first request at every opening. Kept
+// with the server's address: one that changed (1.87.3) is tried again at once.
+export const getVia = (url) => { const [until, at] = (get('via') || '').split('|'); return at === url ? Number(until) || 0 : 0; };
+export const setVia = (until, url) => set('via', until ? `${until}|${url}` : null);

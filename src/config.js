@@ -6,7 +6,10 @@
 // It is public on purpose: every visitor's browser needs it, and it protects
 // nothing by itself. The bridge enforces who may read and who may write, so
 // publishing this string gives away no more than the address of a locked door.
-export const BRIDGE_URL = 'https://mgivatayim.lironcon.workers.dev';
+// On the owner's own domain, not workers.dev: a cellular network blocked
+// workers.dev outright. The same Worker still answers at
+// https://mgivatayim.lironcon.workers.dev, for phones not yet updated.
+export const BRIDGE_URL = 'https://mg.lironcon.com';
 
 // The way around a network that blocks workers.dev — the owner's cellular
 // network did, his wifi did not ("as if there were no internet"). In forward

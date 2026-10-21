@@ -192,6 +192,9 @@ deployments → New version). בלי זה הכתובת ממשיכה להריץ �
 (טלפון בגרסה ישנה עובר דרך גוגל לשרת; שרת שלא עונה = `network`, שהטלפון מנסה שוב) →
 `installDailyBackup`. חזרה: `rollbackFromServer`. **המעבר בוצע ב-1.87.0**: `BRIDGE_URL` הוא
 `https://mgivatayim.lironcon.workers.dev`; הגשר בגוגל במצב `forward` ועוזר לשרת. הנתונים בשרת, הגיבוי בדרייב.
+**מ-1.87.3 `BRIDGE_URL` הוא `https://mg.lironcon.com`** — Custom Domain של אותו Worker, על הדומיין של בעל הריפו
+(הסלולרי שלו חסם את `workers.dev`). כתובת ה-`workers.dev` ממשיכה לעבוד לטלפונים שעוד לא התעדכנו, ו-`SERVER_URL`
+בגוגל מצביע על הכתובת החדשה. שרת חדש או מעבר — Custom Domain, לא `workers.dev`.
 
 **פריסת השרת: מגיטהאב, לא ממחשב** (בעל הריפו: "למה אני צריך node?"). Workers Builds של קלאודפלייר מחובר
 לריפו (תיקיית שורש `server`) ופורס בכל דחיפה ל-`main` — שינוי ב-`server/` או ב-`bridge-core.js` עולה לבד.

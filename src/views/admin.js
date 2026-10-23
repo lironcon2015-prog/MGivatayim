@@ -11,7 +11,7 @@ import { roundText, oppLogo, keepFocus, skeleton } from '../components.js';
 import { preparePosters, uploadLogo, uploadQr, hydratePosters } from '../posters.js';
 import { logoKey } from '../season.js';
 import { thumbUrl } from '../gallery.js';
-import { detectFixtureColumns, rowsToFixtures, applyFixtureImport, upcomingFixtures, fixtureKey, mergeNextMatch, playedTest, FIXTURE_FIELDS, todayInIsrael, gameOrder, firstDay, parseGameMessage, gameMessageRow, applyGameMessage } from '../fixtures.js';
+import { detectFixtureColumns, rowsToFixtures, applyFixtureImport, upcomingFixtures, fixtureKey, mergeNextMatch, playedTest, FIXTURE_FIELDS, todayInIsrael, gameOrder, firstDay, nextPlayable, offStatus, STATUS, parseGameMessage, gameMessageRow, applyGameMessage } from '../fixtures.js';
 import { DAYS, weekday } from '../trainings.js';
 
 // Access: a request that may be a cleared phone asking again (replaceSheet).
@@ -37,6 +37,8 @@ function ago(iso) {
    and splits are computed from these (see CLAUDE.md), so they have no field. */
 
 const HOME_OPTS = [['true', 'בית'], ['false', 'חוץ']];
+// A game put off (src/fixtures.js): not the next match, its word on the schedule.
+const STATUS_OPTS = [['', 'מתקיים'], ['postponed', 'נדחה — מועד חדש ייקבע'], ['cancelled', 'בוטל']];
 // A link's host → its icon, for the pages parents' groups link to most.
 const ICON_BY_HOST = [
   [/(^|\.)(facebook|fb)\.(com|me)$/, 'facebook'], [/(^|\.)instagram\.com$/, 'instagram'],
@@ -121,11 +123,12 @@ const LISTS = [
     note: 'המשחק הבא הוא הקרוב שעוד אין לו תוצאה. התכנסות, תלבושת וסמל אפשר להוסיף לכל משחק.',
     blank: () => ({ date: today(), time: '', opponent: '', home: true, round: null, venue: { name: '', address: '', waze: '' }, arrival: '', kit: '' }),
     label: (f) => `${f.date ? shortDate(f.date) + ' · ' : ''}${f.opponent || 'משחק חדש'}`,
-    sum: (f) => ({ title: f.opponent || 'משחק חדש', sub: [f.date && (f.tbd === true ? `תאריך טרם נקבע (שבוע ${shortDate(f.date)})` : shortDate(f.date)), f.time || 'שעה טרם נקבעה', f.home === false ? 'חוץ' : 'בית', roundText(f.round, f.friendly), f.arrival && `התכנסות ${f.arrival}`, f.kit].filter(Boolean).join(' · ') }),
+    sum: (f) => ({ title: f.opponent || 'משחק חדש', sub: [offStatus(f) && STATUS[offStatus(f)], f.date && (f.tbd === true ? `תאריך טרם נקבע (שבוע ${shortDate(f.date)})` : shortDate(f.date)), f.time || 'שעה טרם נקבעה', f.home === false ? 'חוץ' : 'בית', roundText(f.round, f.friendly), f.arrival && `התכנסות ${f.arrival}`, f.kit].filter(Boolean).join(' · ') }),
     fields: [
       { key: 'date', label: 'תאריך', type: 'date', required: true },
       { key: 'time', label: 'שעה', type: 'time', hint: 'ריק = טרם נקבעה' },
       { key: 'tbd', label: 'התאריך טרם נקבע (התאריך שלמעלה = שבוע המחזור)', type: 'check', wide: true },
+      { key: 'status', label: 'מצב המשחק', type: 'select', options: STATUS_OPTS, hint: 'נדחה או בוטל — לא המשחק הבא. תאריך חדש מחזיר ל"מתקיים"' },
       { key: 'opponent', label: 'יריבה', required: true },
       { key: 'home', label: 'בית / חוץ', type: 'select', options: HOME_OPTS },
       { key: 'round', label: 'מחזור', type: 'round' },
@@ -1362,12 +1365,12 @@ export function mountAdmin(view, ctx) {
   }
 
   // The schedule's nearest row with no result is the next match parents see.
-  const nextKey = () => { const f = upcomingFixtures(draft.fixtures, draft.matches)[0]; return f ? fixtureKey(f) : null; };
+  const nextKey = () => { const f = nextPlayable(upcomingFixtures(draft.fixtures, draft.matches)); return f ? fixtureKey(f) : null; };
 
   // What a schedule row adds under its fields: the opponent's crest, and
   // "played" once the game is next or its day has come.
   function fixtureExtra(item, i) {
-    const due = fixtureKey(item) === nextKey() || (item.date && firstDay(item) <= today());
+    const due = offStatus(item) !== 'cancelled' && (fixtureKey(item) === nextKey() || (item.date && firstDay(item) <= today()));
     return `<div data-logo-host="fixtures.${i}">${logoHtml(item.opponent)}</div>
       ${due ? `<button type="button" class="btn small" data-played="${i}">המשחק התקיים — הזנת תוצאה</button>` : ''}`;
   }
@@ -1666,6 +1669,13 @@ export function mountAdmin(view, ctx) {
           const box = view.querySelector(`[data-path="fixtures.${unset[1]}.${k}"]`);
           if (box) box.value = '';
         }
+      }
+      // A new day typed for a postponed game: it is on again.
+      const redated = /^fixtures\.(\d+)\.date$/.exec(path);
+      if (redated && draft.fixtures[Number(redated[1])]?.status === 'postponed') {
+        delete draft.fixtures[Number(redated[1])].status;
+        const sel = view.querySelector(`[data-path="fixtures.${redated[1]}.status"]`);
+        if (sel) sel.value = '';
       }
       // A day typed for a game whose date was still to be set: it is set now.
       const dated = /^fixtures\.(\d+)\.date$/.exec(path);

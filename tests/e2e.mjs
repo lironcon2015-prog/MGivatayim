@@ -1333,6 +1333,29 @@ await step('a game whose day is unset again loses its hour and gathering time', 
     .catch(() => { throw new Error('the discard did not bring the hour back'); });
 });
 
+await step('a postponed game is not the next match, and its row says so', async () => {
+  // The owner: a game put off is not played, stays on the list, and the card moves to the one after.
+  await admin.goto(APP + '#/admin');
+  await adminTab(admin, 'games');
+  const row = admin.locator('details[data-item^="fixtures."]', { hasText: 'הפועל לוח' });
+  await row.locator('summary').click();
+  const at = await row.getAttribute('data-item');
+  await admin.selectOption(`[data-path="${at}.status"]`, 'postponed');
+  await admin.click('#save');
+  await waitSaved(admin);
+  await parent.goto(APP + '#/');
+  await parent.reload();
+  await parent.locator('.hero', { hasText: 'בני לוח' }).waitFor({ timeout: 8000 });
+  const off = parent.locator('.fixture-row.postponed', { hasText: 'הפועל לוח' });
+  await off.waitFor({ timeout: 5000 });
+  expect((await off.innerText()).includes('נדחה'), 'the postponed row lacks its word');
+  // Back on, for the steps after.
+  await row.locator('summary').click();
+  await admin.selectOption(`[data-path="${at}.status"]`, '');
+  await admin.click('#save');
+  await waitSaved(admin);
+});
+
 await step('the game message from WhatsApp, pasted, updates its game and only what it says', async () => {
   await admin.goto(APP + '#/admin');
   await adminTab(admin, 'games');

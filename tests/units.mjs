@@ -334,6 +334,28 @@ await test('fixtures: league format (home team, away team, home/away goals)', as
   assert.equal(out.skipped, 1);
 });
 
+await test('fixtures: a postponed or cancelled game is not the next match, and keeps its row', async () => {
+  // The owner: a game put off is not played but stays on the list; the card moves on.
+  const F = await import('../src/fixtures.js');
+  const { buildSeason } = await import('../src/season.js');
+  const now = new Date('2026-10-01T09:00:00+03:00');
+  const fx = (date, opponent, status) => ({ date, time: '17:00', opponent, home: true, round: null, venue: { name: '', address: '' }, ...(status ? { status } : {}) });
+  const fixtures = [fx('2026-09-24', 'נדחה מזמן', 'postponed'), fx('2026-09-24', 'בוטל מזמן', 'cancelled'),
+    fx('2026-10-02', 'נדחה', 'postponed'), fx('2026-10-03', 'בוטל', 'cancelled'), fx('2026-10-09', 'הבא')];
+  assert.deepEqual(F.upcomingFixtures(fixtures, [], now).map((f) => f.opponent), ['בוטל', 'הבא', 'נדחה מזמן', 'נדחה'],
+    'a postponed game stays past its day, at the end; a cancelled one goes with its day');
+  const s = buildSeason({ fixtures, matches: [] }, now);
+  assert.equal(s.nextMatch.opponent, 'הבא', 'the card skips postponed and cancelled games');
+  assert.deepEqual(s.upcoming.map((f) => f.opponent), ['בוטל', 'נדחה מזמן', 'נדחה'], 'the list keeps them, without the card\'s game');
+  assert.ok(!F.photoMatches([], fixtures, now).some((m) => m.opponent.startsWith('בוטל') || m.opponent.startsWith('נדחה')), 'no album for a game that was not played');
+  const week = s.week.items.filter((i) => i.kind === 'game').map((i) => [i.opponent, i.status || '']);
+  assert.deepEqual(week.filter(([o]) => o === 'נדחה' || o === 'בוטל'), [['נדחה', 'postponed'], ['בוטל', 'cancelled']], 'the week strip carries the word');
+  // A new day from the game's WhatsApp message puts it on again; a re-import on the same day keeps the mark.
+  assert.equal(F.applyGameMessage(fixtures[2], { date: '2026-10-20' }).status, undefined);
+  assert.equal(F.applyFixtureImport({ fixtures }, { fixtures: [fx('2026-10-02', 'נדחה')], results: [] }).fixtures[0].status, 'postponed');
+  assert.equal(F.applyFixtureImport({ fixtures }, { fixtures: [fx('2026-10-20', 'נדחה')], results: [] }).fixtures[0].status, undefined);
+});
+
 await test('fixtures: what is still ahead, and the next match derived from it', async () => {
   const F = await import('../src/fixtures.js');
   const { buildSeason } = await import('../src/season.js');

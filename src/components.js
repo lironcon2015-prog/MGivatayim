@@ -1,6 +1,7 @@
 import { outcomeOf, OUTCOMES, opponentLogo } from './season.js';
 import { position, posLabel } from './positions.js';
 import { esc, safeUrl, shortDate } from './format.js';
+import { offStatus, STATUS } from './fixtures.js';
 import { icon } from './icons.js';
 import { youtubeThumb, cachedPosterUrl } from './posters.js';
 
@@ -203,13 +204,16 @@ export function plaqueTag(ref, name, home, cls = '') {
 // A fixture still ahead: date, the opponent's crest tagged home/away,
 // opponent, round and ground, and the kick-off time where a result row has
 // its score.
+// A game postponed or cancelled keeps its row, dimmed, with the word where the
+// time goes; a postponed one says its new day is to be set.
 export function fixtureRow(f, logo = null) {
-  const sub = [roundText(f.round, f.friendly), f.venue?.name].filter(Boolean).map(esc).join(' · ');
-  return `<div class="match fixture-row">
+  const off = offStatus(f);
+  const sub = [off === 'postponed' && 'מועד חדש ייקבע', roundText(f.round, f.friendly), f.venue?.name].filter(Boolean).map(esc).join(' · ');
+  return `<div class="match fixture-row${off ? ` off ${off}` : ''}">
     ${whenHtml(f.date)}
     ${plaqueTag(logo, f.opponent, f.home !== false)}
     <span class="who"><b>${esc(f.opponent)}</b>${sub ? `<span>${sub}</span>` : ''}</span>
-    <span class="kick num">${f.time ? esc(f.time) : 'טרם נקבע'}</span>
+    ${off ? `<span class="off-tag">${STATUS[off]}</span>` : `<span class="kick num">${f.time ? esc(f.time) : 'טרם נקבע'}</span>`}
   </div>`;
 }
 

@@ -463,6 +463,11 @@ button.wk-day:active { transform: scale(.97); }
 .wk-day.game { border-color: var(--gold-line); }
 .wk-day.tbd { padding-top: .65rem; }
 .wk-flag.game { background: var(--gold); color: var(--on-gold); }
+/* A game postponed or cancelled (src/fixtures.js): dimmed, its word on the flag
+   in gold soft — not red, which stays for results and changed trainings. */
+.wk-day.game.off { opacity: .6; border-color: var(--line); }
+.wk-day.game.off .wk-flag.game { background: var(--well); color: var(--muted); box-shadow: inset 0 0 0 1px var(--line); }
+.wk-day.game.off .t { text-decoration: line-through; color: var(--faint); }
 .wk-day .opp { margin-top: .5rem; max-width: 100%; font-size: .66rem; font-weight: 700; line-height: 1.15; overflow-wrap: anywhere;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .wk-day .soon { margin-top: auto; padding-top: .25rem; font-size: .62rem; color: var(--faint); }
@@ -673,6 +678,14 @@ button.form-pill:focus-visible { outline: 2px solid var(--gold); outline-offset:
 .score .sep { color: var(--faint); font-weight: 500; }
 /* In a fixture row the kick-off time sits where a result has its score. */
 .fixture-row .kick { flex: none; font-size: 1rem; font-weight: 600; color: var(--muted); direction: ltr; unicode-bidi: isolate; }
+/* Postponed or cancelled: the row dimmed, its word where the time goes; a
+   cancelled one struck through. Neutral, not red (red is for results). */
+.fixture-row.off .when, .fixture-row.off .opp-tag { opacity: .55; }
+.fixture-row.off .who b { color: var(--muted); }
+.fixture-row.cancelled .who b, .fixture-row.cancelled .when { text-decoration: line-through; }
+.off-tag { flex: none; font-size: .74rem; font-weight: 700; padding: .2rem .65rem; border-radius: var(--r-pill);
+  color: var(--muted); border: 1px solid var(--line); background: var(--well); }
+.fixture-row.postponed .off-tag { color: var(--gold); border-color: var(--gold-line); background: var(--gold-soft); }
 .tag {
   flex: none; font-size: .74rem; font-weight: 700; padding: .2rem .65rem;
   border-radius: var(--r-pill); border: 1px solid transparent; text-align: center;

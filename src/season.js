@@ -5,7 +5,7 @@
 
 import { cleanPlayedMatch, minuteLabel, DEFAULT_FORMAT, positionsPlayed } from './live/model.js';
 import { primaryPos, posLabel, position } from './positions.js';
-import { upcomingFixtures, fixtureAsNext } from './fixtures.js';
+import { upcomingFixtures, fixtureAsNext, nextPlayable } from './fixtures.js';
 import { trainingWeek, nextWeekFrom } from './trainings.js';
 
 export const OUTCOMES = { win: 'ניצחון', draw: 'תיקו', loss: 'הפסד' };
@@ -181,7 +181,9 @@ export function buildSeason(input, now = new Date()) {
   // and kit), else the first fixture still ahead in the schedule. Derived on
   // every load, so entering a result moves the schedule on by itself.
   const upcoming = upcomingFixtures(raw.fixtures, raw.matches, now);
-  const nextMatch = raw.nextMatch?.opponent ? withHomeVenue(raw.nextMatch, raw.team.homeVenue) : fixtureAsNext(upcoming[0]);
+  // A game postponed or cancelled is not the next one: the card moves to the one after.
+  const nextFixture = nextPlayable(upcoming);
+  const nextMatch = raw.nextMatch?.opponent ? withHomeVenue(raw.nextMatch, raw.team.homeVenue) : fixtureAsNext(nextFixture);
   // Game days for the trainings strip: the next match (its kickoff is local
   // Israel time) and every fixture after it.
   const kick = String(nextMatch?.kickoff || '');
@@ -205,7 +207,7 @@ export function buildSeason(input, now = new Date()) {
     // fixture on the day of a next match set by hand shows that match's
     // kickoff: the schedule said "time not set" beside a card saying 09:30.
     schedule: raw.nextMatch?.opponent ? upcoming.map((f) => (sameDay(f, raw.nextMatch) ? withKickoff(f, raw.nextMatch) : f)) : upcoming,
-    upcoming: raw.nextMatch?.opponent ? upcoming.filter((f) => !sameDay(f, raw.nextMatch)) : upcoming.slice(1),
+    upcoming: raw.nextMatch?.opponent ? upcoming.filter((f) => !sameDay(f, raw.nextMatch)) : upcoming.filter((f) => f !== nextFixture),
     chronological,
     recent,
     // The latest league results, newest first: the form pills.

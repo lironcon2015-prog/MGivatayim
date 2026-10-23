@@ -3,6 +3,7 @@ import { longDate, clock, pct, dec, esc, safeUrl, splitDuration, pad2, wazeLink,
 import { icon } from '../icons.js';
 import { myCardHtml, crestImg, oppLogo, plaque, plaqueTag, roundText, sectionHead, formPill, fixtureRow, leaderRow, tile, splitBar, linkRow, videoCard, sampleNote, skeleton, SCHEDULE_SAMPLE, RESULTS_SAMPLE } from '../components.js';
 import { DAYS, weekday } from '../trainings.js';
+import { STATUS } from '../fixtures.js';
 import { openSheet, toast, confirmSheet } from '../ui/sheet.js';
 import { call } from '../bridge.js';
 import { posterUrl, hydratePosters } from '../posters.js';
@@ -121,7 +122,7 @@ function weekInner(s) {
   const week = shownWeek(s);
   const cols = Math.max(4, week.items.length + (s.showQr ? 1 : 0));
   const square = (it, i) => {
-    const cls = [it.kind, it.tbd && 'tbd', it.past && 'past', it.today && 'today', it.change && 'chg', it.change].filter(Boolean).join(' ');
+    const cls = [it.kind, it.tbd && 'tbd', it.past && 'past', it.today && 'today', it.change && 'chg', it.change, it.status && 'off'].filter(Boolean).join(' ');
     const day = it.today ? 'היום' : DAYS[weekday(it.date)];
     const flag = it.change ? `<span class="wk-flag">${FLAGS[it.change]}</span>` : '';
     const inner = `${flag}<span class="l">${day}</span><span class="n num">${dayMonth(it.date)}</span>
@@ -133,7 +134,8 @@ function weekInner(s) {
     // ("צו פיוס") it closes the week: crest, name, "day to be set".
     if (it.kind === 'game') {
       const crest = (size) => plaque(opponentLogo(s, it.opponent), it.opponent, size);
-      const gflag = '<span class="wk-flag game">משחק</span>';
+      // Postponed or cancelled: its word on the flag, dimmed (.off), time struck.
+      const gflag = `<span class="wk-flag game">${it.status ? STATUS[it.status] : 'משחק'}</span>`;
       if (it.tbd) {
         return `<button type="button" class="wk-day ${cls}" data-wk="${i}">${gflag}${crest('m')}<span class="opp">${esc(it.opponent)}</span><span class="soon">יום ייקבע</span></button>`;
       }
@@ -173,13 +175,14 @@ function gameSheet(g, s) {
     ? `<span>שבוע <b class="num" dir="ltr">${ltr(`${dayMonth(week.start)}–${dayMonth(week.end)}`)}</b> · יום ושעה טרם נקבעו</span>`
     : `<span><b>${g.today ? 'היום' : `יום ${DAYS[weekday(g.date)]}`} <span class="num">${dayMonth(g.date)}</span></b> · ${g.start ? `<span class="num" dir="ltr">${esc(g.start)}</span>` : 'שעה טרם נקבעה'}</span>`;
   const sh = openSheet({
-    title: g.tbd ? 'משחק השבוע' : 'משחק',
+    title: g.status ? `המשחק ${STATUS[g.status]}` : g.tbd ? 'משחק השבוע' : 'משחק',
     body: `<div class="wk-sheet">
       <div class="tbd-opp">${plaque(opponentLogo(s, g.opponent), g.opponent, 'big')}<div><b>${esc(g.opponent)}</b><span class="tbd-sub">${esc(head)}</span></div></div>
       <div class="meta-row">${icon('calendar')}${when}</div>
       ${place ? `<div class="meta-row">${icon('pin')}<span><b>${esc(place)}</b>${g.venue.name && g.venue.address ? ` <span class="sub">· ${esc(g.venue.address)}</span>` : ''}</span></div>` : ''}
-      ${waze && !g.tbd ? `<a class="btn" href="${esc(waze)}" target="_blank" rel="noopener noreferrer">${icon('nav')} ניווט אל המגרש ב-Waze</a>` : ''}
-      ${g.tbd ? '<p class="note">המשחק ייקבע לאחד מימי השבוע. כשהיום והשעה ייקבעו הם יופיעו כאן ובכרטיס המשחק הבא, ותתחיל הספירה לאחור.</p>' : ''}
+      ${g.status === 'postponed' ? '<p class="note">המשחק לא ישוחק במועד הזה. כשייקבע מועד חדש הוא יופיע בלוח ובכרטיס המשחק הבא.</p>' : g.status === 'cancelled' ? '<p class="note">המשחק בוטל ולא ישוחק.</p>' : ''}
+      ${waze && !g.tbd && !g.status ? `<a class="btn" href="${esc(waze)}" target="_blank" rel="noopener noreferrer">${icon('nav')} ניווט אל המגרש ב-Waze</a>` : ''}
+      ${g.tbd && !g.status ? '<p class="note">המשחק ייקבע לאחד מימי השבוע. כשהיום והשעה ייקבעו הם יופיעו כאן ובכרטיס המשחק הבא, ותתחיל הספירה לאחור.</p>' : ''}
     </div>`,
   });
   hydratePosters(sh.el);

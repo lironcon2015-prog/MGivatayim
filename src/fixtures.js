@@ -214,12 +214,21 @@ export const firstDay = (f) => (isTbd(f) ? shiftDays(f.date, -dow(f.date)) : f?.
 export const lastDay = (f) => (isTbd(f) ? shiftDays(f.date, 6 - dow(f.date)) : f?.date || '');
 export const gameOrder = (f) => `${lastDay(f)} ${isTbd(f) ? '~' : f?.time || ''}`;
 
+// A game put off (the owner): postponed — not played on its day, to be played
+// later, the new day still unknown — or cancelled. Neither is the next match;
+// both stay on the schedule with their word. A postponed game stays there past
+// its day, at the end, until a new date is typed (which clears the mark).
+export const STATUS = { postponed: 'נדחה', cancelled: 'בוטל' };
+export const offStatus = (f) => (f?.status === 'postponed' || f?.status === 'cancelled' ? f.status : '');
+export const nextPlayable = (list) => (list || []).find((f) => !offStatus(f)) || null;
+
 export function upcomingFixtures(fixtures, matches, now = new Date()) {
   const today = todayInIsrael(now);
   const played = playedTest(matches);
+  const later = (f) => offStatus(f) === 'postponed';
   return (fixtures || [])
-    .filter((f) => f && lastDay(f) >= today && !played(f))
-    .sort((a, b) => gameOrder(a).localeCompare(gameOrder(b)));
+    .filter((f) => f && (lastDay(f) >= today || later(f)) && !played(f))
+    .sort((a, b) => later(a) - later(b) || gameOrder(a).localeCompare(gameOrder(b)));
 }
 
 // Games a gallery upload can belong to, newest first: every result, and every
@@ -229,7 +238,7 @@ export function photoMatches(matches, fixtures, now = new Date()) {
   const today = todayInIsrael(now);
   const played = (matches || []).filter((m) => m?.date).map((m) => ({ date: m.date, opponent: m.opponent || '' }));
   const days = new Set(played.map((m) => m.date));
-  const past = (fixtures || []).filter((f) => f?.date && firstDay(f) <= today && !days.has(f.date))
+  const past = (fixtures || []).filter((f) => f?.date && !offStatus(f) && firstDay(f) <= today && !days.has(f.date))
     .map((f) => ({ date: f.date, opponent: f.opponent || '' }));
   return [...played, ...past].filter((m) => m.opponent).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 20);
 }
@@ -272,7 +281,7 @@ export function applyFixtureImport(season, { fixtures, results }, { tbd = false 
     } else if (tbd) f = { ...f, time: f.time || old.time || '' };
     const v = f.venue || {}, ov = old.venue || {};
     return {
-      ...f, arrival: old.arrival || '', kit: old.kit || '',
+      ...f, arrival: old.arrival || '', kit: old.kit || '', ...(offStatus(old) && old.date === f.date ? { status: old.status } : {}),
       venue: { ...v, name: v.name || ov.name || '', address: v.address || ov.address || '', waze: ov.waze || '' },
     };
   });
@@ -428,7 +437,7 @@ export function applyGameMessage(f, msg, today = todayInIsrael()) {
   const row = { ...f, venue: { name: '', address: '', waze: '', ...(f.venue || {}) } };
   let date = msg.date;
   if (msg.day != null && isTbd(f) && lastDay(f) >= today) date = shiftDays(firstDay(f), msg.day);
-  if (date) { row.date = date; delete row.tbd; }
+  if (date) { row.date = date; delete row.tbd; delete row.status; }
   if (msg.time) row.time = msg.time;
   if (msg.arrival) row.arrival = msg.arrival;
   if (msg.kit) row.kit = msg.kit;

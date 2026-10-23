@@ -741,7 +741,7 @@ export function mountLive(view, ctx) {
   // Any fixture in the schedule can go live now, whatever its date — games
   // move. Or a match that is not on the schedule at all.
   function pickFixtureSheet() {
-    const list = ctx.schedule();
+    const list = ctx.schedule().filter((f) => f.status !== 'cancelled');   // a postponed one may be played now
     const sh = openSheet({
       title: 'איזה משחק מתחיל?',
       tall: list.length > 5,

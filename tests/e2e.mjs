@@ -1312,6 +1312,27 @@ await step('a pasted schedule becomes the next match and the list after it', asy
   expect(tags.length && tags.every((t) => t === 'בית' || t === 'חוץ'), 'a schedule row without its plaque and home/away tag: ' + JSON.stringify(tags));
 });
 
+await step('a game whose day is unset again loses its hour and gathering time', async () => {
+  // The owner: a game set to a day and an hour was put off; "not set yet"
+  // left the old hour and gathering time on it.
+  await admin.goto(APP + '#/admin');
+  await adminTab(admin, 'games');
+  const row = admin.locator('details[data-item^="fixtures."]', { hasText: 'הפועל לוח' });
+  await row.locator('summary').click();
+  const at = await row.getAttribute('data-item');
+  await admin.fill(`[data-path="${at}.arrival"]`, '16:45');
+  await admin.locator(`[data-path="${at}.arrival"]`).dispatchEvent('change');
+  expect(await admin.inputValue(`[data-path="${at}.time"]`) === '17:30', 'the hour from the paste is not there');
+  await admin.locator(`[data-path="${at}.tbd"]`).check();
+  const left = [await admin.inputValue(`[data-path="${at}.time"]`), await admin.inputValue(`[data-path="${at}.arrival"]`)];
+  expect(left.every((v) => v === ''), 'the hours stayed: ' + left.join(', '));
+  expect((await row.locator('summary').innerText()).includes('שעה טרם נקבעה'), 'the row still names an hour');
+  admin.once('dialog', (d) => d.accept());
+  await admin.click('#discard');
+  await admin.waitForFunction((p) => document.querySelector(`[data-path="${p}.time"]`)?.value === '17:30', at, { timeout: 5000 })
+    .catch(() => { throw new Error('the discard did not bring the hour back'); });
+});
+
 await step('the game message from WhatsApp, pasted, updates its game and only what it says', async () => {
   await admin.goto(APP + '#/admin');
   await adminTab(admin, 'games');

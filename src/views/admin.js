@@ -1656,6 +1656,17 @@ export function mountAdmin(view, ctx) {
         for (const f of draft.fixtures || []) if (f && f.tbd !== true && f.date >= today() && !played(f)) { f.tbd = true; n++; }
         if (n) { touch(); paint(); toast(`${n} משחקים בלוח סומנו "תאריך טרם נקבע". לחצו "שמירה" כדי שכולם יראו.`, { ms: 6000 }); return; }
       }
+      // A game whose day is unset again (the owner: it was put off after its day
+      // and hour were set) has no hour either — nor a gathering time.
+      const unset = /^fixtures\.(\d+)\.tbd$/.exec(path);
+      if (unset && el.checked) {
+        const f = draft.fixtures[Number(unset[1])];
+        f.time = ''; f.arrival = '';
+        for (const k of ['time', 'arrival']) {
+          const box = view.querySelector(`[data-path="fixtures.${unset[1]}.${k}"]`);
+          if (box) box.value = '';
+        }
+      }
       // A day typed for a game whose date was still to be set: it is set now.
       const dated = /^fixtures\.(\d+)\.date$/.exec(path);
       if (dated && draft.fixtures[Number(dated[1])]?.tbd === true) {

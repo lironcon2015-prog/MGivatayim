@@ -56,8 +56,20 @@ await step('every file the service worker precaches exists', () => {
 await step('every module under src/ is preloaded by index.html, so none waits for the one importing it', () => {
   const html = read('index.html');
   const walk = (d) => readdirSync(d).flatMap((f) => { const p = join(d, f); return statSync(p).isDirectory() ? walk(p) : [p]; });
-  const missing = walk(join(ROOT, 'src')).map((p) => './' + relative(ROOT, p)).filter((p) => !html.includes(`<link rel="modulepreload" href="${p}" />`));
+  const v = html.match(/_BUNDLE_VERSION = '([^']+)'/)[1];
+  const missing = walk(join(ROOT, 'src')).map((p) => './' + relative(ROOT, p)).filter((p) => !html.includes(`<link rel="modulepreload" href="${p}?v=${v}" />`));
   expect(!missing.length, 'not preloaded: ' + missing.join(', '));
+});
+
+await step('every module under src/ is in the import map under its version\'s address', () => {
+  const html = read('index.html');
+  const v = html.match(/_BUNDLE_VERSION = '([^']+)'/)[1];
+  const map = JSON.parse(html.match(/<script type="importmap">([\s\S]*?)<\/script>/)?.[1] || '{}').imports || {};
+  const walk = (d) => readdirSync(d).flatMap((f) => { const p = join(d, f); return statSync(p).isDirectory() ? walk(p) : [p]; });
+  const missing = walk(join(ROOT, 'src')).map((p) => './' + relative(ROOT, p)).filter((p) => map[p] !== `${p}?v=${v}`);
+  expect(!missing.length, 'not mapped to ?v=' + v + ': ' + missing.join(', '));
+  const stale = [...html.matchAll(/\?v=([\d.]+)"/g)].filter((m) => m[1] !== v);
+  expect(!stale.length, 'an address of another version: ' + stale.map((m) => m[0]).join(', '));
 });
 
 await step('the fonts come with the app: every face exists, is precached, and nothing is asked of Google', () => {
@@ -179,6 +191,11 @@ await step('a deploy is picked up and the open page reloads onto it by itself', 
   // Returning to the foreground is how a home-screen app is reopened.
   await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
   await showing(page, next);
+  // The modules too, at this version's address: at the plain one an iPhone
+  // ran the last release's from memory after the reload, under the new number.
+  const old = await page.evaluate((v) => performance.getEntriesByType('resource').map((e) => e.name)
+    .filter((n) => /\/src\/.*\.js/.test(n) && !n.endsWith('?v=' + v)), next);
+  expect(!old.length, 'modules not at ?v=' + next + ': ' + old.join(', '));
 });
 
 await step('the first open after a deploy shows the last version, then reloads once onto the new one', async () => {

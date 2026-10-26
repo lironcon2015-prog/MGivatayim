@@ -31,7 +31,11 @@ else {
 const date = new Date().toISOString().slice(0, 10);
 write('version.json', JSON.stringify({ version: next, date }, null, 2) + '\n');
 write('sw.js', read('sw.js').replace(/const CACHE_VERSION = '[^']*';/, `const CACHE_VERSION = '${next}';`));
-write('index.html', read('index.html').replace(/window\._BUNDLE_VERSION = '[^']*';/, `window._BUNDLE_VERSION = '${next}';`));
+// Every ?v= in index.html (the stylesheet, the modules and their import
+// map) names the running version: a module at an address of the last one
+// could come from the browser's memory instead of the new copy.
+write('index.html', read('index.html').replace(/window\._BUNDLE_VERSION = '[^']*';/, `window._BUNDLE_VERSION = '${next}';`)
+  .replace(/\?v=[\d.]+"/g, `?v=${next}"`));
 
 console.log(`${current} → ${next}`);
 for (const [f, re] of [['version.json', /"version":\s*"([^"]+)"/], ['sw.js', /CACHE_VERSION = '([^']+)'/], ['index.html', /_BUNDLE_VERSION = '([^']+)'/]]) {

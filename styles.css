@@ -463,11 +463,6 @@ button.wk-day:active { transform: scale(.97); }
 .wk-day.game { border-color: var(--gold-line); }
 .wk-day.tbd { padding-top: .65rem; }
 .wk-flag.game { background: var(--gold); color: var(--on-gold); }
-/* A game postponed or cancelled (src/fixtures.js): dimmed, its word on the flag
-   in gold soft — not red, which stays for results and changed trainings. */
-.wk-day.game.off { opacity: .6; border-color: var(--line); }
-.wk-day.game.off .wk-flag.game { background: var(--well); color: var(--muted); box-shadow: inset 0 0 0 1px var(--line); }
-.wk-day.game.off .t { text-decoration: line-through; color: var(--faint); }
 .wk-day .opp { margin-top: .5rem; max-width: 100%; font-size: .66rem; font-weight: 700; line-height: 1.15; overflow-wrap: anywhere;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .wk-day .soon { margin-top: auto; padding-top: .25rem; font-size: .62rem; color: var(--faint); }

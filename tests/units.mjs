@@ -348,8 +348,8 @@ await test('fixtures: a postponed or cancelled game is not the next match, and k
   assert.equal(s.nextMatch.opponent, 'הבא', 'the card skips postponed and cancelled games');
   assert.deepEqual(s.upcoming.map((f) => f.opponent), ['בוטל', 'נדחה מזמן', 'נדחה'], 'the list keeps them, without the card\'s game');
   assert.ok(!F.photoMatches([], fixtures, now).some((m) => m.opponent.startsWith('בוטל') || m.opponent.startsWith('נדחה')), 'no album for a game that was not played');
-  const week = s.week.items.filter((i) => i.kind === 'game').map((i) => [i.opponent, i.status || '']);
-  assert.deepEqual(week.filter(([o]) => o === 'נדחה' || o === 'בוטל'), [['נדחה', 'postponed'], ['בוטל', 'cancelled']], 'the week strip carries the word');
+  const week = s.week.items.filter((i) => i.kind === 'game').map((i) => i.opponent);
+  assert.ok(!week.includes('נדחה') && !week.includes('בוטל'), 'a postponed or cancelled game is in the week strip: ' + week);
   // A new day from the game's WhatsApp message puts it on again; a re-import on the same day keeps the mark.
   assert.equal(F.applyGameMessage(fixtures[2], { date: '2026-10-20' }).status, undefined);
   assert.equal(F.applyFixtureImport({ fixtures }, { fixtures: [fx('2026-10-02', 'נדחה')], results: [] }).fixtures[0].status, 'postponed');

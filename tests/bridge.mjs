@@ -1052,4 +1052,72 @@ console.log('gallery:');
   });
 }
 
+// A parent's own entry code (the owner): a parent who keeps clearing Chrome's
+// data types it and is in, on that phone alone. The manager replaces or
+// deletes it; taking access away takes the code too.
+{
+  const R = createBridge({ adminCode: ADMIN });
+  R.setProp('NOTIFY_EMAIL', 'owner@example.com');
+  const users = () => R.post({ action: 'listUsers', adminCode: ADMIN }).result;
+  const idOf = (name) => users().find((u) => u.name === name).id;
+  const k1 = 'a'.repeat(64), k2 = 'b'.repeat(64), k3 = 'c'.repeat(64), other = 'd'.repeat(64);
+  R.post({ action: 'requestAccess', deviceKey: k1, name: 'אבא של נועם' });
+  const id1 = idOf('אבא של נועם');
+  R.post({ action: 'setStatus', adminCode: ADMIN, id: id1, status: 'approved' });
+  R.post({ action: 'setRole', adminCode: ADMIN, id: id1, role: 'coach' });
+  R.post({ action: 'requestAccess', deviceKey: other, name: 'אמא של איתי' });
+  R.post({ action: 'setStatus', adminCode: ADMIN, id: idOf('אמא של איתי'), status: 'approved' });
+  const CODE = 'K7PM-Q2XA';
+
+  test('only the manager sets an entry code, only a well-formed one, and the list never carries its hash', () => {
+    assert.equal(err(R.post({ action: 'setEntryCode', deviceKey: k1, id: id1, code: CODE })), 'bad_code');
+    assert.equal(err(R.post({ action: 'setEntryCode', adminCode: ADMIN, id: id1, code: '1234' })), 'bad_entry_code');
+    assert.equal(err(R.post({ action: 'setEntryCode', adminCode: ADMIN, id: id1, code: 'K7PM-Q2X0' })), 'bad_entry_code', 'a 0 is not in the alphabet');
+    assert.equal(R.post({ action: 'setEntryCode', adminCode: ADMIN, id: id1, code: CODE }).result.hasCode, true);
+    const u = users().find((x) => x.id === id1);
+    assert.equal(u.hasCode, true);
+    assert.equal(u.entry, undefined, 'the code\'s hash reached the list');
+    assert.ok(!R.driveFile('access.json').includes('K7PMQ2XA'), 'the code itself was stored');
+  });
+
+  test('a new phone types the code and is in, as the same record; the old phone is out', () => {
+    assert.equal(R.post({ action: 'hello', deviceKey: k2 }).result.status, 'none');
+    const r = R.post({ action: 'redeemCode', deviceKey: k2, code: ' k7pm q2xa ' });
+    assert.equal(r.ok, true, JSON.stringify(r));
+    assert.equal(r.result.status, 'approved');
+    assert.equal(R.post({ action: 'hello', deviceKey: k2 }).result.status, 'approved');
+    assert.equal(R.post({ action: 'hello', deviceKey: k1 }).result.status, 'none', 'the old phone still has access');
+    const u = users().find((x) => x.name === 'אבא של נועם');
+    assert.equal(u.role, 'coach', 'the role did not carry over');
+    assert.equal(u.hasCode, true, 'the code stopped working after one use');
+    assert.equal(R.post({ action: 'redeemCode', deviceKey: k2, code: CODE }).result.status, 'approved', 'the same phone again');
+    assert.equal(err(R.post({ action: 'redeemCode', deviceKey: other, code: CODE })), 'already_approved', 'an approved phone took another\'s record');
+    assert.ok(R.mails.some((m) => m.to === 'owner@example.com' && m.subject.includes('אבא של נועם')), 'no mail to the manager');
+  });
+
+  test('a replaced code stops working, a deleted one too, and revoking access deletes it', () => {
+    const id = idOf('אבא של נועם');
+    R.post({ action: 'setEntryCode', adminCode: ADMIN, id, code: 'ABCD-EFGH' });
+    assert.equal(err(R.post({ action: 'redeemCode', deviceKey: k3, code: CODE })), 'bad_entry_code');
+    assert.equal(R.post({ action: 'redeemCode', deviceKey: k3, code: 'abcdefgh' }).result.status, 'approved');
+    const id3 = idOf('אבא של נועם');
+    R.post({ action: 'setEntryCode', adminCode: ADMIN, id: id3, remove: true });
+    assert.equal(users().find((x) => x.id === id3).hasCode, undefined);
+    R.post({ action: 'setEntryCode', adminCode: ADMIN, id: id3, code: 'ABCD-EFGH' });
+    R.post({ action: 'setStatus', adminCode: ADMIN, id: id3, status: 'revoked' });
+    assert.equal(err(R.post({ action: 'redeemCode', deviceKey: k1, code: 'ABCD-EFGH' })), 'bad_entry_code', 'a revoked device\'s code still works');
+    R.post({ action: 'setStatus', adminCode: ADMIN, id: id3, status: 'approved' });
+    assert.equal(err(R.post({ action: 'redeemCode', deviceKey: k1, code: 'ABCD-EFGH' })), 'bad_entry_code', 'approving again brought the old code back');
+  });
+
+  test('guessing stops after a number of wrong codes in an hour, whoever guesses', () => {
+    const id = idOf('אבא של נועם');
+    R.post({ action: 'setEntryCode', adminCode: ADMIN, id, code: 'WXYZ-2345' });
+    let last = '';
+    for (let i = 0; i < 40 && last !== 'too_many'; i++) last = err(R.post({ action: 'redeemCode', deviceKey: String(i).padStart(64, 'e'), code: 'ZZZZ-ZZZZ' }));
+    assert.equal(last, 'too_many');
+    assert.equal(err(R.post({ action: 'redeemCode', deviceKey: 'f'.repeat(64), code: 'WXYZ-2345' })), 'too_many', 'the right code gets through the limit');
+  });
+}
+
 console.log(`\nbridge: ${passed} passed`);

@@ -72,6 +72,15 @@ const FETCH_OPTS = { muteHttpExceptions: true, followRedirects: true, headers: {
 const MIN_LIVE_CODE = 4;
 const MAX_LIVE_CODE = 24;
 const MAX_CODE_ATTEMPTS = 5;
+// A parent's own entry code (the owner, 1.88.3: a parent who clears Chrome's
+// data loses the device key and asked again each time). Eight characters of
+// RECOVERY_ABC, made in the manager's browser (crypto) and stored here as a
+// hash. Wrong codes from anyone, in the last hour, stop the guessing at
+// MAX_RECOVERY_FAILS: a device key is the asker's to choose, so a limit per
+// device would stop nothing.
+const RECOVERY_ABC = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+const RECOVERY_LEN = 8;
+const MAX_RECOVERY_FAILS = 20;
 /* רף הדקות למשחק כשהמאמן עוד לא קבע אחר. */
 const DEFAULT_MIN_MINUTES = 20;
 const MAX_MIN_MINUTES = 200;
@@ -121,6 +130,7 @@ function handle_(req) {
     // מכשיר — בלי קוד מנהל
     case 'hello':         return hello_(req);
     case 'requestAccess': return requestAccess_(req);
+    case 'redeemCode':    return redeemCode_(req);
     case 'getSeason':     return getSeason_(req);
     case 'getLive':       return getLive_(req);
     case 'getPoster':     return getPoster_(req);
@@ -147,6 +157,7 @@ function handle_(req) {
     case 'renameUser':    return renameUser_(req);
     case 'removeUser':    return removeUser_(req);
     case 'replaceUser':   return replaceUser_(req);
+    case 'setEntryCode':  return setEntryCode_(req);
     case 'putSeason':     return putSeason_(req);
     case 'makePoster':    return makePoster_(req);
     case 'expandMapLink': return expandMapLink_(req);
@@ -396,11 +407,15 @@ function requestAccess_(req) {
    את הבקשה. דורש הרשאת שליחת מייל: גוגל מבקש לאשר בפריסה הראשונה אחרי. */
 const MAIL_EVERY_S = 10 * 60;
 const APP_URL = 'https://lironcon2015-prog.github.io/MGivatayim/';
+function mailTo_() {
+  const set = String(PropertiesService.getScriptProperties().getProperty('NOTIFY_EMAIL') || '').trim();
+  if (set.toLowerCase() === 'off') return '';
+  return set || Session.getEffectiveUser().getEmail();
+}
+
 function notifyRequest_(name, pending) {
   try {
-    const set = String(PropertiesService.getScriptProperties().getProperty('NOTIFY_EMAIL') || '').trim();
-    if (set.toLowerCase() === 'off') return;
-    const to = set || Session.getEffectiveUser().getEmail();
+    const to = mailTo_();
     if (!to) return;
     const cache = CacheService.getScriptCache();
     if (cache.get('mail:access')) return;
@@ -1495,7 +1510,14 @@ function adminPing_(req) {
 function listUsers_(req) {
   requireAdmin_(req);
   const users = access_().users;
-  return Object.keys(users).map((id) => Object.assign({ id: id }, users[id]));
+  // The entry code's hash stays here: eight characters are few enough to try
+  // them all against it.
+  return Object.keys(users).map((id) => {
+    const u = Object.assign({ id: id }, users[id]);
+    if (u.entry) u.hasCode = true;
+    delete u.entry;
+    return u;
+  });
 }
 
 const STATUSES = ['approved', 'rejected', 'revoked', 'pending'];
@@ -1510,6 +1532,8 @@ function setStatus_(req) {
     if (!u) throw fail_('המשתמש לא נמצא', 'not_found');
     u.status = status;
     u.decidedAt = new Date().toISOString();
+    // Access taken away takes the entry code with it.
+    if (status !== 'approved') delete u.entry;
     // Approving a request takes the role it asked for; a player's link to the
     // squad is still the manager's to pick.
     if (status === 'approved' && u.asked) {
@@ -1582,30 +1606,97 @@ function replaceUser_(req) {
     const nu = a.users[from], old = a.users[to];
     if (!nu || nu.status !== 'pending') throw fail_('הבקשה לא נמצאה', 'not_found');
     if (!old || old.status !== 'approved') throw fail_('המכשיר הקודם לא נמצא', 'not_found');
-    const now = new Date().toISOString();
-    const moved = Object.assign({}, old, { decidedAt: now, replacedAt: now });
-    delete moved.lastSeen;
-    delete moved.asked;
-    a.users[from] = moved;
-    delete a.users[to];
-    writeJson_(ACCESS_FILE, a);
-
-    const g = gallery_();
-    let touched = false;
-    g.items.forEach((it) => {
-      if (it.by === to) { it.by = from; touched = true; }
-      if (it.hiddenBy && it.hiddenBy.id === to) { it.hiddenBy.id = from; touched = true; }
-    });
-    if (g.blocked.indexOf(to) >= 0) { g.blocked = g.blocked.map((x) => (x === to ? from : x)); touched = true; }
-    if (g.extra[to]) { g.extra[from] = g.extra[to]; delete g.extra[to]; touched = true; }
-    if (touched) saveGallery_(g);
-
-    const l = live_();
-    if ((l.meta.controllers || []).indexOf(to) >= 0) {
-      l.meta.controllers = l.meta.controllers.map((x) => (x === to ? from : x));
-      writeJson_(LIVE_FILE, l);
-    }
+    const moved = moveDevice_(a, from, to);
     return { id: from, name: moved.name, role: moved.role || 'parent', pid: moved.pid || null };
+  });
+}
+
+/* The approved record `to` moves to the device `from`, with everything tied to
+   the device; the old key is gone. replaceUser_ and redeemCode_. */
+function moveDevice_(a, from, to) {
+  const now = new Date().toISOString();
+  const moved = Object.assign({}, a.users[to], { decidedAt: now, replacedAt: now });
+  delete moved.lastSeen;
+  delete moved.asked;
+  a.users[from] = moved;
+  delete a.users[to];
+  writeJson_(ACCESS_FILE, a);
+
+  const g = gallery_();
+  let touched = false;
+  g.items.forEach((it) => {
+    if (it.by === to) { it.by = from; touched = true; }
+    if (it.hiddenBy && it.hiddenBy.id === to) { it.hiddenBy.id = from; touched = true; }
+  });
+  if (g.blocked.indexOf(to) >= 0) { g.blocked = g.blocked.map((x) => (x === to ? from : x)); touched = true; }
+  if (g.extra[to]) { g.extra[from] = g.extra[to]; delete g.extra[to]; touched = true; }
+  if (touched) saveGallery_(g);
+
+  const l = live_();
+  if ((l.meta.controllers || []).indexOf(to) >= 0) {
+    l.meta.controllers = l.meta.controllers.map((x) => (x === to ? from : x));
+    writeJson_(LIVE_FILE, l);
+  }
+  return moved;
+}
+
+/* קוד כניסה אישי (בעל הריפו): קוד קבוע למכשיר מאושר, שהמנהל נותן להורה. הורה
+   שניקה את נתוני הדפדפן מקליד אותו ונכנס בלי בקשה ובלי אישור — הרשומה שלו עוברת
+   לטלפון החדש (moveDevice_), והקודם מתנתק: הקוד עובד בטלפון אחד בכל רגע. המנהל
+   מחליף אותו (קוד שדלף) או מוחק; ביטול גישה מוחק אותו. */
+function entryCode_(text) {
+  const code = String(text || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (code.length !== RECOVERY_LEN) return '';
+  for (let i = 0; i < code.length; i++) if (RECOVERY_ABC.indexOf(code[i]) < 0) return '';
+  return code;
+}
+
+function setEntryCode_(req) {
+  requireAdmin_(req);
+  const remove = req.remove === true;
+  const code = remove ? '' : entryCode_(req.code);
+  if (!remove && !code) throw fail_('קוד לא תקין', 'bad_entry_code');
+  return withLock_(() => {
+    const a = access_();
+    const id = String(req.id || '');
+    const u = a.users[id];
+    if (!u || u.status !== 'approved') throw fail_('המשתמש לא נמצא', 'not_found');
+    if (remove) delete u.entry;
+    else {
+      const h = hash_('entry|' + code);
+      if (Object.keys(a.users).some((k) => k !== id && a.users[k].entry === h)) throw fail_('הקוד תפוס — נסו שוב', 'bad_entry_code');
+      u.entry = h;
+    }
+    writeJson_(ACCESS_FILE, a);
+    return { id: id, hasCode: !remove };
+  });
+}
+
+function redeemCode_(req) {
+  const id = deviceId_(req);
+  const code = entryCode_(req.code);
+  return withLock_(() => {
+    const cache = CacheService.getScriptCache();
+    const fails = Number(cache.get('entry:fails') || 0);
+    if (fails >= MAX_RECOVERY_FAILS) throw fail_('יותר מדי ניסיונות. נסו שוב בעוד שעה.', 'too_many');
+    const a = access_();
+    const h = code ? hash_('entry|' + code) : '';
+    const to = h ? Object.keys(a.users).filter((k) => a.users[k].status === 'approved' && a.users[k].entry === h)[0] : null;
+    if (!to) {
+      cache.put('entry:fails', String(fails + 1), 3600);
+      throw fail_('הקוד לא מוכר. בדקו אותו, או פנו למנהל.', 'bad_entry_code');
+    }
+    if (to === id) return { status: 'approved', name: a.users[id].name };
+    const here = a.users[id];
+    if (here && here.status === 'approved') throw fail_('הטלפון הזה כבר מחובר בשם אחר', 'already_approved');
+    const moved = moveDevice_(a, id, to);
+    try {
+      const mail = mailTo_();
+      if (mail) MailApp.sendEmail(mail, 'כניסה בקוד: ' + moved.name,
+        moved.name + ' נכנס/ה לאפליקציה עם קוד הכניסה האישי, מטלפון חדש. הטלפון הקודם נותק.' +
+        '\n\nאם זה לא היה צפוי — ניהול ← גישה ← ' + moved.name + ' ← קוד חדש.\n' + APP_URL + '#/admin');
+    } catch (e) { /* the entry stands without the mail */ }
+    return { status: 'approved', name: moved.name };
   });
 }
 
@@ -1632,5 +1723,5 @@ function putSeason_(req) {
   });
 }
 
-return { doPost, doGet, handle_, json_, fail_, adminCode_, sameString_, isAdmin_, requireAdmin_, hash_, deviceId_, viewer_, notPlayer_, requireCoach_, root_, file_, pieces_, cacheText_, cacheKeep_, readJson_, writeJson_, withLock_, access_, hello_, requestAccess_, notifyRequest_, getSeason_, forParents_, forPlayers_, positionsPlayed_, message_, setMessage_, posterDir_, youtubeId_, driveId_, metaContent_, fetchImage_, findPoster_, makePoster_, mapCoords_, expandMapLink_, putLogo_, getPoster_, live_, canControl_, requireControl_, seesLive_, checkLiveState_, getLive_, watchers_, startLive_, publishLive_, putLive_, finishLive_, setLiveCode_, claimLive_, clearLiveControl_, clearLive_, coach_, setTrainingChange_, setCoachMatch_, setAway_, awayFor_, cloudinary_, sha1Hex_, cloudSign_, gallery_, saveGallery_, uploader_, galleryId_, usedToday_, extraPhotos_, leftToday_, publicItem_, getGallery_, signUpload_, cleanMatchRef_, addGalleryItem_, findItem_, hideGalleryItem_, destroyCloud_, deleteGalleryItem_, restoreGalleryItem_, tagGalleryItem_, tagMe_, setGallery_, blockUploader_, grantQuota_, adminPing_, listUsers_, setStatus_, setRole_, renameUser_, removeUser_, replaceUser_, putSeason_ };
+return { doPost, doGet, handle_, json_, fail_, adminCode_, sameString_, isAdmin_, requireAdmin_, hash_, deviceId_, viewer_, notPlayer_, requireCoach_, root_, file_, pieces_, cacheText_, cacheKeep_, readJson_, writeJson_, withLock_, access_, hello_, requestAccess_, mailTo_, notifyRequest_, getSeason_, forParents_, forPlayers_, positionsPlayed_, message_, setMessage_, posterDir_, youtubeId_, driveId_, metaContent_, fetchImage_, findPoster_, makePoster_, mapCoords_, expandMapLink_, putLogo_, getPoster_, live_, canControl_, requireControl_, seesLive_, checkLiveState_, getLive_, watchers_, startLive_, publishLive_, putLive_, finishLive_, setLiveCode_, claimLive_, clearLiveControl_, clearLive_, coach_, setTrainingChange_, setCoachMatch_, setAway_, awayFor_, cloudinary_, sha1Hex_, cloudSign_, gallery_, saveGallery_, uploader_, galleryId_, usedToday_, extraPhotos_, leftToday_, publicItem_, getGallery_, signUpload_, cleanMatchRef_, addGalleryItem_, findItem_, hideGalleryItem_, destroyCloud_, deleteGalleryItem_, restoreGalleryItem_, tagGalleryItem_, tagMe_, setGallery_, blockUploader_, grantQuota_, adminPing_, listUsers_, setStatus_, setRole_, renameUser_, removeUser_, replaceUser_, moveDevice_, entryCode_, setEntryCode_, redeemCode_, putSeason_ };
 }

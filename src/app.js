@@ -227,6 +227,29 @@ async function checkAccess() {
   render();
 }
 
+// The entry code the manager gave (gate.js): the bridge moves this person's
+// record to this phone, and the season opens.
+function wireCodeEntry(view) {
+  const form = view.querySelector('#code-form');
+  if (!form) return;
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const code = String(new FormData(form).get('code') || '').trim();
+    const msg = form.querySelector('#code-msg');
+    const go = form.querySelector('button[type=submit]');
+    if (!code) { msg.textContent = 'צריך להקליד את הקוד.'; return; }
+    go.disabled = true; msg.textContent = '';
+    try {
+      const r = await call('redeemCode', { code });
+      if (r.name) state.name = r.name;
+      refresh();
+    } catch (err) {
+      msg.textContent = err.message;
+      go.disabled = false;
+    }
+  });
+}
+
 async function requestAccess(name, role = 'parent') {
   store.setName(name);
   state.name = name;
@@ -485,6 +508,7 @@ function draw() {
         e.target.querySelector('button[type=submit]').disabled = true;
         requestAccess(name, state.askRole);
       });
+      wireCodeEntry(view);
       return;
     case 'pending': {
       view.innerHTML = gate.pendingScreen(state.name);
@@ -511,6 +535,7 @@ function draw() {
           if (msg) msg.textContent = 'עדיין ממתין לאישור.';
         }
       });
+      wireCodeEntry(view);
       return;
     }
     case 'rejected':

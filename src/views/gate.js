@@ -32,6 +32,20 @@ export function requestGated() {
 // the manager sees it on the request, and approving applies it.
 const ASK_ROLES = [['parent', 'הורה'], ['player', 'שחקן'], ['coach', 'מאמן']];
 
+// A parent's own entry code from the manager (admin.js, entrySheet): typed
+// here after the browser's data was cleared, and the phone is in. Folded — most
+// people asking have none.
+const codeEntry = () => `<details class="code-entry">
+     <summary>יש לי קוד כניסה מהמנהל</summary>
+     <form id="code-form" class="form-stack" novalidate>
+       <label class="field"><span>קוד כניסה</span>
+         <input name="code" dir="ltr" maxlength="12" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="XXXX-XXXX" />
+       </label>
+       <p class="form-error" id="code-msg" role="alert"></p>
+       <button class="btn secondary" type="submit">כניסה</button>
+     </form>
+   </details>`;
+
 export function requestScreen(name = '', error = '', { role = 'parent' } = {}) {
   const form = `<p class="gate-lead">הנתונים של הקבוצה פתוחים להורים ולשחקנים באישור המנהל. שלחו בקשה פעם אחת מהמכשיר הזה.</p>
      <form id="request-form" class="form-stack" novalidate>
@@ -54,7 +68,7 @@ export function requestScreen(name = '', error = '', { role = 'parent' } = {}) {
   }
   // Outside the home-screen app the title itself says the order: install
   // first, then ask.
-  return installHelp() + card(isStandalone() ? 'בקשת גישה' : 'בקשת גישה — אחרי התקנה במסך הבית', form + adminLink);
+  return installHelp() + card(isStandalone() ? 'בקשת גישה' : 'בקשת גישה — אחרי התקנה במסך הבית', form + codeEntry() + adminLink);
 }
 
 export function pendingScreen(name) {
@@ -62,6 +76,7 @@ export function pendingScreen(name) {
     `<p class="gate-lead">${name ? `<b>${esc(name)}</b>, ה` : 'ה'}בקשה ממתינה לאישור המנהל. אחרי האישור האפליקציה תיפתח מהמכשיר הזה.</p>
      <button class="btn" type="button" id="recheck">בדיקה חוזרת</button>
      <p class="form-error" id="recheck-msg" role="status"></p>
+     ${codeEntry()}
      ${adminLink}`) + installHelp();
 }
 

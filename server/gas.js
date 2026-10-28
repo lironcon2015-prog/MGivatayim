@@ -22,7 +22,8 @@
 //      that is what LockService used to give, and why the lock here is free.
 //
 //   3. The cache is memory. What decides something later — an upload's
-//      signature, the hourly upload count, the "mail already sent" mark — is
+//      signature, the hourly upload count, the "mail already sent" mark, the
+//      wrong entry codes of the hour — is
 //      also kept in storage (PERSIST_CACHE), because the server forgets its
 //      memory when it sleeps, and a signature lost between "sign" and "add"
 //      would drop a photo the parent already uploaded, with no error.
@@ -30,7 +31,7 @@ import { createHash } from 'node:crypto';
 import { Buffer } from 'node:buffer';
 import { bridgeCore } from './bridge-core.js';
 
-export const PERSIST_CACHE = /^(sig:|signs:|mail:)/;
+export const PERSIST_CACHE = /^(sig:|signs:|mail:|entry:)/;
 const MAX_RUNS = 8;
 
 /* ---------- state ---------- */

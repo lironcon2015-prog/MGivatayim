@@ -1849,6 +1849,45 @@ await step('a cleared phone asking again under the same name replaces its old de
   bridge.post({ action: 'removeUser', adminCode: ADMIN, id: newId });
 });
 
+await step('the manager gives a parent an entry code; a cleared phone types it and is in, and the old one is out', async () => {
+  // The owner: a parent who keeps clearing Chrome's data. A fixed code, his
+  // alone, that the manager can replace.
+  const users = () => bridge.post({ action: 'listUsers', adminCode: ADMIN }).result;
+  const oldKey = 'k'.repeat(64);
+  bridge.post({ action: 'requestAccess', deviceKey: oldKey, name: 'הורה עם קוד' });
+  const oldId = users().find((u) => u.name === 'הורה עם קוד').id;
+  bridge.post({ action: 'setStatus', adminCode: ADMIN, id: oldId, status: 'approved' });
+  await admin.goto(APP + '#/admin');
+  await admin.reload();
+  await admin.click('[data-tab="access"]');
+  await admin.locator(`[data-entry="${oldId}"]`).click();
+  await admin.locator('.sheet [data-entry-new]').click();
+  const code = (await admin.locator('.sheet .entry-code').innerText({ timeout: 8000 })).trim();
+  expect(/^[A-Z2-9]{4}-[A-Z2-9]{4}$/.test(code), 'not a code: ' + code);
+  expect(users().find((u) => u.id === oldId)?.hasCode === true, 'the bridge has no code for the parent');
+  await admin.locator('.sheet-x').click();
+  await admin.locator('.sheet').waitFor({ state: 'detached' });
+  await admin.locator(`[data-entry="${oldId}"].on`).waitFor({ timeout: 5000 });
+
+  const phone = await device('cleared');
+  await phone.goto(APP);
+  await phone.locator('#request-form').waitFor();
+  await phone.locator('.code-entry summary').click();
+  await phone.fill('#code-form [name="code"]', 'ZZZZ-ZZZZ');
+  await phone.locator('#code-form button[type=submit]').click();
+  await phone.locator('#code-msg', { hasText: 'הקוד לא מוכר' }).waitFor({ timeout: 5000 });
+  await phone.fill('#code-form [name="code"]', code.toLowerCase().replace('-', ' '));
+  await phone.locator('#code-form button[type=submit]').click();
+  await phone.locator('.form-pill').first().waitFor({ timeout: 8000 });
+  expect(bridge.post({ action: 'hello', deviceKey: oldKey }).result.status === 'none', 'the old phone still has access');
+  const now = users().filter((u) => u.name === 'הורה עם קוד');
+  expect(now.length === 1 && now[0].status === 'approved' && now[0].hasCode, 'not one approved record with its code: ' + JSON.stringify(now));
+  expect(!phone.errors.length, phone.errors.join('; '));
+  await phone.context().close();
+  // A device of this step only: later steps count the holders.
+  bridge.post({ action: 'removeUser', adminCode: ADMIN, id: now[0].id });
+});
+
 await step('before kick-off the coach sets the minimum and who came; a parent sees no minutes tab', async () => {
   await asAdmin('clearLive');
   await admin.goto(APP + '#/live');

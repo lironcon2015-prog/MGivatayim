@@ -792,6 +792,17 @@ button.form-pill:focus-visible { outline: 2px solid var(--gold); outline-offset:
 .gate-lead b { color: var(--text); }
 .gate-foot { margin: 1.2rem 0 0; text-align: center; font-size: .82rem; }
 .gate-foot a, .foot a { color: var(--faint); }
+/* The entry code from the manager: folded under the request, a quiet line. */
+.code-entry { margin-top: 1rem; }
+.code-entry summary { list-style: none; cursor: pointer; text-align: center; font-size: .85rem; color: var(--muted); text-decoration: underline; text-underline-offset: 3px; }
+.code-entry summary::-webkit-details-marker { display: none; }
+.code-entry[open] summary { margin-bottom: .6rem; }
+.code-entry input { letter-spacing: .12em; text-align: center; }
+/* The manager's side: one line under the holder, gold once a code is set. */
+.entry-link { display: inline-flex; align-items: center; gap: .3rem; align-self: flex-start; margin-top: .15rem; text-decoration: none; }
+.entry-link svg { width: 14px; height: 14px; }
+.entry-link.on { color: var(--gold); }
+.entry-code { margin: .4rem 0 .2rem; text-align: center; font-size: 2rem; font-weight: 700; letter-spacing: .14em; color: var(--gold); }
 .gate code { direction: ltr; unicode-bidi: isolate; font-size: .85em; background: rgba(255,255,255,.06); padding: .05em .35em; border-radius: 5px; }
 .stale { text-align: center; color: var(--gold-dim); }
 

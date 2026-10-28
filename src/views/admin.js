@@ -7,6 +7,14 @@ import { formatEditorHtml, wireFormatEditor } from './live.js';
 import { videoOrder } from './media.js';
 import { openSheet, toast } from '../ui/sheet.js';
 import { icon } from '../icons.js';
+
+// An entry code: eight of these (no 0/O, 1/I/L), shown as two fours. The
+// bridge checks the same alphabet (RECOVERY_ABC).
+const ENTRY_ABC = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+function newEntryCode() {
+  const c = [...crypto.getRandomValues(new Uint8Array(8))].map((b) => ENTRY_ABC[b % ENTRY_ABC.length]).join('');
+  return c.slice(0, 4) + '-' + c.slice(4);
+}
 import { roundText, oppLogo, keepFocus, skeleton } from '../components.js';
 import { preparePosters, uploadLogo, uploadQr, hydratePosters } from '../posters.js';
 import { logoKey } from '../season.js';
@@ -971,7 +979,8 @@ export function mountAdmin(view, ctx) {
       : u.asked === 'coach' ? `<span class="role-tag coach">${icon('whistle')}מבקש כמאמן</span>`
       : u.asked === 'player' ? `<span class="role-tag player">${icon('shirt')}מבקש כשחקן</span>` : '');
     const row = (u, actions) => `<div class="user-row">
-        <span class="who"><button type="button" class="who-name" data-rename="${esc(u.id)}" aria-label="${esc(`שינוי השם של ${u.name}`)}"><b>${esc(u.name)}</b>${roleTag(u)}</button><span>ביקש ${esc(stamp(u.requestedAt))}${u.lastSeen ? ` · נראה ${esc(stamp(u.lastSeen))}` : ''}</span>${playerOf(u)}</span>
+        <span class="who"><button type="button" class="who-name" data-rename="${esc(u.id)}" aria-label="${esc(`שינוי השם של ${u.name}`)}"><b>${esc(u.name)}</b>${roleTag(u)}</button><span>ביקש ${esc(stamp(u.requestedAt))}${u.lastSeen ? ` · נראה ${esc(stamp(u.lastSeen))}` : ''}</span>${playerOf(u)}${u.status === 'approved'
+          ? `<button type="button" class="linkish entry-link${u.hasCode ? ' on' : ''}" data-entry="${esc(u.id)}">${icon('key')}${u.hasCode ? 'יש קוד כניסה' : 'קוד כניסה'}</button>` : ''}</span>
         <span class="acts">${u.status === 'approved' ? roleSwitch(u) : ''}${actions.map(([st, label, cls]) =>
           `<button type="button" class="btn small ${cls || ''}" data-user="${esc(u.id)}" data-set="${st}">${label}</button>`).join('')}</span>
       </div>`;
@@ -1219,6 +1228,58 @@ export function mountAdmin(view, ctx) {
         };
         go.addEventListener('click', save);
         input.addEventListener('keydown', (e) => { if (e.key === 'Enter') save(); });
+      },
+    });
+  }
+
+  // A parent's own entry code (the owner): fixed, typed on a phone whose
+  // browser data was cleared, and in — no request, no approval; the record
+  // moves to that phone and the last one is cut off (redeemCode_ in the
+  // bridge). Made here, from crypto, and shown once: the bridge keeps a hash.
+  // A code that got out is replaced; revoking access deletes it.
+  function entrySheet(id) {
+    const u = users?.find((x) => x.id === id);
+    if (!u) return;
+    const shown = (code) => {
+      const text = `קוד הכניסה האישי שלך לאפליקציה של הקבוצה: ${code}\nאם האפליקציה מבקשת שוב גישה (למשל אחרי ניקוי נתונים בדפדפן) — "יש לי קוד כניסה" במסך הבקשה, והקוד הזה.\nהקוד אישי — לא להעביר הלאה.`;
+      return `<p class="entry-code num" dir="ltr">${esc(code)}</p>
+        <p class="note">הקוד מוצג רק עכשיו. שלחו אותו ל${esc(u.name)}.</p>
+        <div class="sheet-actions">
+          <button type="button" class="btn" data-entry-copy>${icon('copy')} העתקה</button>
+          <a class="btn secondary" href="https://wa.me/?text=${encodeURIComponent(text)}" target="_blank" rel="noopener noreferrer">${icon('whatsapp')} וואטסאפ</a>
+        </div>`;
+    };
+    const intro = u.hasCode
+      ? `<p class="gate-lead">ל${esc(u.name)} יש קוד כניסה אישי. הקוד עצמו לא נשמר — אם הוא אבד או הגיע למישהו אחר, צרו קוד חדש. הקודם יפסיק לעבוד מיד.</p>`
+      : `<p class="gate-lead">קוד קבוע ש${esc(u.name)} מקליד אחרי ניקוי נתונים בדפדפן, ונכנס בלי בקשה חדשה ובלי אישור. הוא עובד בטלפון אחד בכל רגע: כניסה בטלפון חדש מנתקת את הקודם, ותקבלו על זה מייל.</p>`;
+    const sh = openSheet({
+      title: 'קוד כניסה',
+      body: `<div data-entry-body>${intro}
+        <div class="sheet-actions">
+          <button type="button" class="btn" data-entry-new>${u.hasCode ? 'קוד חדש' : 'יצירת קוד'}</button>
+          ${u.hasCode ? '<button type="button" class="btn secondary" data-entry-del>מחיקת הקוד</button>' : ''}
+        </div></div>`,
+      onMount: ({ el }) => {
+        let code = '';
+        const send = async (b, params) => {
+          b.disabled = true; b.textContent = 'שומר…';
+          try { await call('setEntryCode', { id, ...params }, { asAdmin: true }); return true; }
+          catch (e) { toast(esc(e.message), { kind: 'err' }); return false; }
+          finally { loadUsers(); }
+        };
+        el.addEventListener('click', async (e) => {
+          const b = e.target.closest('button');
+          if (!b) return;
+          if (b.hasAttribute('data-entry-new')) {
+            code = newEntryCode();
+            if (await send(b, { code })) el.querySelector('[data-entry-body]').innerHTML = shown(code);
+            else { b.disabled = false; b.textContent = u.hasCode ? 'קוד חדש' : 'יצירת קוד'; }
+          } else if (b.hasAttribute('data-entry-del')) {
+            if (await send(b, { remove: true })) { sh.close(); toast('הקוד נמחק'); }
+          } else if (b.hasAttribute('data-entry-copy')) {
+            toast(await copyText(code) ? 'הקוד הועתק' : 'ההעתקה לא הצליחה', {});
+          }
+        });
       },
     });
   }
@@ -1800,6 +1861,7 @@ export function mountAdmin(view, ctx) {
     if (t.dataset.role === 'player') { playerSheet(t.dataset.user); return; }
     if (t.dataset.role) { t.disabled = true; setRole(t.dataset.user, t.dataset.role); return; }
     if (t.dataset.rename) { renameSheet(t.dataset.rename); return; }
+    if (t.dataset.entry) { entrySheet(t.dataset.entry); return; }
     if (t.dataset.replace) { replaceSheet(t.dataset.replace, t.dataset.replaceTo || ''); return; }
     if (t.dataset.import === 'file') { view.querySelector('[data-import-file]')?.click(); return; }
     if (t.dataset.clearGames !== undefined) { clearGamesSheet(); return; }

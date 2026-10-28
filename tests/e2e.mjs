@@ -1891,9 +1891,9 @@ await step('the manager gives a parent an entry code; a cleared phone types it a
   const code = (await admin.locator('.sheet .entry-code').innerText({ timeout: 8000 })).trim();
   expect(/^[A-Z2-9]{4}-[A-Z2-9]{4}$/.test(code), 'not a code: ' + code);
   expect(users().find((u) => u.id === oldId)?.hasCode === true, 'the bridge has no code for the parent');
-  // What WhatsApp gets: the code alone on its line, in a message the parent copies whole.
+  // What WhatsApp gets: the code and nothing else (the owner) — a long press copies it alone.
   const sent = decodeURIComponent((await admin.locator('.sheet a[href^="https://wa.me/"]').getAttribute('href')).split('text=')[1]);
-  expect(sent.split('\n').includes(code), 'the code is not on a line of its own: ' + sent);
+  expect(sent === code, 'the message is more than the code: ' + sent);
   await admin.locator('.sheet-x').click();
   await admin.locator('.sheet').waitFor({ state: 'detached' });
   await admin.locator(`[data-entry="${oldId}"].on`).waitFor({ timeout: 5000 });
@@ -1908,7 +1908,7 @@ await step('the manager gives a parent an entry code; a cleared phone types it a
   // A whole message pasted in the field turns into the code in it.
   await phone.fill('#code-form [name="code"]', 'שלום ' + code.toLowerCase().replace('-', ' ') + ' תודה');
   expect(await phone.inputValue('#code-form [name="code"]') === code, 'the code was not picked out of the message: ' + await phone.inputValue('#code-form [name="code"]'));
-  // And the button reads the whole copied message and goes in.
+  // And "הדבקה" beside the field takes the copied code and goes in.
   await phone.context().grantPermissions(['clipboard-read', 'clipboard-write'], { origin: new URL(APP).origin });
   await phone.evaluate((t) => navigator.clipboard.writeText(t), sent);
   await phone.fill('#code-form [name="code"]', '');

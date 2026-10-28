@@ -1283,9 +1283,9 @@ export function mountAdmin(view, ctx) {
     const u = users?.find((x) => x.id === id);
     if (!u) return;
     const shown = (code) => {
-      // The code alone on its line; the steps say to copy the whole message —
-      // the app picks the code out of it (wireCodeEntry in app.js).
-      const text = `קוד הכניסה שלך לאפליקציה של הקבוצה:\n\n${code}\n\nאם האפליקציה מבקשת שוב גישה: לחיצה ארוכה על ההודעה הזו ← העתקה, ובאפליקציה "יש לי קוד כניסה מהמנהל" ← "הדבקת הקוד מההודעה".\nהקוד אישי — לא להעביר הלאה.`;
+      // The message is the code and nothing else (the owner): a long press
+      // on it copies the code alone, and "הדבקה" in the app takes it as is.
+      const text = code;
       return `<p class="entry-code num" dir="ltr">${esc(code)}</p>
         <p class="note">הקוד מוצג רק עכשיו. שלחו אותו ל${esc(u.name)}.</p>
         <div class="sheet-actions">

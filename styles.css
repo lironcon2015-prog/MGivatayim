@@ -798,6 +798,9 @@ button.form-pill:focus-visible { outline: 2px solid var(--gold); outline-offset:
 .code-entry summary::-webkit-details-marker { display: none; }
 .code-entry[open] summary { margin-bottom: .6rem; }
 .code-entry input { letter-spacing: .12em; text-align: center; }
+.code-box { display: flex; align-items: center; gap: .5rem; }
+.code-box input { flex: 1; min-width: 0; }
+.code-box .btn.small { flex: none; }
 /* The manager's side: one line under the holder, gold once a code is set. */
 .entry-link { display: inline-flex; align-items: center; gap: .3rem; align-self: flex-start; margin-top: .15rem; text-decoration: none; }
 .entry-link svg { width: 14px; height: 14px; }

@@ -646,8 +646,10 @@ document.addEventListener('click', (e) => {
 
 /* ---------- start ---------- */
 
-function start() {
+async function start() {
   if (!bridgeConfigured()) { state.access = 'setup'; render(); return; }
+  // The device key's second copy is read before anything asks the bridge.
+  const keyReady = store.keepDeviceKey();
 
   // A device that was approved before opens straight onto its last copy and
   // refreshes behind it; everyone else waits for the bridge to say who they are.
@@ -656,14 +658,17 @@ function start() {
     state.payload = cached;
     state.season = prepare(cached);
     state.access = 'approved';
-    if (!sessionStarted) { sessionStarted = true; session.start(); }
     render();
+    await keyReady;
+    if (!sessionStarted) { sessionStarted = true; session.start(); }
     refresh();
   } else if (isAdmin()) {
     render();
+    await keyReady;
     refresh();
   } else {
     render();
+    await keyReady;
     checkAccess();
   }
 }

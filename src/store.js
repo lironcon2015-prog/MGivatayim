@@ -17,12 +17,53 @@ function set(key, value) {
 // and never shown. The bridge stores only a hash of it.
 export function deviceKey() {
   let key = get('device');
+  if ((!key || key.length < 64) && kept) { key = kept; set('device', key); }
   if (!key || key.length < 64) {
     const bytes = crypto.getRandomValues(new Uint8Array(32));
     key = [...bytes].map((b) => b.toString(16).padStart(2, '0')).join('');
     set('device', key);
   }
   return key;
+}
+
+// A second copy of the key, in IndexedDB — a store of its own on disk. Parents
+// on Android kept losing access and asking again (the owner, 1.88.2): with the
+// key in localStorage alone, losing that one store (Chrome drops a damaged
+// localStorage and starts it empty; a read that fails comes back as "no key")
+// made a new device that the bridge had never approved. The copy brings the key
+// back, and wins when the two differ: the key never changes on purpose, so a
+// different one in localStorage is one made after the first was lost. Clearing
+// the site's data clears both; the manager replaces the device then.
+// Awaited before the first call to the bridge (start in app.js), at most a second.
+let kept = null;
+const KEY_DB = 'mg-device';
+function keyStore(mode, run) {
+  return new Promise((resolve, reject) => {
+    const open = indexedDB.open(KEY_DB, 1);
+    open.onupgradeneeded = () => open.result.createObjectStore('k');
+    open.onerror = () => reject(open.error);
+    open.onblocked = () => reject(new Error('blocked'));
+    open.onsuccess = () => {
+      const db = open.result;
+      const tx = db.transaction('k', mode);
+      const req = run(tx.objectStore('k'));
+      tx.oncomplete = () => { db.close(); resolve(req.result); };
+      tx.onerror = tx.onabort = () => { db.close(); reject(tx.error); };
+    };
+  });
+}
+export function keepDeviceKey() {
+  const work = (async () => {
+    const copy = await keyStore('readonly', (st) => st.get('device'));
+    if (typeof copy === 'string' && copy.length >= 64) {
+      kept = copy;
+      if (get('device') !== copy) set('device', copy);
+      return;
+    }
+    const key = deviceKey();
+    await keyStore('readwrite', (st) => st.put(key, 'device'));
+  })().catch(() => {});
+  return Promise.race([work, new Promise((r) => setTimeout(r, 1000))]);
 }
 
 export const getName = () => get('name') || '';

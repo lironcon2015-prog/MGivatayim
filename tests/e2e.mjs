@@ -453,6 +453,16 @@ await step('a parent has no manager tab and cannot open the editor', async () =>
   await parent.goto(APP + '#/');
 });
 
+await step('a phone whose localStorage was lost keeps its access: the key comes back from its second copy', async () => {
+  // Android parents lost access and asked again (the owner): the key was in
+  // localStorage alone. Everything there is gone here; IndexedDB is not.
+  const key = await parent.evaluate(() => localStorage.getItem('mg:device'));
+  await parent.evaluate(() => { for (const k of Object.keys(localStorage)) if (k !== 'mg:bridge' && k !== 'mg:bridgeFallback') localStorage.removeItem(k); });
+  await parent.reload();
+  await parent.locator('.form-pill[aria-label*="בני לוד"]').waitFor({ timeout: 8000 });
+  expect(await parent.evaluate(() => localStorage.getItem('mg:device')) === key, 'the device key did not come back');
+});
+
 await step('the manager edits a score; the parent sees it after reopening', async () => {
   await adminTab(admin, 'games');
   await openItem(admin, 'matches.0');

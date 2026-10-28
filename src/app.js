@@ -228,14 +228,32 @@ async function checkAccess() {
 }
 
 // The entry code the manager gave (gate.js): the bridge moves this person's
-// record to this phone, and the season opens.
+// record to this phone, and the season opens. It comes in a WhatsApp message
+// (entrySheet in admin.js), and copying a part of a message there is fiddly
+// (the owner): the whole message copied and pasted is enough — the code is
+// picked out of it, by the button (the clipboard read in the tap, as the
+// lineup's paste) or pasted into the field.
+const ENTRY_RE = /(?:^|[^A-Z0-9])([A-HJKMNP-Z2-9]{4})[-\s]?([A-HJKMNP-Z2-9]{4})(?![A-Z0-9])/;
+const entryIn = (text) => { const m = String(text || '').toUpperCase().match(ENTRY_RE); return m ? m[1] + '-' + m[2] : ''; };
 function wireCodeEntry(view) {
   const form = view.querySelector('#code-form');
   if (!form) return;
+  const input = form.querySelector('[name="code"]');
+  const msg = form.querySelector('#code-msg');
+  // A whole message pasted into the field becomes the code in it.
+  input.addEventListener('input', () => { const c = entryIn(input.value); if (c && input.value.length > 9) input.value = c; });
+  form.querySelector('#code-paste').addEventListener('click', async () => {
+    let text = '';
+    try { text = await navigator.clipboard.readText(); } catch { /* refused: the field is there */ }
+    const c = entryIn(text);
+    if (c) { input.value = c; form.requestSubmit(); return; }
+    msg.textContent = text ? 'לא נמצא קוד בטקסט שהועתק. העתיקו את ההודעה מהמנהל, או הקלידו את הקוד.' : 'לא הצלחנו לקרוא מה שהועתק. הדביקו או הקלידו את הקוד בשדה.';
+    input.focus();
+  });
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const code = String(new FormData(form).get('code') || '').trim();
-    const msg = form.querySelector('#code-msg');
+    const raw = String(new FormData(form).get('code') || '').trim();
+    const code = entryIn(raw) || raw;
     const go = form.querySelector('button[type=submit]');
     if (!code) { msg.textContent = 'צריך להקליד את הקוד.'; return; }
     go.disabled = true; msg.textContent = '';

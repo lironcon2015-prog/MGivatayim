@@ -1241,7 +1241,9 @@ export function mountAdmin(view, ctx) {
     const u = users?.find((x) => x.id === id);
     if (!u) return;
     const shown = (code) => {
-      const text = `קוד הכניסה האישי שלך לאפליקציה של הקבוצה: ${code}\nאם האפליקציה מבקשת שוב גישה (למשל אחרי ניקוי נתונים בדפדפן) — "יש לי קוד כניסה" במסך הבקשה, והקוד הזה.\nהקוד אישי — לא להעביר הלאה.`;
+      // The code alone on its line; the steps say to copy the whole message —
+      // the app picks the code out of it (wireCodeEntry in app.js).
+      const text = `קוד הכניסה שלך לאפליקציה של הקבוצה:\n\n${code}\n\nאם האפליקציה מבקשת שוב גישה: לחיצה ארוכה על ההודעה הזו ← העתקה, ובאפליקציה "יש לי קוד כניסה מהמנהל" ← "הדבקת הקוד מההודעה".\nהקוד אישי — לא להעביר הלאה.`;
       return `<p class="entry-code num" dir="ltr">${esc(code)}</p>
         <p class="note">הקוד מוצג רק עכשיו. שלחו אותו ל${esc(u.name)}.</p>
         <div class="sheet-actions">

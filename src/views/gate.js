@@ -38,8 +38,9 @@ const ASK_ROLES = [['parent', 'הורה'], ['player', 'שחקן'], ['coach', 'מ
 const codeEntry = () => `<details class="code-entry">
      <summary>יש לי קוד כניסה מהמנהל</summary>
      <form id="code-form" class="form-stack" novalidate>
-       <label class="field"><span>קוד כניסה</span>
-         <input name="code" dir="ltr" maxlength="12" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="XXXX-XXXX" />
+       <button class="btn" type="button" id="code-paste">הדבקת הקוד מההודעה</button>
+       <label class="field"><span>או הקלדה</span>
+         <input name="code" dir="ltr" maxlength="400" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="XXXX-XXXX" />
        </label>
        <p class="form-error" id="code-msg" role="alert"></p>
        <button class="btn secondary" type="submit">כניסה</button>

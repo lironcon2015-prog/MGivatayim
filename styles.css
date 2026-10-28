@@ -962,6 +962,33 @@ input[type="checkbox"]:focus-visible { outline: 2px solid var(--gold); outline-o
 .invite-kind { margin-bottom: .8rem; }
 .invite-kind button { font-size: .8rem; }
 .holders-role { margin-bottom: .45rem; }
+/* Search among the holders (the owner's pick, "1"): above the filters, always there. */
+.holders-q { display: flex; align-items: center; gap: .45rem; margin-bottom: .45rem; padding: .55rem .9rem; border-radius: var(--r-pill); background: var(--well); border: 1px solid var(--line-strong); }
+.holders-q svg { width: 16px; height: 16px; flex: none; color: var(--muted); }
+.holders-q input { flex: 1; min-width: 0; padding: 0; border: 0; background: none; color: var(--text); font: inherit; font-size: .9rem; outline: none; }
+.holders-q input::placeholder { color: var(--faint); }
+.holders-q:focus-within { border-color: var(--gold-line); }
+.user-row mark { background: var(--gold-soft); color: var(--gold); border-radius: 3px; padding: 0 1px; }
+/* A holder: one line, opened in place ("ב׳"). */
+.user-row.holder { display: block; padding: 0; }
+.holder-head { display: flex; align-items: center; gap: .5rem; width: 100%; padding: .7rem 0; border: 0; background: none; color: inherit; font: inherit; text-align: start; cursor: pointer; }
+.holder-head:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; border-radius: 10px; }
+.holder-head .who > span { color: var(--faint); font-size: .78rem; }
+.holder-head .hr.coach { color: var(--gold); font-weight: 700; }
+.holder-head .hr.player { color: var(--blue); font-weight: 700; }
+.holder-key { display: grid; flex: none; color: var(--gold); }
+.holder-key svg { width: 15px; height: 15px; }
+.holder-chev { display: grid; flex: none; color: var(--faint); transform: rotate(-90deg); transition: transform .15s; }
+.holder-chev svg { width: 16px; height: 16px; }
+.holder.open .holder-chev { transform: rotate(90deg); }
+.holder.open { background: var(--surface-2); margin-inline: calc(-1 * var(--pad) + 6px); padding-inline: calc(var(--pad) - 6px); border-radius: 16px; }
+.holder.open + .user-row, .user-row + .holder.open { border-top-color: transparent; }
+.holder-more { display: grid; gap: .55rem; padding: 0 0 .8rem; }
+.hm-line { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem; font-size: .78rem; }
+.hm-line .btn.small { padding: .4rem .85rem; font-size: .78rem; }
+.hm-links { justify-content: flex-start; gap: .9rem; color: var(--faint); }
+.hm-links > span { margin-inline-start: auto; }
+@media (prefers-reduced-motion: reduce) { .holder-chev { transition: none; } }
 .holders-role button { font-size: .78rem; padding-inline: .2rem; }
 .holders-role .n { margin-inline-start: 3px; font-size: .68rem; font-weight: 500; opacity: .8; }
 .holders-sort { margin-bottom: .6rem; }

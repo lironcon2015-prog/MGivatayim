@@ -424,6 +424,8 @@ const toolsOpen = new Set();
 let inviteKind = 'app';   // what the access tab's copy / WhatsApp send
 let holdersSort = 'seen'; // access holders: last seen first, or by joining (oldest first)
 let holdersRole = 'all';  // access holders shown: everyone, or one role
+let holdersQuery = '';    // access holders: a name searched for (every role while searching)
+let holderOpen = null;    // the one access holder opened in place (the owner's pick, "ב׳")
 
 /* The screen is split by how often a part is touched: the weekly work
    (next match, results) first, the roster, the rarely edited content, and
@@ -979,8 +981,7 @@ export function mountAdmin(view, ctx) {
       : u.asked === 'coach' ? `<span class="role-tag coach">${icon('whistle')}מבקש כמאמן</span>`
       : u.asked === 'player' ? `<span class="role-tag player">${icon('shirt')}מבקש כשחקן</span>` : '');
     const row = (u, actions) => `<div class="user-row">
-        <span class="who"><button type="button" class="who-name" data-rename="${esc(u.id)}" aria-label="${esc(`שינוי השם של ${u.name}`)}"><b>${esc(u.name)}</b>${roleTag(u)}</button><span>ביקש ${esc(stamp(u.requestedAt))}${u.lastSeen ? ` · נראה ${esc(stamp(u.lastSeen))}` : ''}</span>${playerOf(u)}${u.status === 'approved'
-          ? `<button type="button" class="linkish entry-link${u.hasCode ? ' on' : ''}" data-entry="${esc(u.id)}">${icon('key')}${u.hasCode ? 'יש קוד כניסה' : 'קוד כניסה'}</button>` : ''}</span>
+        <span class="who"><button type="button" class="who-name" data-rename="${esc(u.id)}" aria-label="${esc(`שינוי השם של ${u.name}`)}"><b>${esc(u.name)}</b>${roleTag(u)}</button><span>ביקש ${esc(stamp(u.requestedAt))}${u.lastSeen ? ` · נראה ${esc(stamp(u.lastSeen))}` : ''}</span>${playerOf(u)}</span>
         <span class="acts">${u.status === 'approved' ? roleSwitch(u) : ''}${actions.map(([st, label, cls]) =>
           `<button type="button" class="btn small ${cls || ''}" data-user="${esc(u.id)}" data-set="${st}">${label}</button>`).join('')}</span>
       </div>`;
@@ -1010,10 +1011,42 @@ export function mountAdmin(view, ctx) {
         ${!twin && others ? `<button type="button" class="linkish" data-replace="${esc(u.id)}">מכשיר חדש של מישהו? החלפת מכשיר קיים…</button>` : ''}
       </div>`;
     };
+    // An access holder, folded to one line (the owner's pick from a mockup,
+    // "ב׳": a row was three lines beside a role switch and a button): name,
+    // role when not a parent, last seen, and a gold key for an entry code.
+    // A tap opens it in place — one at a time — with the role switch,
+    // revoking, renaming and the entry code.
+    const found = (name) => {
+      const q = holdersQuery.trim().replace(/\s+/g, ' ');
+      const i = q ? name.indexOf(q) : -1;
+      return i < 0 ? esc(name) : `${esc(name.slice(0, i))}<mark>${esc(q)}</mark>${esc(name.slice(i + q.length))}`;
+    };
+    const holderRow = (u) => {
+      const open = holderOpen === u.id;
+      const p = u.role === 'player' ? squadList().find((x) => x.key === u.pid) : null;
+      const role = u.role === 'coach' ? `<span class="hr coach">מאמן</span> · `
+        : u.role === 'player' ? `<span class="hr player">${p ? `${esc(p.name)}${p.number != null ? ` <span class="num">${esc(p.number)}</span>` : ''}` : 'שחקן — עוד לא נבחר'}</span> · ` : '';
+      return `<div class="user-row holder${open ? ' open' : ''}">
+        <button type="button" class="holder-head" data-holder="${esc(u.id)}" aria-expanded="${open}">
+          <span class="who"><b>${found(u.name)}</b><span>${role}${u.lastSeen ? `נראה ${esc(stamp(u.lastSeen))}` : `ביקש ${esc(stamp(u.requestedAt))}`}</span></span>
+          ${u.hasCode ? `<span class="holder-key" title="יש קוד כניסה">${icon('key')}</span>` : ''}
+          <span class="holder-chev">${icon('chevron')}</span>
+        </button>
+        ${open ? `<div class="holder-more">
+          <div class="hm-line">${roleSwitch(u)}<button type="button" class="btn small danger" data-user="${esc(u.id)}" data-set="revoked">ביטול גישה</button></div>
+          ${playerOf(u) ? `<div class="hm-line">${playerOf(u)}</div>` : ''}
+          <div class="hm-line hm-links">
+            <button type="button" class="linkish entry-link${u.hasCode ? ' on' : ''}" data-entry="${esc(u.id)}">${icon('key')}${u.hasCode ? 'יש קוד כניסה' : 'קוד כניסה'}</button>
+            <button type="button" class="linkish" data-rename="${esc(u.id)}">שינוי שם</button>
+            <span>ביקש ${esc(stamp(u.requestedAt))}</span>
+          </div>
+        </div>` : ''}
+      </div>`;
+    };
     const block = (title, glyph, list, actions, empty, note = '', top = '', total = list.length) => `<section>
         <div class="sec-head">${icon(glyph)}<h2>${title}</h2>${total ? `<span class="h-count num">${total}</span>` : ''}</div>
         ${total > 1 ? top : ''}
-        <div class="card rows">${list.length ? list.map((u) => (u.status === 'pending' ? reqRow(u) : row(u, actions))).join('') : `<div class="empty">${empty}</div>`}</div>
+        <div class="card rows">${list.length ? list.map((u) => (u.status === 'pending' ? reqRow(u) : u.status === 'approved' ? holderRow(u) : row(u, actions))).join('') : `<div class="empty">${empty}</div>`}</div>
         ${note && list.length ? `<p class="note">${note}</p>` : ''}
       </section>`;
     const gone = by(['rejected', 'revoked']);
@@ -1025,9 +1058,18 @@ export function mountAdmin(view, ctx) {
     // Holders by role (the owner's pick from a mockup): parents, players, coaches.
     const roleOf = (u) => (u.role === 'coach' || u.role === 'player' ? u.role : 'parent');
     const roles = [['all', 'הכל'], ['parent', 'הורים'], ['player', 'שחקנים'], ['coach', 'מאמנים']];
-    const shown = holdersRole === 'all' ? holders : holders.filter((u) => roleOf(u) === holdersRole);
+    // A search looks at every role (the owner's pick, "1"): the name, and a
+    // player's child by name or shirt number.
+    const q = holdersQuery.trim().replace(/\s+/g, ' ').toLowerCase();
+    const hit = (u) => {
+      if (u.name.replace(/\s+/g, ' ').toLowerCase().includes(q)) return true;
+      const p = u.role === 'player' ? squadList().find((x) => x.key === u.pid) : null;
+      return !!p && (p.name.toLowerCase().includes(q) || String(p.number ?? '') === q);
+    };
+    const shown = q ? holders.filter(hit) : holdersRole === 'all' ? holders : holders.filter((u) => roleOf(u) === holdersRole);
+    const search = `<label class="holders-q">${icon('search')}<input type="search" id="holders-q" data-holders-q value="${esc(holdersQuery)}" placeholder="חיפוש לפי שם" aria-label="חיפוש בעלי גישה" autocomplete="off" /></label>`;
     const roleSeg = `<div class="seg holders-role" role="group" aria-label="סינון בעלי הגישה">
-        ${roles.map(([k, l]) => `<button type="button" data-holders-role="${k}" aria-selected="${holdersRole === k}" aria-pressed="${holdersRole === k}">${l}<span class="n num">${
+        ${roles.map(([k, l]) => `<button type="button" data-holders-role="${k}" aria-selected="${!q && holdersRole === k}" aria-pressed="${!q && holdersRole === k}">${l}<span class="n num">${
           k === 'all' ? holders.length : holders.filter((u) => roleOf(u) === k).length}</span></button>`).join('')}
       </div>`;
     const sortSeg = `<div class="seg holders-sort" role="group" aria-label="סדר בעלי הגישה">
@@ -1035,8 +1077,8 @@ export function mountAdmin(view, ctx) {
           `<button type="button" data-holders-sort="${k}" aria-selected="${holdersSort === k}" aria-pressed="${holdersSort === k}">${l}</button>`).join('')}
       </div>`;
     return block('ממתינים לאישור', 'user', by(['pending']), [['approved', 'אישור'], ['rejected', 'דחייה', 'secondary']], 'אין בקשות חדשות.')
-      + block('בעלי גישה', 'check', shown, [['revoked', 'ביטול', 'danger']], holders.length ? 'אין כאלה ברשימה.' : 'עוד לא אושר אף אחד.',
-        'מאמן רואה גם דקות משחק. שחקן — הטלפון של הילד: רואה את הנתונים שלו בלי טבלת מובילים, ולא מעלה תמונות. התפקיד שייך למכשיר ולא לאדם: מאמן עם טלפון ומחשב מסומן בכל אחד מהם.', roleSeg + sortSeg, holders.length)
+      + block('בעלי גישה', 'check', shown, [], !holders.length ? 'עוד לא אושר אף אחד.' : q ? `אין בעל גישה שמתאים ל"${esc(holdersQuery.trim())}".` : 'אין כאלה ברשימה.',
+        'מאמן רואה גם דקות משחק. שחקן — הטלפון של הילד: רואה את הנתונים שלו בלי טבלת מובילים, ולא מעלה תמונות. התפקיד שייך למכשיר ולא לאדם: מאמן עם טלפון ומחשב מסומן בכל אחד מהם.', search + roleSeg + sortSeg, holders.length)
       + inviteHtml()
       + (gone.length ? block('נדחו / בוטלו', 'shield', gone, [['approved', 'אישור'], ['remove', 'מחיקה', 'secondary']], '') : '');
   }
@@ -1665,6 +1707,10 @@ export function mountAdmin(view, ctx) {
 
   const onInput = (e) => {
     const el = e.target;
+    if (el.dataset.holdersQ != null) {
+      if (e.type === 'input') { holdersQuery = el.value; paint(); }
+      return;
+    }
     if (el.dataset.qrFile != null) {
       if (e.type === 'change') onQrFile(el);
       return;
@@ -1859,7 +1905,9 @@ export function mountAdmin(view, ctx) {
       ctx.logout();
       return;
     }
-    if (t.dataset.set) { t.disabled = true; setStatus(t.dataset.user, t.dataset.set); return; }
+    if (t.dataset.holder) { holderOpen = holderOpen === t.dataset.holder ? null : t.dataset.holder; paint(); return; }
+    // An approved request opens in place: its role is the next thing to set.
+    if (t.dataset.set) { t.disabled = true; if (t.dataset.set === 'approved') holderOpen = t.dataset.user; setStatus(t.dataset.user, t.dataset.set); return; }
     if (t.dataset.role === 'player') { playerSheet(t.dataset.user); return; }
     if (t.dataset.role) { t.disabled = true; setRole(t.dataset.user, t.dataset.role); return; }
     if (t.dataset.rename) { renameSheet(t.dataset.rename); return; }
@@ -1878,7 +1926,7 @@ export function mountAdmin(view, ctx) {
       return;
     }
     if (t.dataset.holdersSort) { holdersSort = t.dataset.holdersSort; paint(); return; }
-    if (t.dataset.holdersRole) { holdersRole = t.dataset.holdersRole; paint(); return; }
+    if (t.dataset.holdersRole) { holdersRole = t.dataset.holdersRole; holdersQuery = ''; paint(); return; }
     if (t.dataset.inviteKind) { inviteKind = t.dataset.inviteKind; paint(); return; }
     if (t.dataset.import === 'fixtures-file') { view.querySelector('[data-import-fixtures]')?.click(); return; }
     if (t.dataset.import === 'fixtures-paste') { pasteSheet('fixtures'); return; }

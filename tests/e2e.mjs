@@ -317,18 +317,21 @@ await step('manager approves the parent', async () => {
 });
 
 await step('the manager renames an approved device from the access list', async () => {
+  // A holder is one line, opened in place (the owner's pick): the rename is inside it.
   const rename = async (from, to) => {
-    await admin.locator('[data-rename]', { hasText: from }).click();
+    const head = admin.locator('[data-holder]', { has: admin.locator('.who b', { hasText: new RegExp('^' + from + '$') }) });
+    if (await head.getAttribute('aria-expanded') !== 'true') await head.click();
+    await admin.locator('.holder.open [data-rename]').click();
     const input = admin.locator('.sheet [data-rename-input]');
     expect(await input.inputValue() === from, 'the sheet does not start from the current name');
     await input.fill(to);
     await admin.locator('.sheet [data-go]').click();
     await admin.locator('.sheet').waitFor({ state: 'detached' });
-    await admin.locator('.user-row .who-name', { hasText: new RegExp('^' + to + '$') }).waitFor({ timeout: 5000 });
+    await admin.locator('.holder .who b', { hasText: new RegExp('^' + to + '$') }).waitFor({ timeout: 5000 });
   };
-  // The name on one line, when they asked and were last seen on the next.
-  const lines = await admin.locator('.user-row .who').first().evaluate((w) => {
-    const name = w.querySelector('.who-name').getBoundingClientRect();
+  // The name on one line, when they were last seen on the next.
+  const lines = await admin.locator('.holder-head .who').first().evaluate((w) => {
+    const name = w.querySelector('b').getBoundingClientRect();
     const meta = w.querySelector(':scope > span').getBoundingClientRect();
     return { nameBottom: name.bottom, metaTop: meta.top };
   });
@@ -1817,6 +1820,28 @@ await step('the access holders sort by last seen, or by joining', async () => {
   }
   // A holder's role is in its switch: no tag, and no pencil beside the name.
   expect(await admin.locator('.holders-sort + .card .role-tag, .holders-sort + .card .who-name svg').count() === 0, 'a holder carries a tag or a pencil');
+  // One line each, and a tap opens one in place, closing the last (the owner's pick).
+  const heights = await admin.locator('.holders-sort + .card .holder:not(.open)').evaluateAll((rows) => rows.map((r) => r.getBoundingClientRect().height));
+  expect(heights.length && heights.every((h) => h < 70), 'a folded holder is not one short line: ' + heights.join(', '));
+  const heads = admin.locator('.holders-sort + .card [data-holder]');
+  await heads.nth(0).click();
+  await heads.nth(1).click();
+  expect(await admin.locator('.holders-sort + .card .holder.open').count() === 1, 'more than one holder open');
+  expect(await heads.nth(1).getAttribute('aria-expanded') === 'true', 'the tapped holder did not open');
+  // Search (the owner's pick): every role whatever the filter, the part found marked, and
+  // the field keeps the caret through each redraw.
+  const coachName = holders.find((u) => u.role === 'coach').name;
+  await admin.click('[data-holders-role="parent"]');
+  await admin.locator('#holders-q').pressSequentially(coachName.slice(0, 3), { delay: 30 });
+  expect(await admin.evaluate(() => document.activeElement?.id) === 'holders-q', 'typing lost the search field');
+  const found = await names();
+  expect(found.includes(coachName) && found.every((n) => n.includes(coachName.slice(0, 3))), 'search: ' + found.join(', '));
+  expect(await admin.locator('.holders-sort + .card .who b mark').first().innerText() === coachName.slice(0, 3), 'the part found is not marked');
+  await admin.locator('#holders-q').fill('אין כזה שם');
+  await waitText(admin, 'אין בעל גישה שמתאים');
+  await admin.locator('#holders-q').fill('');
+  await admin.click('[data-holders-role="all"]');
+  expect((await names()).length === holders.length, 'clearing the search did not bring everyone back');
 });
 
 await step('a cleared phone asking again under the same name replaces its old device', async () => {
@@ -1860,6 +1885,7 @@ await step('the manager gives a parent an entry code; a cleared phone types it a
   await admin.goto(APP + '#/admin');
   await admin.reload();
   await admin.click('[data-tab="access"]');
+  await admin.locator(`[data-holder="${oldId}"]`).click();
   await admin.locator(`[data-entry="${oldId}"]`).click();
   await admin.locator('.sheet [data-entry-new]').click();
   const code = (await admin.locator('.sheet .entry-code').innerText({ timeout: 8000 })).trim();
@@ -2678,6 +2704,8 @@ await step('revoking locks the parent out and drops their cached copy', async ()
   await admin.goto(APP + '#/admin');
   await admin.click('[data-tab="access"]');
   await waitText(admin, 'אבא של איתי');
+  const head = admin.locator('[data-holder]').first();
+  if (await head.getAttribute('aria-expanded') !== 'true') await head.click();
   await admin.locator('[data-set="revoked"]').first().click();
   await waitText(admin, 'עוד לא אושר אף אחד');
   await parent.reload();

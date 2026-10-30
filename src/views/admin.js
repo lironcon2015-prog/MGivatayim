@@ -231,7 +231,13 @@ const LISTS = [
       { key: 'pos2', label: 'עמדה נוספת', type: 'select', options: POS_OPTS },
       { key: 'goals', label: 'שערים לפני הלייב', type: 'number' },
       { key: 'assists', label: 'בישולים לפני הלייב', type: 'number' },
+      { key: 'ext', label: 'סגל מורחב', type: 'check' },
     ],
+    // Players from another age group, for a match now and then (the owner):
+    // their own card, off the roster on the home screen, and "absent" in a
+    // match's attendance until marked as come.
+    split: { test: (p) => p.ext === true, title: 'סגל מורחב', glyph: 'user',
+      note: 'שחקנים משנתון אחר, למשחק מסוים. לא בסגל בדף הבית, ו"חסר" בנוכחות עד שמסמנים שהגיעו.' },
   },
   {
     path: 'videos', title: 'סרטונים', glyph: 'film', add: 'סרטון', tab: 'media', limit: 5,
@@ -1433,9 +1439,25 @@ export function mountAdmin(view, ctx) {
     const shown = items.map((item, i) => [item, i]).filter(([item, i]) => whole || i < list.limit || item.__open)
       .sort(([a], [b]) => (b.__new || 0) - (a.__new || 0));
     const hidden = items.length - shown.length;
+    const rows = (pairs) => pairs.map(([item, i]) => `<details class="edit-item"${item.__open ? ' open' : ''} data-item="${list.path}.${i}">
+          <summary>${summaryHtml(list, item)}</summary>
+          <div class="ei-body">${grid(list.fields, `${list.path}.${i}.`, item)}
+          ${list.path === 'fixtures' ? fixtureExtra(item, i) : list.path === 'matches' ? matchExtra(item, i) : ''}
+          <button type="button" class="btn small danger" data-remove="${list.path}.${i}">${icon('trash')} מחיקה</button></div>
+        </details>`).join('');
+    // A list in two (the squad and the extended squad): the second its own
+    // card under the first, each row moving across as its switch is turned.
+    const sp = list.split;
+    const apart = sp ? shown.filter(([item]) => sp.test(item)) : [];
+    const main = sp ? shown.filter(([item]) => !sp.test(item)) : shown;
+    const second = sp && items.some((item) => sp.test(item)) ? `<section>
+      <div class="sec-head">${icon(sp.glyph)}<h2>${esc(sp.title)}</h2><span class="h-count num">${items.filter((item) => sp.test(item)).length}</span></div>
+      <p class="note list-note">${esc(sp.note)}</p>
+      <div class="card edit-list">${rows(apart)}</div>
+    </section>` : '';
     const tools = list.importer && toolsOpen.has(list.path);
     return `<section>
-      <div class="sec-head">${icon(list.glyph)}<h2>${esc(list.title)}</h2>${items.length ? `<span class="h-count num">${items.length}</span>` : ''}
+      <div class="sec-head">${icon(list.glyph)}<h2>${esc(list.title)}</h2>${items.length ? `<span class="h-count num">${sp ? items.filter((item) => !sp.test(item)).length : items.length}</span>` : ''}
         <span class="aside head-acts">
           ${list.path === 'fixtures' ? `<button type="button" class="chip-tool" data-game-msg>${icon('clipboard')} הודעה</button>` : ''}
           ${list.importer ? `<button type="button" class="chip-tool" data-tools="${list.path}" aria-expanded="${tools}">${icon('upload')} ייבוא</button>` : ''}
@@ -1443,16 +1465,11 @@ export function mountAdmin(view, ctx) {
         </span></div>
       ${tools ? `<div class="tools-row">${toolsHtml(list.importer)}</div>` : ''}
       ${list.note ? `<p class="note list-note">${esc(list.note)}</p>` : ''}
-      ${items.length ? `<div class="card edit-list">${shown.map(([item, i]) => `<details class="edit-item"${item.__open ? ' open' : ''} data-item="${list.path}.${i}">
-          <summary>${summaryHtml(list, item)}</summary>
-          <div class="ei-body">${grid(list.fields, `${list.path}.${i}.`, item)}
-          ${list.path === 'fixtures' ? fixtureExtra(item, i) : list.path === 'matches' ? matchExtra(item, i) : ''}
-          <button type="button" class="btn small danger" data-remove="${list.path}.${i}">${icon('trash')} מחיקה</button></div>
-        </details>`).join('')}
+      ${items.length ? `<div class="card edit-list">${rows(main)}${main.length ? '' : '<div class="empty">כל השחקנים בסגל המורחב.</div>'}
         ${hidden ? `<button type="button" class="more-row" data-more="${list.path}">הצגת כל ה-${items.length} <span>(עוד ${hidden})</span></button>`
           : list.limit && expanded.has(list.path) && items.length > list.limit + 1 ? `<button type="button" class="more-row" data-more="${list.path}">הצגת פחות</button>` : ''}
       </div>` : `<div class="card"><div class="empty">עוד אין כאן כלום.</div></div>`}
-    </section>`;
+    </section>${second}`;
   }
 
   // The opponent's crest, uploaded here and kept by name (season.opponentLogos):
@@ -1812,6 +1829,8 @@ export function mountAdmin(view, ctx) {
         if (sum) sum.innerHTML = summaryHtml(list, getPath(draft, list.path)[idx]);
       }
     }
+    // A player into the extended squad or back: his row moves to its card.
+    if (/^players\.\d+\.ext$/.test(path)) { touch(); paint(); return; }
     // The scorer rows follow our goals as they are typed.
     const gf = path.match(/^matches\.(\d+)\.gf$/);
     if (gf) {

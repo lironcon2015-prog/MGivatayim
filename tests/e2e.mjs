@@ -1977,6 +1977,34 @@ await step('before kick-off the coach sets the minimum and who came; a parent se
   const v = JSON.parse(bridge.driveFile('live.json')).version;
   await asAdmin('putLive', { baseVersion: v, state: { ...liveFile(), lineup } });
   await until(() => liveFile().lineup.length === lineup.length, 'the lineup restored');
+
+  // The extended squad (players[].ext): its own card in the attendance, and
+  // absent until the coach marks one as come — then he is there to pick.
+  const setExt = async (on) => {
+    const sf = bridge.fileById(bridge.driveFileId('season.json'));
+    const doc = JSON.parse(sf.text);
+    const p = doc.season.players.find((x) => x.id === benched.id);
+    if (on) p.ext = true; else delete p.ext;
+    sf.setContent(JSON.stringify(doc));
+    bridge.clearCache();
+  };
+  await setExt(true);
+  await admin.reload();
+  await admin.locator('.formation-seg').waitFor({ timeout: 8000 });
+  expect(await admin.locator(`[data-lineup="${benched.id}"]`).count() === 0, 'an extended player not marked as come is offered for the lineup');
+  await coach.reload();
+  await coach.click('[data-tab="minutes"]', { timeout: 8000 });
+  const extAway = coach.locator(`[data-mn-ext] [data-mn-present="${benched.id}"][data-mn-state="away"]`);
+  await extAway.waitFor({ timeout: 8000 });
+  expect(await extAway.getAttribute('aria-pressed') === 'true', 'the extended squad is not absent by default');
+  expect(await coach.locator(`section:not([data-mn-ext]) [data-mn-present="${benched.id}"]`).count() === 0, 'an extended player in the squad\'s attendance too');
+  await coach.click(`[data-mn-ext] [data-mn-present="${benched.id}"][data-mn-state="here"]`);
+  await until(() => (coachFile().matches[id].here || []).includes(benched.id), 'the extended player marked as come');
+  await admin.reload();
+  await admin.locator(`[data-lineup="${benched.id}"]`).waitFor({ timeout: 8000 });
+  await setExt(false);
+  await coach.reload();
+  await admin.reload();
 });
 
 await step('a field being typed in keeps its caret and its text when the screen is redrawn under it', async () => {
@@ -2505,6 +2533,33 @@ await step('the roster: off until the manager turns it on, then the title opens 
   await parent.locator('.sheet-x').click();
   await parent.locator('.sheet').waitFor({ state: 'detached' });
   await parent.waitForFunction(() => !history.state?.mgLayer);
+  // The extended squad: its own card on the manager's players tab, and off
+  // the roster on the home screen.
+  const setExt = async (on) => {
+    await admin.goto(APP + '#/admin');
+    await adminTab(admin, 'players');
+    const item = on ? admin.locator('details[data-item^="players."]').first() : admin.locator('section', { hasText: 'סגל מורחב' }).locator('details[data-item^="players."]').first();
+    const path = await item.getAttribute('data-item');
+    const name = (await item.locator('summary b').innerText()).trim();
+    await item.locator('summary').click();
+    await admin.locator(`[data-path="${path}.ext"]`).setChecked(on);
+    const card = admin.locator('section', { has: admin.locator('h2', { hasText: 'סגל מורחב' }) });
+    if (on) await card.locator(`details[data-item="${path}"]`).waitFor();
+    else await card.waitFor({ state: 'detached' });
+    await admin.click('#save');
+    await waitSaved(admin);
+    return name;
+  };
+  const extName = await setExt(true);
+  await parent.reload();
+  await parent.click('[data-roster]', { timeout: 8000 });
+  await parent.locator('.sheet .roster li').first().waitFor();
+  const names = await parent.locator('.sheet .roster li').evaluateAll((els) => els.map((li) => li.children[1].textContent));
+  expect(names.length === rows.length - 1 && !names.includes(extName), `the extended squad is on the roster: ${extName} in ${JSON.stringify(names)}`);
+  await parent.locator('.sheet-x').click();
+  await parent.locator('.sheet').waitFor({ state: 'detached' });
+  await parent.waitForFunction(() => !history.state?.mgLayer);
+  await setExt(false);
   await setRoster(false);
   expect(await parent.locator('[data-roster]').count() === 0, 'the roster stays after it was turned off');
 });

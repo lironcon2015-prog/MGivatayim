@@ -48,6 +48,14 @@ export async function run(test) {
     assert.deepEqual([...MN.coachFor(coach, null, '2026-10-10').absent].sort(), ['a', 'c'], 'before the live match opens, the marks alone');
   });
 
+  await test('the extended squad is absent in every match until the coach marks one as come', () => {
+    const coach = { matches: { X: { absent: ['b'], here: ['e1'] } } };
+    const cfg = MN.coachFor(coach, 'X', null, ['e1', 'e2']);
+    assert.deepEqual([...cfg.absent].sort(), ['b', 'e2']);
+    assert.deepEqual([...MN.coachFor(coach, 'Y', null, ['e1', 'e2']).absent].sort(), ['e1', 'e2'], 'marked as come in another match only');
+    assert.deepEqual(MN.extIds([{ id: 'a' }, { id: 'e1', ext: true }, null]), ['e1']);
+  });
+
   await test('at the break before the last third, only benched players short of the minimum are flagged', () => {
     const s = toLastBreak();
     // g, b, c: 60'. a: 20'. d: 30'. e: 10' and on the field. Absent: none.

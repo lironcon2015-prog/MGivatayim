@@ -42,14 +42,20 @@ export function cleanCoach(raw) {
 // and whoever marked himself for the fixture (`date`) unless the coach said
 // he came — the coach's word wins. `own`, `here` and `self` are the parts,
 // for the attendance form.
-export function coachFor(coach, liveId, date = null) {
+export function coachFor(coach, liveId, date = null, ext = []) {
   const c = cleanCoach(coach);
   const e = c.matches[liveId] || {};
   const own = new Set(e.absent || []), here = new Set(e.here || []);
   const self = new Set((date && c.away[date]) || []);
-  const absent = new Set([...own, ...[...self].filter((p) => !here.has(p))]);
-  return { min: e.min ?? c.minDefault, absent, own, here, self };
+  // The extended squad (players from another age group, now and then) is
+  // absent in every match until the coach marks one as come — in `here`.
+  const extended = new Set(ext);
+  const absent = new Set([...own, ...[...self, ...extended].filter((p) => !here.has(p))]);
+  return { min: e.min ?? c.minDefault, absent, own, here, self, ext: extended };
 }
+
+// The ids of the extended squad (players[].ext), for coachFor.
+export const extIds = (players) => (players || []).filter((p) => p && p.ext === true).map((p) => p.id);
 
 // Everyone who took part counts as present, whatever the attendance says:
 // a child who started or came on was plainly there.
@@ -171,7 +177,7 @@ export function seasonMinutes(season, coach, { friendly = false } = {}) {
   const matches = recorded.filter((m) => friendly || m.friendly !== true)
     .map((m) => {
       const state = { format: m.format, events: m.events, lineup: m.lineup, players: m.players || [], status: 'ended' };
-      const cfg = coachFor(coach, m.liveId, m.fixture?.date);
+      const cfg = coachFor(coach, m.liveId, m.fixture?.date, extIds(season.players));
       const mins = M.minutesPlayed(state);
       const present = new Set(presentPlayers(state, cfg.absent).map((p) => p.id));
       const squad = new Set(state.players.map((p) => p.id));

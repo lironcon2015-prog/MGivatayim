@@ -486,13 +486,21 @@ export function mountLive(view, ctx) {
     return new Set([...ctx.coachCfg(st.id).absent].filter((pid) => !played.has(pid)));
   }
   const subBench = (st) => { const away = notHere(st); return M.bench(st).filter((p) => !away.has(p.id)); };
+  // The extended squad not marked as come: not offered at all before kick-off
+  // either (the rest of the absent stay in sight, crossed out).
+  const extAway = (st) => {
+    if (!ctx.canMinutes()) return new Set();
+    const cfg = ctx.coachCfg(st.id);
+    return new Set([...cfg.ext || []].filter((pid) => cfg.absent.has(pid)));
+  };
 
   function lineupEditor(st) {
     const formation = M.formationOfState(st);
     const open = freeSlots(formation.slots, st.lineup);
     const size = M.sizeOf(st);
     const absent = ctx.canMinutes() ? ctx.coachCfg(st.id).absent : new Set();
-    const out = [...st.players].filter((p) => !st.lineup.some((l) => l.pid === p.id)).sort(byNumber);
+    const hide = extAway(st);
+    const out = [...st.players].filter((p) => !st.lineup.some((l) => l.pid === p.id) && !hide.has(p.id)).sort(byNumber);
     const check = (done, label) => `<span class="ck${done ? ' done' : ''}">${done ? icon('check') : ''}${label}</span>`;
     return `<section class="setup">
       <div class="checks">${fullCtl() ? check(!!String(st.opponent || '').trim(), 'פרטים') : ''}${check(st.lineup.length === size, `הרכב <span class="num">${st.lineup.length}/${size}</span>`)}${S.isAdmin ? check(!S.hidden, 'פרסום להורים') : ''}</div>
@@ -569,7 +577,8 @@ export function mountLive(view, ctx) {
     if (!st || st.status !== 'setup') return;
     const inLineup = new Map(st.lineup.map((l) => [l.pid, l.pos]));
     const note = (p) => [posLabel(p.pos), posLabel(p.pos2)].filter(Boolean).join(' / ');
-    const bench = st.players.filter((p) => !inLineup.has(p.id)).sort(byNumber);
+    const hide = extAway(st);
+    const bench = st.players.filter((p) => !inLineup.has(p.id) && !hide.has(p.id)).sort(byNumber);
     const groups = subGroups(pos, bench, { rest: 'שאר הסגל', all: 'הסגל' })
       .map((g) => ({ ...g, players: g.players.map((p) => ({ ...p, note: note(p) })) }));
     const starters = st.players.filter((p) => inLineup.has(p.id) && p.id !== pid).sort(byNumber)
@@ -1785,7 +1794,8 @@ export function mountLive(view, ctx) {
     const state0 = M.newLive({
       id: 'm' + Date.now().toString(36), ...base,
       format: ctx.format(), size: ctx.size(), formation: formation.id, players,
-      lineup: refit(formation.slots, M.previousLineup(ctx.matches(), players, ctx.size()), players),
+      // The extended squad comes now and then: not carried into the plan.
+      lineup: refit(formation.slots, M.previousLineup(ctx.matches(), players.filter((p) => !ctx.extIds?.().includes(p.id)), ctx.size()), players),
     });
     try { await S.startMatch(state0); }
     catch (e) {

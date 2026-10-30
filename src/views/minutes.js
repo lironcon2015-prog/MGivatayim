@@ -133,8 +133,23 @@ export function coachFormHtml(state, cfg) {
   // Before kick-off the lineup is only a plan (carried over from the last
   // match): a starter can still be marked absent, which takes him off it.
   const took = state.status === 'setup' ? new Set() : appeared(state);
-  const players = [...state.players].sort((a, b) => (a.number ?? 999) - (b.number ?? 999) || a.name.localeCompare(b.name, 'he'));
-  const here = players.filter((p) => took.has(p.id) || !cfg.absent.has(p.id)).length;
+  const all = [...state.players].sort((a, b) => (a.number ?? 999) - (b.number ?? 999) || a.name.localeCompare(b.name, 'he'));
+  // The extended squad apart, under the squad: "absent" until marked as come.
+  const isExt = (p) => cfg.ext?.has(p.id);
+  const players = all.filter((p) => !isExt(p)), extended = all.filter(isExt);
+  const came = (p) => took.has(p.id) || !cfg.absent.has(p.id);
+  const here = players.filter(came).length, extHere = extended.filter(came).length;
+  const row = (p) => {
+    const played = took.has(p.id);
+    const on = played || !cfg.absent.has(p.id);
+    const opt = (yes, label) => `<button type="button" data-mn-present="${esc(p.id)}" data-mn-state="${yes ? 'here' : 'away'}" aria-pressed="${on === yes}"${played ? ' disabled' : ''}>${label}</button>`;
+    return `<div class="mn-att${on ? '' : ' away'}">
+          ${shirt(p.number)}
+          ${cfg.self?.has(p.id) && !played ? `<span class="mn-who"><span class="mn-name">${esc(p.name)}</span><small${cfg.here.has(p.id) || cfg.own.has(p.id) ? '' : ' class="self"'}>${cfg.here.has(p.id) ? 'סימן שלא יגיע · שיניתם' : 'סימן בעצמו שלא יגיע'}</small></span>` : `<span class="mn-name">${esc(p.name)}</span>`}
+          ${played && state.status !== 'setup' ? '<span class="mn-played">שיחק</span>'
+            : `<span class="mn-tg" role="group" aria-label="${esc(`הגעה של ${p.name}`)}">${opt(true, 'הגיע')}${opt(false, 'חסר')}</span>`}
+        </div>`;
+  };
   return `<section data-minutes>
       ${sectionHead('מינימום למשחק הזה', '', 'clock')}
       <div class="card mn-minbox">
@@ -148,19 +163,14 @@ export function coachFormHtml(state, cfg) {
     </section>
     <section>
       ${sectionHead('מי הגיע', `<span class="num">${here}</span> מתוך <span class="num">${players.length}</span>`, 'user')}
-      <div class="card mn-list">${players.map((p) => {
-        const played = took.has(p.id);
-        const on = played || !cfg.absent.has(p.id);
-        const opt = (here, label) => `<button type="button" data-mn-present="${esc(p.id)}" data-mn-state="${here ? 'here' : 'away'}" aria-pressed="${on === here}"${played ? ' disabled' : ''}>${label}</button>`;
-        return `<div class="mn-att${on ? '' : ' away'}">
-          ${shirt(p.number)}
-          ${cfg.self?.has(p.id) && !played ? `<span class="mn-who"><span class="mn-name">${esc(p.name)}</span><small${cfg.here.has(p.id) || cfg.own.has(p.id) ? '' : ' class="self"'}>${cfg.here.has(p.id) ? 'סימן שלא יגיע · שיניתם' : 'סימן בעצמו שלא יגיע'}</small></span>` : `<span class="mn-name">${esc(p.name)}</span>`}
-          ${played && state.status !== 'setup' ? '<span class="mn-played">שיחק</span>'
-            : `<span class="mn-tg" role="group" aria-label="${esc(`הגעה של ${p.name}`)}">${opt(true, 'הגיע')}${opt(false, 'חסר')}</span>`}
-        </div>`;
-      }).join('') || '<div class="empty">אין שחקנים בסגל.</div>'}</div>
+      <div class="card mn-list">${players.map(row).join('') || '<div class="empty">אין שחקנים בסגל.</div>'}</div>
       <p class="note">מי שלא הגיע לא נספר: לא ברשימת הדקות, לא בהתראה ולא בעונה. מי ששיחק נחשב כמי שהגיע.</p>
-    </section>`;
+    </section>${extended.length ? `
+    <section data-mn-ext>
+      ${sectionHead('סגל מורחב', extHere ? `<span class="num">${extHere}</span> הגיעו` : 'אף אחד', 'user')}
+      <div class="card mn-list">${extended.map(row).join('')}</div>
+      <p class="note">שחקנים משנתון אחר. מי שסומן "הגיע" נכנס לספסל ולחילופים של המשחק הזה.</p>
+    </section>` : ''}`;
 }
 
 // Handles a click or change inside coachFormHtml. `save` takes a patch —
@@ -183,7 +193,7 @@ export function coachFormEvent(target, state, cfg, save, onAway) {
     // The coach's word wins over a player's own "I won't come": present
     // after one is kept in `here`.
     const absent = new Set(cfg.own || cfg.absent), here = new Set(cfg.here || []);
-    if (away) { absent.add(pid); here.delete(pid); } else { absent.delete(pid); if (cfg.self?.has(pid)) here.add(pid); }
+    if (away) { absent.add(pid); here.delete(pid); } else { absent.delete(pid); if (cfg.self?.has(pid) || cfg.ext?.has(pid)) here.add(pid); }
     if (away) onAway?.(pid);
     save({ absent: [...absent], here: [...here] });
     return true;

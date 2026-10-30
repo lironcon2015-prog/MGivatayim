@@ -16,7 +16,7 @@ import { hydratePosters, preparePosters } from './posters.js';
 import { LiveSession } from './live/sync.js';
 import * as LM from './live/model.js';
 import { mountLive, openMatchSheet, showMinutesTab } from './views/live.js';
-import { cleanCoach, coachFor, shortfall, alertKey } from './minutes.js';
+import { cleanCoach, coachFor, extIds, shortfall, alertKey } from './minutes.js';
 import { homeAlertHtml } from './views/minutes.js';
 import { toast, buzz, openSheet } from './ui/sheet.js';
 import { todayInIsrael } from './fixtures.js';
@@ -55,7 +55,7 @@ const coachData = () => cleanCoach(state.payload?.coach);
 // is kept by its date.
 const fixtureDateOf = (liveId) => (session.state?.id === liveId ? session.state.fixture?.date
   : (state.payload?.season?.matches || []).find((m) => m.liveId === liveId)?.fixture?.date) || null;
-const coachCfg = (liveId) => coachFor(coachData(), liveId, fixtureDateOf(liveId));
+const coachCfg = (liveId) => coachFor(coachData(), liveId, fixtureDateOf(liveId), extIds(state.season?.players));
 
 // One live session for the whole app: it polls slowly everywhere (so the home
 // banner and the tab's dot appear when a match starts) and fast on the live
@@ -443,14 +443,14 @@ function markNav(hash) {
 // some of the children are still trying out.
 function rosterShown() {
   const s = state.season;
-  return state.access === 'approved' && s?.settings?.showRoster === true && s.players.some((p) => p.name);
+  return state.access === 'approved' && s?.settings?.showRoster === true && s.players.some((p) => p.name && p.ext !== true);
 }
 
 function openRoster() {
   const s = state.season;
   if (!s) return;
   const team = s.team;
-  const players = s.players.filter((p) => p.name).sort(byNumber);
+  const players = s.players.filter((p) => p.name && p.ext !== true).sort(byNumber);
   const crestTeam = { name: team.name, crestUrl: team.crestUrl || new URL(DEFAULT_CREST, ROOT).href };
   openSheet({
     label: 'סגל הקבוצה',
@@ -579,6 +579,7 @@ function draw() {
       coachCfg,
       saveCoach,
       players: () => s.players.map((p) => ({ id: p.id, name: p.name, number: p.number ?? null, pos: p.pos || '', pos2: p.pos2 || '' })),
+      extIds: () => extIds(s.players),
       format: () => LM.cleanFormat(s.settings?.format),
       size: () => LM.cleanSize(s.settings?.size),
       matches: () => s.recent,

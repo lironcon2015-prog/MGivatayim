@@ -477,6 +477,16 @@ export function mountLive(view, ctx) {
   // Before kick-off: the pitch is the editor. A tap on a slot picks who
   // plays there (or takes him out); a tap on a name below puts him in the
   // free slot that suits him. The match details live in a sheet.
+  // The bench for a substitution: whoever the coach marked absent is not
+  // there (unless he already played — then the mark is a mistake). The
+  // marks reach the coach and the manager only; a parent with a code sees all.
+  function notHere(st) {
+    if (!ctx.canMinutes()) return new Set();
+    const played = new Set([...(st.lineup || []).map((l) => l.pid), ...st.events.filter((e) => e.type === 'sub').map((e) => e.in)]);
+    return new Set([...ctx.coachCfg(st.id).absent].filter((pid) => !played.has(pid)));
+  }
+  const subBench = (st) => { const away = notHere(st); return M.bench(st).filter((p) => !away.has(p.id)); };
+
   function lineupEditor(st) {
     const formation = M.formationOfState(st);
     const open = freeSlots(formation.slots, st.lineup);
@@ -775,7 +785,7 @@ export function mountLive(view, ctx) {
 
     const ctl = control();
     const field = M.onField(st);
-    const benchPlayers = M.bench(st).sort(byNumber);
+    const benchPlayers = subBench(st).sort(byNumber);
     const scroll = window.scrollY;
     const coach = ctx.canMinutes();
     const cfg = coach ? ctx.coachCfg(st.id) : null;
@@ -1201,7 +1211,7 @@ export function mountLive(view, ctx) {
     }
     const slot = field.find((f) => f.pid === outPid);
     const pos = slot?.pos || '';
-    const benchP = M.bench(st);
+    const benchP = subBench(st);
     const note = (p) => [posLabel(p.pos), posLabel(p.pos2)].filter(Boolean).join(' / ');
     const groups = subGroups(pos, [...benchP].sort(byNumber)).map((g) => ({ ...g, players: g.players.map((p) => ({ ...p, note: note(p) })) }));
     const timing = timingState(st);
@@ -1268,7 +1278,7 @@ export function mountLive(view, ctx) {
       const st = state();
       const slots = M.onField(st);
       const field = slots.map((f) => M.playerById(st, f.pid)).filter(Boolean);
-      const benchP = [...M.bench(st)].sort(byNumber);
+      const benchP = [...subBench(st)].sort(byNumber);
       // Marks that a change from another phone made stale are dropped.
       for (const pid of outs) if (!field.some((p) => p.id === pid)) outs.delete(pid);
       for (const pid of ins) if (!benchP.some((p) => p.id === pid)) ins.delete(pid);
@@ -1539,10 +1549,11 @@ export function mountLive(view, ctx) {
     const st = state();
     const before = M.onFieldBefore(st, e.id);
     const onPitch = new Set(before.map((f) => f.pid));
+    const away = notHere(st);
     const note = (p) => [posLabel(p.pos), posLabel(p.pos2)].filter(Boolean).join(' / ');
     const players = side === 'out'
       ? before.map((f) => ({ ...M.playerById(st, f.pid), note: posLabel(f.pos) })).filter((p) => p.id && p.id !== e.out && p.id !== e.in)
-      : st.players.filter((p) => !onPitch.has(p.id) && p.id !== e.in && p.id !== e.out).map((p) => ({ ...p, note: note(p) }));
+      : st.players.filter((p) => !onPitch.has(p.id) && p.id !== e.in && p.id !== e.out && !away.has(p.id)).map((p) => ({ ...p, note: note(p) }));
     const now = who(st, side === 'out' ? e.out : e.in);
     const sh = openSheet({
       title: side === 'out' ? 'מי יצא באמת?' : 'מי נכנס באמת?',

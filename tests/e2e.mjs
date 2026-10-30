@@ -34,7 +34,7 @@ const app = createServer(async (req, res) => {
 const bridge = createBridge({ adminCode: ADMIN });
 const bridgeServer = await serveBridge(bridge, BRIDGE_PORT);
 
-const exe = ['/opt/pw-browsers/chromium-1194/chrome-linux/chrome'].find(existsSync);
+const exe = ['/opt/pw-browsers/chromium-1194/chrome-linux/chrome', '/opt/pw-browsers/chromium'].find(existsSync);
 const browser = await chromium.launch(exe ? { executablePath: exe } : {});
 
 let passed = 0;
@@ -2084,6 +2084,19 @@ await step('at the break before the last period the coach is alerted once, where
   await coach.locator('.live-dock [data-act="sub"]').waitFor({ timeout: 8000 });
   expect(await coach.locator('.live-dock [data-act="shape"]').count() === 1, 'no shape change in the squad bar');
   expect(await coach.locator('.live-dock [data-act="goal-us"], .live-dock [data-act="start"]').count() === 0, 'goals or the whistle in the squad bar');
+  // Whoever the coach marked absent is not offered for a substitution: not on
+  // the bench under the pitch, not in the substitutions sheet.
+  const gone = await coach.locator('[data-bench]').last().getAttribute('data-bench');
+  await coach.click('[data-tab="minutes"]');
+  await coach.click(`[data-mn-present="${gone}"][data-mn-state="away"]`);
+  await until(() => (coachFile().matches[liveFile().id].absent || []).includes(gone), 'the absence to reach Drive');
+  await coach.click('[data-tab="match"]');
+  await coach.locator('[data-bench]').first().waitFor();
+  expect(await coach.locator(`[data-bench="${gone}"]`).count() === 0, 'an absent player is on the bench');
+  await coach.click('.live-dock [data-act="sub"]');
+  await coach.locator('.wave-tile').first().waitFor();
+  expect(await coach.locator(`.wave-tile[data-in="${gone}"]`).count() === 0, 'an absent player is offered to come on');
+  await coach.click('.sheet-x');
   await asAdmin('clearLive');
   const coachId = (await asAdmin('listUsers')).find((u) => u.name === 'המאמן').id;
   await asAdmin('setStatus', { id: coachId, status: 'revoked' });

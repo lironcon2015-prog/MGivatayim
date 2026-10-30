@@ -115,7 +115,7 @@ const server = createServer(async (req, res) => {
   } catch { res.writeHead(404); res.end(); }
 }).listen(PORT);
 
-const exe = ['/opt/pw-browsers/chromium-1194/chrome-linux/chrome'].find(existsSync);
+const exe = ['/opt/pw-browsers/chromium-1194/chrome-linux/chrome', '/opt/pw-browsers/chromium'].find(existsSync);
 const browser = await chromium.launch(exe ? { executablePath: exe } : {});
 const ctx = await browser.newContext({ viewport: { width: 400, height: 800 } });
 await ctx.route(/fonts\.|script\.google\.com/, (r) => r.abort());

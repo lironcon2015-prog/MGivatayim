@@ -1991,7 +1991,10 @@ await step('before kick-off the coach sets the minimum and who came; a parent se
   await setExt(true);
   await admin.reload();
   await admin.locator('.formation-seg').waitFor({ timeout: 8000 });
-  expect(await admin.locator(`[data-lineup="${benched.id}"]`).count() === 0, 'an extended player not marked as come is offered for the lineup');
+  // The first draw may be the phone's copy of the season; the fresh one follows.
+  let offered = 1;
+  for (let i = 0; i < 40 && offered; i++) { offered = await admin.locator(`[data-lineup="${benched.id}"]`).count(); if (offered) await admin.waitForTimeout(200); }
+  expect(!offered, 'an extended player not marked as come is offered for the lineup');
   await coach.reload();
   await coach.click('[data-tab="minutes"]', { timeout: 8000 });
   const extAway = coach.locator(`[data-mn-ext] [data-mn-present="${benched.id}"][data-mn-state="away"]`);
@@ -2543,9 +2546,10 @@ await step('the roster: off until the manager turns it on, then the title opens 
     const name = (await item.locator('summary b').innerText()).trim();
     await item.locator('summary').click();
     await admin.locator(`[data-path="${path}.ext"]`).setChecked(on);
-    const card = admin.locator('section', { has: admin.locator('h2', { hasText: 'סגל מורחב' }) });
-    if (on) await card.locator(`details[data-item="${path}"]`).waitFor();
-    else await card.waitFor({ state: 'detached' });
+    const head = admin.locator('.sec-head h2', { hasText: 'סגל מורחב' });
+    if (on) await head.waitFor();
+    else await head.waitFor({ state: 'detached' });
+    expect(await admin.locator('section').filter({ has: head }).locator(`details[data-item="${path}"]`).count() === (on ? 1 : 0), 'the row did not move to its card');
     await admin.click('#save');
     await waitSaved(admin);
     return name;

@@ -2542,7 +2542,8 @@ await step('the roster: off until the manager turns it on, then the title opens 
     await admin.goto(APP + '#/admin');
     await admin.locator('.admin-body:not([inert])').waitFor({ timeout: 8000 });
     await adminTab(admin, 'players');
-    const item = on ? admin.locator('details[data-item^="players."]').first() : admin.locator('section', { hasText: 'סגל מורחב' }).locator('details[data-item^="players."]').first();
+    const extCard = admin.locator('section').filter({ has: admin.locator('.sec-head h2', { hasText: 'סגל מורחב' }) });
+    const item = (on ? admin : extCard).locator('details[data-item^="players."]').first();
     const path = await item.getAttribute('data-item');
     const name = (await item.locator('summary b').innerText()).trim();
     await item.locator('summary').click();

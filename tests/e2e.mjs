@@ -2090,10 +2090,10 @@ await step('at the break before the last period the coach is alerted once, where
   await asAdmin('setCoachMatch', { liveId: liveFile().id, absent: [gone] });
   await coach.reload();
   await coach.click('[data-tab="match"]', { timeout: 8000 });
-  await coach.locator('[data-bench]').first().waitFor();
+  await coach.locator('.pitch').first().waitFor();
   expect(await coach.locator(`[data-bench="${gone}"]`).count() === 0, 'an absent player is on the bench');
   await coach.click('.live-dock [data-act="sub"]');
-  await coach.locator('.wave-tile').first().waitFor();
+  await coach.locator('.wave-grid').waitFor();
   expect(await coach.locator(`.wave-tile[data-in="${gone}"]`).count() === 0, 'an absent player is offered to come on');
   await coach.click('.sheet-x');
   await asAdmin('clearLive');

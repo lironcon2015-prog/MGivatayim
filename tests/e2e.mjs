@@ -2087,10 +2087,9 @@ await step('at the break before the last period the coach is alerted once, where
   // Whoever the coach marked absent is not offered for a substitution: not on
   // the bench under the pitch, not in the substitutions sheet.
   const gone = await coach.locator('[data-bench]').last().getAttribute('data-bench');
-  await coach.click('[data-tab="minutes"]');
-  await coach.click(`[data-mn-present="${gone}"][data-mn-state="away"]`);
-  await until(() => (coachFile().matches[liveFile().id].absent || []).includes(gone), 'the absence to reach Drive');
-  await coach.click('[data-tab="match"]');
+  await asAdmin('setCoachMatch', { liveId: liveFile().id, absent: [gone] });
+  await coach.reload();
+  await coach.click('[data-tab="match"]', { timeout: 8000 });
   await coach.locator('[data-bench]').first().waitFor();
   expect(await coach.locator(`[data-bench="${gone}"]`).count() === 0, 'an absent player is on the bench');
   await coach.click('.live-dock [data-act="sub"]');

@@ -2540,6 +2540,7 @@ await step('the roster: off until the manager turns it on, then the title opens 
   // the roster on the home screen.
   const setExt = async (on) => {
     await admin.goto(APP + '#/admin');
+    await admin.locator('.admin-body:not([inert])').waitFor({ timeout: 8000 });
     await adminTab(admin, 'players');
     const item = on ? admin.locator('details[data-item^="players."]').first() : admin.locator('section', { hasText: 'סגל מורחב' }).locator('details[data-item^="players."]').first();
     const path = await item.getAttribute('data-item');

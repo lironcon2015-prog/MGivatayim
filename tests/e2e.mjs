@@ -2977,6 +2977,7 @@ await step('the league: its own tab, a sheet for any team, the line on the next 
     await admin.click('.lg-row.us');
     await admin.locator('.sheet .lg-tiles').waitFor();
     expect(await admin.locator('.sheet .lg-game:visible').count() === 3, 'not three results first');
+    expect((await admin.locator('.sheet .lg-game .lg-ha').allInnerTexts()).join() === 'חוץ,בית,חוץ,חוץ', 'home/away of our games: ' + (await admin.locator('.sheet .lg-game .lg-ha').allInnerTexts()));
     await admin.click('.sheet [data-fold-btn]');
     expect(await admin.locator('.sheet .lg-games .lg-game:visible').count() === 4, 'the rest did not open');
     await admin.click('.sheet-x');

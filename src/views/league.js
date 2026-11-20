@@ -71,7 +71,7 @@ function gameRow(s, team, g, { round = true } = {}) {
       <b class="sc num">${g.gf}</b><span class="dash">–</span><span class="sc op num">${g.ga}</span>
       <span class="op${g.opp === lg.team ? ' gold' : ''}">${esc(name(g.opp))}</span>
     </span>
-    ${round ? `<span class="lg-rd">${g.round != null ? `מחזור <span class="num">${g.round}</span>` : esc(shortDate(g.date))}</span>` : ''}
+    <span class="lg-rd">${round ? `<span>${g.round != null ? `מחזור <span class="num">${g.round}</span>` : esc(shortDate(g.date))}</span>` : ''}<em class="lg-ha${g.home ? '' : ' away'}">${g.home ? 'בית' : 'חוץ'}</em></span>
   </div>`;
 }
 

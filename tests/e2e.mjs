@@ -2970,6 +2970,8 @@ await step('the league: its own tab, a sheet for any team, the line on the next 
     expect((await admin.locator('.lg-row.us .t').innerText()).includes('מכבי גבעתיים'), 'our row is not ours');
     expect(await admin.evaluate(() => window.__lg) === undefined, 'a team name from the file ran as HTML');
     expect(await admin.locator('.lg-row', { hasText: '<img' }).count() === 1, 'the name with HTML is not shown as text');
+    // After the tab's slide in (it moves the screen 14px for a moment).
+    await admin.waitForFunction(() => !document.getElementById('view').getAnimations().some((x) => x.playState === 'running'));
     expect(await admin.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'the table pushes the page sideways');
     // Ours: four results, three shown, the rest one tap away.
     await admin.click('.lg-row.us');

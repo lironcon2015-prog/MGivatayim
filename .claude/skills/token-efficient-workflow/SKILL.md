@@ -97,3 +97,6 @@ Deliver accurate code using the minimum tokens possible. Silence is preferred ov
 - **`locator(X, { hasText })` תופס גם אב שמכיל את הטקסט**, ו-`.first()` נוחת על שורה של כרטיס אחר. כרטיס מזהים ב-`filter({ has: <כותרת> })`, וממתינים ל-`.admin-body:not([inert])` לפני עריכה במסך הניהול.
 - **סקריפט צילום מחוץ לבדיקות — `chromium.launch({ executablePath: '/opt/pw-browsers/chromium' })`**: ה-playwright
   ב-`node_modules` חדש מהדפדפן שבתמונה, ו-`launch()` בלי נתיב נכשל ("Executable doesn't exist"). כמו ב-e2e.
+- **מדידת גלילה הצידה ב-e2e — אחרי ש-`#view` סיים להחליק** (`#view.getAnimations()`): מעבר לשונית מזיז את המסך
+  14px לרגע, ומדידה מיד אחרי הלחיצה רואה דף רחב מדי. במעבר ב-`goto` אין החלקה, ולכן סקריפט צילום לא תופס את זה.
+- **צעד בסוף e2e לא מניח שה-`parent` עוד מאושר**: צעד "ביטול גישה" מבטל אותו. צופה מאוחר — מכשיר חדש, או המנהל.

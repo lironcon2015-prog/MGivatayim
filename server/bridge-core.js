@@ -49,6 +49,7 @@ const ACCESS_FILE = 'access.json';
 const LIVE_FILE = 'live.json';
 const COACH_FILE = 'coach.json';
 const MESSAGE_FILE = 'message.json';
+const LEAGUE_FILE = 'league.json';
 
 const MIN_ADMIN_CODE = 12;
 const MIN_DEVICE_KEY = 32;
@@ -159,6 +160,9 @@ function handle_(req) {
     case 'replaceUser':   return replaceUser_(req);
     case 'setEntryCode':  return setEntryCode_(req);
     case 'putSeason':     return putSeason_(req);
+    case 'putLeague':     return putLeague_(req);
+    // מי שמחזיק את סוד הליגה (השליחה היומית לשרת)
+    case 'pushLeague':    return pushLeague_(req);
     case 'makePoster':    return makePoster_(req);
     case 'expandMapLink': return expandMapLink_(req);
     case 'putLogo':       return putLogo_(req);
@@ -448,17 +452,18 @@ function getSeason_(req) {
   const role = who.admin ? 'admin' : who.coach ? 'coach' : who.player ? 'player' : 'parent';
   const s = readJson_(SEASON_FILE, null) || { version: 0, updatedAt: null, season: null };
   const message = message_();
+  const league = league_();
   /* שחקן: מה שהורה מקבל, בלי מה שמדרג ילדים ובלי מה שנכתב להורים, ועם
      הנתונים שלו בלבד (me). */
   if (who.player) {
-    const out = Object.assign(forPlayers_(s, who.user.pid || null), { role: role, message: message });
+    const out = Object.assign(forPlayers_(s, who.user.pid || null), { role: role, message: message, league: league });
     out.me.away = awayFor_(who.user.pid || null);
     return out;
   }
   /* מאמן מקבל את העונה המלאה, עם הדקות, ואת נתוני המאמן. הורה לא מקבל
      אף אחד מהם. */
-  if (!who.coach) return Object.assign(forParents_(s), { role: role, message: message });
-  return Object.assign({}, s, { role: role, coach: coach_(), message: message });
+  if (!who.coach) return Object.assign(forParents_(s), { role: role, message: message, league: league });
+  return Object.assign({}, s, { role: role, coach: coach_(), message: message, league: league });
 }
 
 /* דקות משחק לשחקן — למנהל בלבד. ההסתרה כאן ולא בממשק: מה שמגיע לטלפון
@@ -579,6 +584,133 @@ function setMessage_(req) {
     writeJson_(MESSAGE_FILE, next);
     return { message: next.text ? next : null };
   });
+}
+
+/* ---------- טבלת הליגה ----------
+   קובץ טקסט מאתר וואלה: כל המשחקים והטבלה של הליגה (בעל הריפו). הוא מגיע
+   בשליחה יומית לשרת (pushLeague, עם הסוד LEAGUE_TOKEN), או בהדבקה של המנהל
+   (putLeague). כולם רואים אותו — מידע ציבורי. קובץ שלא עבר את הבדיקה לא
+   מחליף את הקודם: עדיף נתון של אתמול מטבלה חסרה. כל שדה נבנה מחדש עם טיפוס
+   כפוי, כי השמות נוחתים ב-HTML אצל כל הצופים. */
+const MAX_LEAGUE_BYTES = 200 * 1024;
+const MIN_LEAGUE_TOKEN = 24;
+const LEAGUE_GAMES_HEAD = 'ROUND|DATE|TIME|HOME|AWAY|SCORE|STATUS';
+const LEAGUE_TABLE_HEAD = 'POS|TEAM|P|W|D|L|GF|GA|GD|PTS';
+
+function league_() {
+  const l = readJson_(LEAGUE_FILE, null);
+  return l && Array.isArray(l.table) && l.table.length ? l : null;
+}
+
+function utf8Bytes_(text) {
+  text = String(text);
+  let bytes = 0;
+  for (let i = 0; i < text.length; i++) {
+    const c = text.charCodeAt(i);
+    if (c >= 0xD800 && c < 0xDC00) { bytes += 4; i++; } else bytes += c < 0x80 ? 1 : c < 0x800 ? 2 : 3;
+  }
+  return bytes;
+}
+
+function parseLeague_(text) {
+  const bad = (line, why) => fail_((line ? 'שורה ' + line + ': ' : '') + why, 'bad_league');
+  const lines = String(text || '').replace(/^﻿/, '').split(/\r?\n/).map((l, i) => ({ n: i + 1, t: l.trim() })).filter((l) => l.t);
+  if (!lines.length) throw bad(0, 'הקובץ ריק');
+  if (lines[lines.length - 1].t !== '[END]') throw bad(0, 'הקובץ לא שלם: חסרה שורת [END] בסוף');
+  const cut = (t) => t.split('|').map((x) => x.trim());
+  const name = (v, line) => {
+    const t = String(v || '').replace(/\s+/g, ' ').trim();
+    if (!t || t.length > 80) throw bad(line, 'שם קבוצה חסר או ארוך מדי');
+    return t;
+  };
+  const int = (v, line, what) => {
+    if (!/^[+-]?\d{1,4}$/.test(v)) throw bad(line, what + ' אינו מספר: ' + v);
+    return Number(v);
+  };
+  const out = { league: { id: '', name: '' }, team: '', reportDate: '', games: [], table: [] };
+  let part = 'head';
+  for (const l of lines.slice(0, -1)) {
+    if (l.t === '[GAMES]' || l.t === '[TABLE]') {
+      part = l.t === '[GAMES]' ? 'games-head' : 'table-head';
+      continue;
+    }
+    if (l.t === '[END]') throw bad(l.n, '[END] באמצע הקובץ');
+    const f = cut(l.t);
+    if (part === 'head') {
+      if (f[0] === 'LEAGUE') out.league = { id: String(f[1] || '').slice(0, 20), name: String(f[2] || '').slice(0, 80) };
+      else if (f[0] === 'TEAM') out.team = name(f[1], l.n);
+      else if (f[0] === 'REPORT_DATE') {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(f[1] || '')) throw bad(l.n, 'תאריך הדוח לא בצורה YYYY-MM-DD');
+        out.reportDate = f[1];
+      }
+      continue;
+    }
+    if (part === 'games-head' || part === 'table-head') {
+      const want = part === 'games-head' ? LEAGUE_GAMES_HEAD : LEAGUE_TABLE_HEAD;
+      if (f.join('|') !== want) throw bad(l.n, 'שורת הכותרות צריכה להיות ' + want);
+      part = part === 'games-head' ? 'games' : 'table';
+      continue;
+    }
+    if (part === 'games') {
+      if (f.length !== 7) throw bad(l.n, 'במשחק צריכים להיות 7 שדות');
+      const round = (f[0].match(/\d{1,3}/) || [null])[0];
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(f[1])) throw bad(l.n, 'תאריך לא בצורה YYYY-MM-DD');
+      if (f[2] && !/^\d{1,2}:\d{2}$/.test(f[2])) throw bad(l.n, 'שעה לא בצורה HH:MM');
+      const blank = f[5] === '-' || f[5] === '';
+      const sc = blank ? null : f[5].match(/^(\d{1,2})\s*-\s*(\d{1,2})$/);
+      if (!blank && !sc) throw bad(l.n, 'תוצאה לא בצורה 5-2 או -');
+      out.games.push({
+        round: round == null ? null : Number(round), date: f[1],
+        // 00:00 is the site's "not set yet".
+        time: f[2] && f[2] !== '00:00' ? (f[2].length === 4 ? '0' + f[2] : f[2]) : '',
+        home: name(f[3], l.n), away: name(f[4], l.n),
+        hg: sc ? Number(sc[1]) : null, ag: sc ? Number(sc[2]) : null,
+      });
+      if (out.games.length > 400) throw bad(l.n, 'יותר מדי משחקים');
+      continue;
+    }
+    if (part === 'table') {
+      if (f.length !== 10) throw bad(l.n, 'בשורת טבלה צריכים להיות 10 שדות');
+      out.table.push({
+        pos: int(f[0], l.n, 'המקום'), team: name(f[1], l.n),
+        p: int(f[2], l.n, 'משחקים'), w: int(f[3], l.n, 'ניצחונות'), d: int(f[4], l.n, 'תיקו'), l: int(f[5], l.n, 'הפסדים'),
+        gf: int(f[6], l.n, 'שערי זכות'), ga: int(f[7], l.n, 'שערי חובה'), gd: int(f[8], l.n, 'הפרש'), pts: int(f[9], l.n, 'נקודות'),
+      });
+      if (out.table.length > 30) throw bad(l.n, 'יותר מדי קבוצות בטבלה');
+      continue;
+    }
+  }
+  if (out.table.length < 2) throw bad(0, 'חסרה הטבלה ([TABLE])');
+  const teams = out.table.map((r) => r.team);
+  if (!out.team) throw bad(0, 'חסרה שורת TEAM');
+  if (teams.indexOf(out.team) < 0) throw bad(0, 'הקבוצה שלנו (' + out.team + ') לא בטבלה');
+  for (const g of out.games) {
+    for (const t of [g.home, g.away]) if (teams.indexOf(t) < 0) throw bad(0, 'קבוצה במשחקים שאינה בטבלה: ' + t);
+  }
+  return out;
+}
+
+function saveLeague_(text, via) {
+  if (utf8Bytes_(text) > MAX_LEAGUE_BYTES) throw fail_('הקובץ גדול מדי', 'too_big');
+  const parsed = parseLeague_(text);
+  return withLock_(() => {
+    const next = Object.assign(parsed, { updatedAt: new Date().toISOString(), via: via });
+    writeJson_(LEAGUE_FILE, next);
+    return { updatedAt: next.updatedAt, reportDate: next.reportDate, games: next.games.length, teams: next.table.length };
+  });
+}
+
+function putLeague_(req) {
+  requireAdmin_(req);
+  return saveLeague_(req.text, 'manual');
+}
+
+/* השליחה היומית: סוד ארוך ב-Script properties (LEAGUE_TOKEN), לא קוד המנהל —
+   מי ששולח את הקובץ לא צריך לקרוא שום דבר אחר. */
+function pushLeague_(req) {
+  const token = PropertiesService.getScriptProperties().getProperty('LEAGUE_TOKEN') || '';
+  if (token.length < MIN_LEAGUE_TOKEN || !sameString_(String(req.token || ''), token)) throw fail_('סיסמה שגויה', 'bad_token');
+  return saveLeague_(req.text, 'auto');
 }
 
 /* ---------- תמונות לסרטונים ----------
@@ -1723,5 +1855,5 @@ function putSeason_(req) {
   });
 }
 
-return { doPost, doGet, handle_, json_, fail_, adminCode_, sameString_, isAdmin_, requireAdmin_, hash_, deviceId_, viewer_, notPlayer_, requireCoach_, root_, file_, pieces_, cacheText_, cacheKeep_, readJson_, writeJson_, withLock_, access_, hello_, requestAccess_, mailTo_, notifyRequest_, getSeason_, forParents_, forPlayers_, positionsPlayed_, message_, setMessage_, posterDir_, youtubeId_, driveId_, metaContent_, fetchImage_, findPoster_, makePoster_, mapCoords_, expandMapLink_, putLogo_, getPoster_, live_, canControl_, requireControl_, seesLive_, checkLiveState_, getLive_, watchers_, startLive_, publishLive_, putLive_, finishLive_, setLiveCode_, claimLive_, clearLiveControl_, clearLive_, coach_, setTrainingChange_, setCoachMatch_, setAway_, awayFor_, cloudinary_, sha1Hex_, cloudSign_, gallery_, saveGallery_, uploader_, galleryId_, usedToday_, extraPhotos_, leftToday_, publicItem_, getGallery_, signUpload_, cleanMatchRef_, addGalleryItem_, findItem_, hideGalleryItem_, destroyCloud_, deleteGalleryItem_, restoreGalleryItem_, tagGalleryItem_, tagMe_, setGallery_, blockUploader_, grantQuota_, adminPing_, listUsers_, setStatus_, setRole_, renameUser_, removeUser_, replaceUser_, moveDevice_, entryCode_, setEntryCode_, redeemCode_, putSeason_ };
+return { doPost, doGet, handle_, json_, fail_, adminCode_, sameString_, isAdmin_, requireAdmin_, hash_, deviceId_, viewer_, notPlayer_, requireCoach_, root_, file_, pieces_, cacheText_, cacheKeep_, readJson_, writeJson_, withLock_, access_, hello_, requestAccess_, mailTo_, notifyRequest_, getSeason_, forParents_, forPlayers_, positionsPlayed_, message_, setMessage_, league_, utf8Bytes_, parseLeague_, saveLeague_, putLeague_, pushLeague_, posterDir_, youtubeId_, driveId_, metaContent_, fetchImage_, findPoster_, makePoster_, mapCoords_, expandMapLink_, putLogo_, getPoster_, live_, canControl_, requireControl_, seesLive_, checkLiveState_, getLive_, watchers_, startLive_, publishLive_, putLive_, finishLive_, setLiveCode_, claimLive_, clearLiveControl_, clearLive_, coach_, setTrainingChange_, setCoachMatch_, setAway_, awayFor_, cloudinary_, sha1Hex_, cloudSign_, gallery_, saveGallery_, uploader_, galleryId_, usedToday_, extraPhotos_, leftToday_, publicItem_, getGallery_, signUpload_, cleanMatchRef_, addGalleryItem_, findItem_, hideGalleryItem_, destroyCloud_, deleteGalleryItem_, restoreGalleryItem_, tagGalleryItem_, tagMe_, setGallery_, blockUploader_, grantQuota_, adminPing_, listUsers_, setStatus_, setRole_, renameUser_, removeUser_, replaceUser_, moveDevice_, entryCode_, setEntryCode_, redeemCode_, putSeason_ };
 }

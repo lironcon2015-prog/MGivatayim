@@ -52,6 +52,26 @@ export async function run(test) {
     assert.equal(M.elapsedMs(s, T0 + 6 * MIN), 0);
   });
 
+  await test('whistles and corrections keep their real time, typed', () => {
+    let s = M.reduce(base(), { t: 'start', at: T0 });
+    s = M.reduce(s, { t: 'adjust', ms: 10 * MIN, at: T0 + 2 * MIN });
+    s = M.reduce(s, { t: 'adjust', ms: -99 * MIN, at: T0 + 3 * MIN });
+    s = M.reduce(s, { t: 'adjust', ms: 5 * MIN, at: T0 + 3 * MIN });
+    s = M.reduce(s, { t: 'end', period: 0, at: T0 + 31 * MIN });
+    s = M.reduce(s, { t: 'start', at: T0 + 44 * MIN });
+    assert.equal(s.events.find((e) => e.type === 'period_start' && e.period === 0).wall, T0);
+    assert.equal(s.events.find((e) => e.type === 'period_end' && e.period === 0).wall, T0 + 31 * MIN);
+    assert.equal(s.events.find((e) => e.type === 'period_start' && e.period === 1).wall, T0 + 44 * MIN);
+    // What the clock actually moved: back to zero, not 99 minutes.
+    assert.deepEqual(s.adjusts.map((a) => a.ms), [10 * MIN, -13 * MIN, 5 * MIN]);
+    const dirty = { ...s, adjusts: [...s.adjusts, { wall: '<img>', ms: 1 }, { period: 0, wall: 5, ms: 'x' }],
+      events: s.events.map((e) => (e.type === 'period_end' ? { ...e, wall: '<b>' } : e)) };
+    const clean = M.cleanLive(dirty);
+    assert.equal(clean.adjusts.length, 3, 'a correction that is not numbers is dropped');
+    assert.equal(clean.events.find((e) => e.type === 'period_end').wall, undefined);
+    assert.equal(M.cleanLive({ id: 'x' }).adjusts.length, 0, 'an older state reads with no corrections');
+  });
+
   await test('ending periods walks break → next period → fulltime', () => {
     let s = M.reduce(base(), { t: 'start', at: T0 });
     s = M.reduce(s, { t: 'end', period: 0, at: T0 + 31 * MIN });

@@ -688,12 +688,42 @@ await step('a goal with scorer and assist is recorded exactly once', async () =>
   expect(goals[0].scorer === byName['גיא פרץ'] && goals[0].assist === byName['דניאל לוי'], 'wrong scorer/assist');
 });
 
+await step('the clock moves by whole minutes, by buttons or typed, and the controller sees the real times', async () => {
+  const adj = () => (liveFile().adjusts || []).map((a) => a.ms);
+  const waitAdj = async (n) => { for (let i = 0; i < 50 && adj().length < n; i++) await admin.waitForTimeout(100); };
+  await admin.click('[data-act="clock"]');
+  await admin.locator('.sheet .ck-manual').waitFor();
+  expect(!/″|′/.test(await admin.locator('.sheet .adj-row').innerText()), 'a seconds or minutes mark is back on the buttons');
+  const before = adj().length;
+  await admin.click('.sheet [data-adj="300000"]');
+  await admin.locator('.toast', { hasText: 'השעון הוזז 5 דק׳ קדימה' }).waitFor();
+  await admin.fill('.sheet #ck-min', '17');
+  await admin.click('.sheet [data-ck-move="1"]');
+  await admin.fill('.sheet #ck-min', '3');
+  await admin.click('.sheet [data-ck-move="-1"]');
+  await admin.fill('.sheet #ck-min', '0');
+  await admin.click('.sheet [data-ck-move="1"]');
+  await admin.locator('.toast', { hasText: 'כמה דקות' }).waitFor();
+  await waitAdj(before + 3);
+  expect(JSON.stringify(adj().slice(before)) === JSON.stringify([300000, 17 * 60000, -3 * 60000]), 'moved by ' + adj().slice(before));
+  const log = await admin.locator('.sheet .ck-log').innerText();
+  expect(/שעות בפועל/.test(log) && /תיקון/.test(log) && /\d\d:\d\d/.test(log), 'no real times in the clock sheet: ' + log);
+  // Back where it was, for the steps after.
+  await admin.fill('.sheet #ck-min', '19');
+  await admin.click('.sheet [data-ck-move="-1"]');
+  await waitAdj(before + 4);
+  await admin.click('.sheet-x');
+  await sheetGone(admin);
+  expect(await admin.locator('.ev-kick .ev-wall').count() === 1, 'the kick-off has no real time for the manager');
+});
+
 await step('a watching parent sees the goal, with the scorer, without reloading', async () => {
   await parent.goto(APP + '#/live');
   await parent.locator('.sc-score .ours', { hasText: '1' }).waitFor({ timeout: 8000 });
   await waitText(parent, 'גיא פרץ');
   await parent.locator('.sc-scorers .us', { hasText: 'גיא פרץ' }).waitFor();
   expect(await parent.locator('.live-dock, [data-act="clock"]').count() === 0, 'a watching parent sees controls');
+  expect(await parent.locator('.ev-wall').count() === 0, 'a watching parent sees the real times');
 });
 
 await step('the match screen switches between the pitch and the events, without scrolling', async () => {
@@ -2913,6 +2943,66 @@ await step('a network that cannot reach the server goes around it, and a write i
   } finally {
     await bridge.post({ action: 'setMessage', adminCode: ADMIN, text: '' });
     await ctx.close();
+  }
+});
+
+await step('the league: its own tab, a sheet for any team, the line on the next match, and the manager\'s side', async () => {
+  const { readFileSync } = await import('node:fs');
+  const evil = '<img src=x onerror="window.__lg=1">';
+  const text = readFileSync(new URL('./fixtures/league-sample.txt', import.meta.url), 'utf8').replaceAll('שמשון ת"א צפון', evil);
+  expect(bridge.post({ action: 'putLeague', adminCode: ADMIN, text }).ok, 'the paste was refused');
+  // Every opponent of ours is קרית אונו in the league, for the line on the next match.
+  const cur = JSON.parse(bridge.driveFile('season.json'));
+  const names = Object.fromEntries([...(cur.season.fixtures || []), ...(cur.season.matches || [])].map((g) => [String(g.opponent).replace(/\s+/g, ' ').trim(), 'מ.כ. קרית אונו "צו פיוס"']));
+  bridge.post({ action: 'putSeason', adminCode: ADMIN, baseVersion: cur.version, season: { ...cur.season, leagueNames: names } });
+  try {
+    await parent.goto(APP + '#/');
+    await parent.reload();
+    await parent.locator('#nav a[href="#/league"]').waitFor({ timeout: 8000 });
+    if (await parent.locator('.hero .fixture').count()) {
+      await parent.locator('.hero .lg-next', { hasText: 'מקום 6' }).waitFor();
+      expect(await parent.locator('.hero .lg-pills i').count() === 3, 'not the last three results on the next match');
+    }
+    await parent.click('#nav a[href="#/league"]');
+    await parent.locator('.lg-row[data-team]').first().waitFor();
+    expect(await parent.locator('.lg-row[data-team]').count() === 12, 'not 12 teams in the table');
+    expect((await parent.locator('.lg-row.us .t').innerText()).includes('מכבי גבעתיים'), 'our row is not ours');
+    expect(await parent.evaluate(() => window.__lg) === undefined, 'a team name from the file ran as HTML');
+    expect(await parent.locator('.lg-row', { hasText: '<img' }).count() === 1, 'the name with HTML is not shown as text');
+    expect(await parent.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'the table pushes the page sideways');
+    // Ours: four results, three shown, the rest one tap away.
+    await parent.click('.lg-row.us');
+    await parent.locator('.sheet .lg-tiles').waitFor();
+    expect(await parent.locator('.sheet .lg-game:visible').count() === 3, 'not three results first');
+    await parent.click('.sheet [data-fold-btn]');
+    expect(await parent.locator('.sheet .lg-games .lg-game:visible').count() === 4, 'the rest did not open');
+    await parent.click('.sheet-x');
+    await sheetGone(parent);
+    // Another team: its game with us, from our side.
+    await parent.click('.lg-row:has-text("ניר רמת השרון")');
+    await parent.locator('.sheet .lg-vs.played', { hasText: 'מחזור 1' }).waitFor();
+    const vs = await parent.evaluate(() => {
+      const r = (s) => document.querySelector('.sheet .lg-vs ' + s).getBoundingClientRect().x;
+      return { us: document.querySelector('.sheet .lg-vs .me').textContent, right: r('.me') > r('span.op') };
+    });
+    expect(vs.us.includes('מכבי גבעתיים') && vs.right, 'our game with them is not from our side: ' + JSON.stringify(vs));
+    await parent.click('.sheet-x');
+    await sheetGone(parent);
+    // The manager: when it came in, a refused paste says why, and the names.
+    await admin.goto(APP + '#/admin');
+    await adminTab(admin, 'games');
+    await admin.locator('.admin-body:not([inert]) #league-admin', { hasText: 'הודבק ידנית' }).waitFor();
+    expect(await admin.locator('#league-admin select[data-league-name]').count() > 0, 'no opponents to match');
+    await admin.click('[data-league-paste]');
+    await admin.fill('.sheet [data-lg-text]', 'LEAGUE|1|x\n[TABLE]\n');
+    await admin.click('.sheet [data-lg-save]');
+    await admin.locator('.sheet [data-lg-err]', { hasText: 'END' }).waitFor();
+    await admin.click('.sheet-x');
+    await sheetGone(admin);
+  } finally {
+    const now = JSON.parse(bridge.driveFile('season.json'));
+    const { leagueNames, ...rest } = now.season;
+    bridge.post({ action: 'putSeason', adminCode: ADMIN, baseVersion: now.version, season: rest });
   }
 });
 

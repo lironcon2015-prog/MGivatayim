@@ -898,6 +898,10 @@ input[type="checkbox"]:focus-visible { outline: 2px solid var(--gold); outline-o
   border-radius: var(--r-pill); padding: .1rem .5rem;
 }
 .head-acts { display: flex; gap: 6px; align-items: center; }
+/* A heading with three tools (the schedule: message, import, + game) is wider
+   than a 390px phone: the tools wrap under the title instead of pushing the
+   page sideways. */
+.sec-head:has(> .head-acts) { flex-wrap: wrap; row-gap: .45rem; }
 .chip-tool {
   display: inline-flex; align-items: center; gap: .3rem; font: inherit; font-size: .8rem; font-weight: 700;
   padding: .38rem .75rem; border-radius: var(--r-pill); cursor: pointer; white-space: nowrap;
@@ -1563,6 +1567,7 @@ button.ev:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 .mk-sc { position: relative; font-size: .92rem; font-weight: 700; color: var(--muted); }
 .mk-sc b { color: var(--gold); }
 .ev-mark small { font-size: .72rem; color: var(--faint); }
+.ev-mark small.ev-wall, .ev-kick .ev-wall { font-size: .68rem; font-weight: 500; color: var(--faint); opacity: .8; }
 .ev-kick { display: flex; justify-content: center; align-items: center; gap: .35rem; padding: .75rem 0; font-size: .72rem; font-weight: 700; color: var(--faint); }
 .ev-kick svg { width: 14px; height: 14px; }
 .ev-list > li.ev-mark + li, .ev-list > li + li.ev-mark, .ev-list > li + li.ev-kick { border-top: 0; }
@@ -1643,6 +1648,26 @@ button.ev:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 .more-block > .btn.small { width: 100%; }
 .adj-row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
 .adj-row .btn { width: 100%; margin: 0; }
+/* Minutes typed by hand: the field, then forward and back. */
+.ck-manual { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 6px; margin-top: 6px; }
+.ck-manual .btn { margin: 0; }
+.ck-manual input {
+  width: 100%; min-width: 0; font: inherit; font-size: .95rem; font-weight: 600; color: var(--text); text-align: center;
+  background: var(--well); border: 1px solid rgba(255, 255, 255, .11); border-radius: var(--r-pill);
+  padding: 0 .85rem; min-height: 40px; color-scheme: dark; -moz-appearance: textfield;
+}
+.ck-manual input::-webkit-outer-spin-button, .ck-manual input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.ck-manual input:focus-visible { outline: none; border-color: rgba(232, 185, 49, .7); box-shadow: 0 0 0 3px rgba(232, 185, 49, .16); }
+/* The real times, for whoever runs the match: a quiet backup, under a
+   hairline — label and time in two columns, breaks and corrections dimmer. */
+.ck-log { margin-top: .9rem; padding-top: .65rem; border-top: 1px solid var(--line); font-size: .72rem; color: var(--faint); }
+.ck-log > p { margin: 0 0 .3rem; font-weight: 700; font-size: .68rem; letter-spacing: .02em; text-align: center; }
+.ck-log dl { margin: 0 auto; max-width: 15rem; display: grid; gap: .1rem; }
+.ck-log dl > div { display: flex; justify-content: space-between; gap: 1rem; line-height: 1.55; }
+.ck-log dt { font-weight: 600; }
+.ck-log dd { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--faint); }
+.ck-log .break, .ck-log .adj { opacity: .75; }
+.ck-log .break dt, .ck-log .adj dt { font-weight: 500; padding-inline-start: .6rem; }
 .code-row { display: flex; gap: 8px; margin: .65rem 0 .5rem; }
 .code-row input {
   flex: 1; min-width: 0; min-height: 44px; font: inherit; font-size: 1rem; letter-spacing: .08em; color: var(--text);
@@ -2272,3 +2297,104 @@ section { scroll-margin-top: 12px; }
 .mn-map:not(.mn-pos) thead th { vertical-align: bottom; }
 @media (prefers-reduced-motion: reduce) { .mini-switch, .mini-switch::before { transition: none; } }
 .sec-head .aside:has(.mn-fr) { display: inline-flex; align-items: center; gap: .3rem; white-space: nowrap; }
+
+/* ── The league (its own tab, the owner's pick from a mockup) ─────────────
+   The table: one button row per team, ours in clear gold, the next opponent
+   tagged in blue. Results of other teams are grey letters: green and red
+   belong to our results only. */
+.card.hero.lg-card { padding: .75rem .5rem .85rem; }
+.lg-row {
+  display: grid; grid-template-columns: 1.4rem minmax(0, 1fr) 1.6rem 1.3rem 1.3rem 1.3rem 2.8rem 1.9rem;
+  align-items: center; gap: 0 .15rem; width: 100%; padding: .55rem .45rem; margin: 0;
+  border: 0; border-top: 1px solid var(--line); border-radius: 0; background: none;
+  color: var(--text); font: inherit; font-size: .84rem; text-align: center; cursor: pointer;
+}
+.lg-row.lg-head { border-top: 0; padding-top: .1rem; padding-bottom: .4rem; color: var(--faint); font-size: .68rem; font-weight: 700; cursor: default; }
+.lg-row .t { display: flex; flex-wrap: wrap; align-items: center; gap: .15rem .35rem; min-width: 0; text-align: start; }
+/* A long name takes a second line on a narrow phone rather than losing its
+   end ("מ.כ. קרית אונו" cut to "מ..." at 340px). */
+.lg-row .t b { font-weight: 600; min-width: 0; line-height: 1.25; overflow-wrap: anywhere;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+.lg-row .pos { color: var(--faint); }
+.lg-row .gl { color: var(--muted); font-size: .78rem; }
+.lg-row .pts { font-weight: 700; }
+.lg-row.us { background: var(--gold-soft); border-radius: 12px; border-top-color: transparent; }
+.lg-row.us + .lg-row { border-top-color: transparent; }
+.lg-row.us .t b { color: var(--gold); font-weight: 800; }
+.lg-row.us .pts { color: var(--gold); }
+.lg-row em {
+  flex: none; font-style: normal; font-size: .6rem; font-weight: 700; line-height: 1.5; padding: 0 .4rem;
+  color: var(--blue); border: 1px solid rgba(109, 179, 245, .4); border-radius: var(--r-pill);
+}
+.lg-upd { margin: .75rem 0 0; text-align: center; font-size: .72rem; color: var(--faint); }
+.lg-upd.old { color: var(--gold); }
+.lg-hint { text-align: center; margin-top: .6rem; }
+
+/* A team's sheet. */
+.lg-sheet-head { display: flex; align-items: center; gap: .8rem; margin-bottom: 1rem; }
+.lg-sheet-head h3 { font-size: 1.15rem; margin: 0; }
+.lg-sheet-head p { margin: .15rem 0 0; color: var(--muted); font-size: .82rem; }
+.opp-plq.lg-us { overflow: hidden; }
+.opp-plq.lg-us img { width: 100%; height: 100%; padding: 8%; object-fit: contain; }
+.lg-tiles { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; margin-bottom: .9rem; }
+.lg-tile { display: grid; gap: .1rem; padding: .55rem .2rem .5rem; border-radius: 14px; background: var(--well); text-align: center; }
+.lg-tile b { font-size: 1.25rem; font-weight: 600; line-height: 1.2; }
+.lg-tile span { font-size: .68rem; font-weight: 700; color: var(--faint); }
+.lg-vs {
+  display: flex; align-items: center; gap: .7rem; margin-bottom: .9rem; padding: .6rem .75rem;
+  background: var(--gold-soft); border: 1px solid var(--gold-line); border-radius: 14px; font-size: .84rem;
+}
+.lg-vs-k { flex: none; color: var(--gold); font-weight: 800; font-size: .78rem; }
+.lg-vs-v { font-weight: 700; }
+.lg-vs .lg-game { flex: 1; min-width: 0; padding: 0; border: 0; }
+/* Played: the label above the game, so both names keep their room. */
+.lg-vs.played { flex-direction: column; align-items: stretch; gap: .45rem; }
+.lg-vs.played .lg-vs-k { font-weight: 700; }
+.lg-sub { margin: 0 0 .3rem; font-size: .92rem; }
+.lg-games { display: flex; flex-direction: column; }
+.lg-game { display: flex; align-items: center; gap: .55rem; padding: .5rem 0; border-top: 1px solid var(--line); font-size: .84rem; }
+.lg-games > .lg-game:first-child { border-top: 0; }
+.lg-res {
+  flex: none; width: 24px; height: 24px; border-radius: 8px; display: grid; place-items: center;
+  font-size: .74rem; font-weight: 800; color: var(--muted); background: var(--surface-2); border: 1px solid var(--line-strong);
+}
+.lg-line { flex: 1; min-width: 0; display: flex; align-items: center; gap: .35rem; }
+.lg-line .me, .lg-line .op { flex: 0 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* The sheet's own team is the same on every row: it keeps its name, the
+   opponent is the one cut short. */
+.lg-line .me { font-weight: 700; flex-shrink: 0; max-width: 52%; }
+.lg-line span.op { color: var(--muted); }
+.lg-line .gold, .lg-line span.op.gold { color: var(--gold); }
+.lg-line .sc { flex: none; min-width: .8em; text-align: center; font-size: .95rem; }
+.lg-line .sc.op { color: var(--faint); font-weight: 600; }
+.lg-line .dash { flex: none; color: var(--faint); }
+.lg-rd { flex: none; font-size: .7rem; color: var(--faint); }
+
+/* The line on the next-match card. */
+.lg-next {
+  display: flex; align-items: center; gap: .6rem; width: 100%; margin: .85rem 0 0; padding: .75rem .1rem 0;
+  border: 0; border-top: 1px solid var(--line); border-radius: 0; background: none;
+  color: var(--muted); font: inherit; font-size: .84rem; text-align: start; cursor: pointer;
+}
+.lg-next b { color: var(--text); }
+.lg-pills { display: inline-flex; gap: 3px; }
+.lg-pills i {
+  width: 20px; height: 20px; border-radius: 6px; display: grid; place-items: center; font-style: normal;
+  font-size: .68rem; font-weight: 800; color: var(--muted); background: var(--surface-2); border: 1px solid var(--line-strong);
+}
+.lg-go { margin-inline-start: auto; color: var(--faint); font-size: 1.1rem; line-height: 1; }
+
+/* The league in the manager's screen: when it came in, and which league team
+   each opponent is. */
+.lg-admin-st { display: flex; align-items: center; gap: .65rem; font-size: .86rem; }
+.lg-admin-st > svg { flex: none; width: 20px; height: 20px; color: var(--gold); }
+.lg-admin-st small { display: block; margin-top: .1rem; color: var(--faint); font-size: .76rem; }
+.lg-maps { padding: .2rem var(--pad); }
+.lg-map { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); align-items: center; gap: .6rem; padding: .55rem 0; border-top: 1px solid var(--line); }
+.lg-map:first-child { border-top: 0; }
+.lg-map b { font-size: .86rem; font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
+.lg-map select {
+  width: 100%; min-width: 0; font: inherit; font-size: .84rem; color: var(--text); color-scheme: dark;
+  background: var(--well); border: 1px solid rgba(255, 255, 255, .11); border-radius: 12px; padding: .5rem .6rem; min-height: 40px;
+}
+.lg-map.miss select { border-color: var(--gold-line); color: var(--gold); }

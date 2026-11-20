@@ -1,4 +1,5 @@
 import { topBy, opponentLogo } from '../season.js';
+import { leagueTeamFor } from '../league.js';
 import { pct, dec, esc, byNumber } from '../format.js';
 import { myCardHtml, sectionHead, leaderRow, tile, splitBar, matchRow, fixtureRow, sampleNote, foldRows, SCHEDULE_SAMPLE, RESULTS_SAMPLE } from '../components.js';
 import { posLabel } from '../positions.js';
@@ -119,7 +120,7 @@ function teamHtml(s) {
   ${s.schedule.length ? `<section id="stats-schedule">
     ${sectionHead('לוח המשחקים', `${s.schedule.length} משחקים`, 'calendar')}
     ${sampleNote(s, SCHEDULE_SAMPLE)}
-    <div class="card rows" data-fold="schedule">${s.schedule.map((f) => fixtureRow(f, opponentLogo(s, f.opponent))).join('')}</div>
+    <div class="card rows" data-fold="schedule">${s.schedule.map((f) => fixtureRow(f, opponentLogo(s, f.opponent), leagueTeamFor(s, f.opponent))).join('')}</div>
   </section>` : ''}
 
   <section id="stats-matches">

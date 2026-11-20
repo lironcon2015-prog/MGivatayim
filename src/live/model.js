@@ -167,6 +167,7 @@ const cleanLineup = (list) => (Array.isArray(list) ? list : [])
 function cleanEvent(e) {
   const out = { id: str(e.id), type: str(e.type), period: num(e.period, 0), atMs: num(e.atMs, 0) };
   if (e.atStart) out.atStart = true;
+  if ((e.type === 'period_start' || e.type === 'period_end') && Number.isFinite(e.wall)) out.wall = e.wall;
   if (e.type === 'goal' || e.type === 'miss') {
     out.side = e.side === 'them' ? 'them' : 'us';
     if (out.side === 'us') { out.scorer = e.scorer == null ? null : str(e.scorer); if (e.type === 'goal') out.assist = e.assist == null ? null : str(e.assist); }
@@ -197,6 +198,8 @@ export function cleanLive(s) {
     clock: { running: !!clock.running, startedAt: num(clock.startedAt), accMs: num(clock.accMs, 0) },
     lineup: cleanLineup(s.lineup),
     events: cleanEvents(s.events),
+    adjusts: (Array.isArray(s.adjusts) ? s.adjusts : []).slice(-40).filter((a) => a && Number.isFinite(a.wall) && Number.isFinite(a.ms))
+      .map((a) => ({ period: num(a.period, 0), wall: a.wall, ms: a.ms })),
     players: cleanPlayers(s.players),
   };
 }
@@ -225,7 +228,9 @@ const clone = (o) => JSON.parse(JSON.stringify(o));
 
 function endPeriod(s, at) {
   const atMs = elapsedMs(s, at);
-  s.events.push({ id: `end-${s.period}`, type: 'period_end', period: s.period, atMs });
+  const e = { id: `end-${s.period}`, type: 'period_end', period: s.period, atMs };
+  if (Number.isFinite(at)) e.wall = at;
+  s.events.push(e);
   s.clock = { running: false, startedAt: null, accMs: 0 };
   s.period += 1;
   s.status = s.period >= s.format.length ? 'fulltime' : 'break';
@@ -261,7 +266,9 @@ export function reduce(state, op) {
       if (s.status === 'setup' && op.at) s.date = israelDate(op.at);
       s.status = 'running';
       s.clock = { running: true, startedAt: op.at, accMs: 0 };
-      s.events.push({ id: `start-${s.period}`, type: 'period_start', period: s.period, atMs: 0 });
+      // The real time of the whistle, kept for whoever runs the match: a clock
+      // started late is estimated from it afterwards.
+      s.events.push({ id: `start-${s.period}`, type: 'period_start', period: s.period, atMs: 0, ...(Number.isFinite(op.at) ? { wall: op.at } : {}) });
       return s;
     case 'pause':
       if (s.status !== 'running' || !s.clock.running) return state;
@@ -275,6 +282,9 @@ export function reduce(state, op) {
       if (s.status !== 'running') return state;
       const now = elapsedMs(s, op.at);
       const target = Math.max(0, now + op.ms);
+      // Each correction, with the real time it was made: the record next to
+      // the whistles that says how the clock got where it is.
+      if (target !== now) s.adjusts = [...(s.adjusts || []), { period: s.period, wall: op.at, ms: target - now }].slice(-40);
       s.clock = s.clock.running
         ? { running: true, startedAt: op.at, accMs: target }
         : { running: false, startedAt: null, accMs: target };

@@ -1120,4 +1120,65 @@ console.log('gallery:');
   });
 }
 
+{
+  // The league file: the daily push (its own secret) and the manager's paste;
+  // everyone approved reads it; a file that fails the check keeps the last one.
+  const { readFileSync } = await import('node:fs');
+  const SAMPLE = readFileSync(new URL('./fixtures/league-sample.txt', import.meta.url), 'utf8');
+  const L = createBridge({ adminCode: ADMIN });
+  const TOKEN = 'L'.repeat(40);
+  const par = 'c'.repeat(64);
+  L.post({ action: 'requestAccess', deviceKey: par, name: 'הורה' });
+  const pid = JSON.parse(L.driveFile('access.json')).users;
+  L.post({ action: 'setStatus', adminCode: ADMIN, id: Object.keys(pid)[0], status: 'approved' });
+
+  test('the league push needs its secret, set and long', () => {
+    assert.equal(err(L.post({ action: 'pushLeague', token: TOKEN, text: SAMPLE })), 'bad_token', 'no secret set: refused');
+    L.setProp('LEAGUE_TOKEN', 'short'); L.clearCache();
+    assert.equal(err(L.post({ action: 'pushLeague', token: 'short', text: SAMPLE })), 'bad_token', 'a short secret is no secret');
+    L.setProp('LEAGUE_TOKEN', TOKEN); L.clearCache();
+    assert.equal(err(L.post({ action: 'pushLeague', token: TOKEN + 'x', text: SAMPLE })), 'bad_token');
+    assert.equal(err(L.post({ action: 'pushLeague', deviceKey: par, text: SAMPLE })), 'bad_token', 'an approved device is not the sender');
+    assert.equal(err(L.post({ action: 'putLeague', deviceKey: par, text: SAMPLE })), 'bad_code', 'only the manager pastes');
+  });
+
+  test('a good file is parsed, kept, and read by every role', () => {
+    const r = L.post({ action: 'pushLeague', token: TOKEN, text: SAMPLE }).result;
+    assert.equal(r.games, 66); assert.equal(r.teams, 12); assert.equal(r.reportDate, '2026-11-20');
+    const lg = L.post({ action: 'getSeason', deviceKey: par }).result.league;
+    assert.equal(lg.team, 'מכבי גבעתיים צפון "צו פיוס"');
+    assert.equal(lg.via, 'auto');
+    assert.deepEqual(lg.table[6], { pos: 7, team: 'מכבי גבעתיים צפון "צו פיוס"', p: 4, w: 2, d: 0, l: 2, gf: 7, ga: 14, gd: -7, pts: 6 });
+    const g = lg.games.find((x) => x.round === 1 && x.away === lg.team);
+    assert.deepEqual([g.home, g.hg, g.ag, g.time], ['הפ\' ניר רמת השרון צפון "צו פיוס"', 6, 3, '15:30']);
+    const later = lg.games.find((x) => x.round === 5 && x.away === lg.team);
+    assert.deepEqual([later.hg, later.ag, later.time], [null, null, ''], 'unplayed, and 00:00 is no time');
+    assert.ok(L.post({ action: 'getSeason', adminCode: ADMIN }).result.league, 'the manager reads it too');
+  });
+
+  test('a bad file is refused with a reason, and the last good one stays', () => {
+    const bad = (text) => L.post({ action: 'putLeague', adminCode: ADMIN, text });
+    assert.equal(err(bad(SAMPLE.replace('[END]', ''))), 'bad_league', 'cut short');
+    assert.match(bad(SAMPLE.replace('[END]', '')).error, /END/);
+    assert.equal(err(bad(SAMPLE.replace('|0-4|', '|0:4|'))), 'bad_league', 'a score not as 5-2');
+    assert.equal(err(bad(SAMPLE.replace('2026-10-15', '15/10/2026'))), 'bad_league', 'a date not ISO');
+    assert.equal(err(bad(SAMPLE.replace('|הכח מכבי עמידר ר"ג צפון|ה.מ.', '|הכח מכבי עמידר|ה.מ.'))), 'bad_league', 'a name not in the table');
+    assert.equal(err(bad(SAMPLE.replace(/^TEAM\|.*$/m, 'TEAM|מישהו אחר'))), 'bad_league', 'our team not in the table');
+    assert.equal(err(bad(SAMPLE.replace('POS|TEAM|P', 'POS|TEAM|X'))), 'bad_league');
+    assert.equal(err(bad(SAMPLE.replace('|-7|6', '|abc|6'))), 'bad_league');
+    assert.equal(err(bad(SAMPLE + '\n' + 'x'.repeat(210 * 1024))), 'too_big');
+    assert.equal(L.post({ action: 'getSeason', deviceKey: par }).result.league.reportDate, '2026-11-20');
+  });
+
+  test('a paste replaces the league, marked manual; HTML in a name stays text', () => {
+    const t = SAMPLE.replace('2026-11-20\n', '2026-11-21\n').replaceAll('שמשון ת"א צפון', 'שמשון <b>ת"א</b>');
+    const r = L.post({ action: 'putLeague', adminCode: ADMIN, text: t }).result;
+    assert.equal(r.reportDate, '2026-11-21');
+    const lg = L.post({ action: 'getSeason', deviceKey: par }).result.league;
+    assert.equal(lg.via, 'manual');
+    assert.ok(lg.table.some((x) => x.team === 'שמשון <b>ת"א</b>'), 'kept as text: the app escapes it');
+    assert.equal(Object.keys(lg.table[0]).length, 10, 'every row rebuilt field by field');
+  });
+}
+
 console.log(`\nbridge: ${passed} passed`);

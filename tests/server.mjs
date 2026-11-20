@@ -767,6 +767,56 @@ if (Miniflare) {
   }
 }
 
+/* ---------- 7: the daily league file, over HTTP as the sender sends it ---------- */
+if (Miniflare) {
+  console.log('league:');
+  const { readFileSync } = await import('node:fs');
+  const SAMPLE = readFileSync(new URL('./fixtures/league-sample.txt', import.meta.url), 'utf8');
+  const TOKEN = 'T'.repeat(48);
+  const persist = mkdtempSync(join(tmpdir(), 'mg-league-'));
+  const mf = new Miniflare({
+    modules: true,
+    modulesRules: [{ type: 'ESModule', include: ['**/*.js'] }],
+    scriptPath: join(ROOT, 'server/worker.js'),
+    modulesRoot: join(ROOT, 'server'),
+    compatibilityDate: '2026-07-01',
+    compatibilityFlags: ['nodejs_compat'],
+    durableObjects: { TEAM: { className: 'Team', useSQLite: true } },
+    durableObjectsPersist: persist,
+    bindings: { ADMIN_CODE: ADMIN, LEAGUE_TOKEN: TOKEN },
+    port: 0,
+  });
+  try {
+    const SERVER = String(await mf.ready).replace(/\/$/, '');
+    const send = (body, token = TOKEN, method = 'POST') => fetch(SERVER + '/league', {
+      method, body: method === 'POST' ? body : undefined,
+      headers: { ...(token ? { Authorization: 'Bearer ' + token } : {}), 'Content-Type': 'text/plain; charset=utf-8' },
+    });
+    await test('/league answers exactly 200 to a good file, and the league is read back', async () => {
+      const r = await send(SAMPLE);
+      assert.equal(r.status, 200);
+      assert.equal(await r.text(), 'ok');
+      const lg = (await (await fetch(SERVER, { method: 'POST', body: JSON.stringify({ action: 'getSeason', adminCode: ADMIN }) })).json()).result.league;
+      assert.equal(lg.games.length, 66);
+      assert.equal(lg.table[0].team, 'עירוני ראש העין צפון "צו פיוס"', 'Hebrew arrived intact');
+    });
+    await test('/league: 401 without or with a wrong secret, 400 with the reason, 413 too big, 405 not POST', async () => {
+      assert.equal((await send(SAMPLE, null)).status, 401);
+      assert.equal((await send(SAMPLE, TOKEN + 'x')).status, 401);
+      const cut = await send(SAMPLE.replace('[END]', ''));
+      assert.equal(cut.status, 400);
+      assert.match(await cut.text(), /END/);
+      assert.equal((await send(SAMPLE + 'x'.repeat(210 * 1024))).status, 413);
+      assert.equal((await send(null, TOKEN, 'GET')).status, 405);
+      const lg = (await (await fetch(SERVER, { method: 'POST', body: JSON.stringify({ action: 'getSeason', adminCode: ADMIN }) })).json()).result.league;
+      assert.equal(lg.games.length, 66, 'a refused file left the last good one');
+    });
+  } finally {
+    await mf.dispose();
+    rmSync(persist, { recursive: true, force: true });
+  }
+}
+
 console.log(`\nserver: ${passed} passed, ${failures.length} failed`);
 // A phone's timers (a poll scheduled far ahead) must not hold the run open.
 process.exit(failures.length ? 1 : 0);

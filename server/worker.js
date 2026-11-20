@@ -9,6 +9,7 @@
 //   GET  /              "who are you" (as doGet)
 //   GET  /live          live match updates over a WebSocket (see LIVE below)
 //   POST /admin/<op>    the move from Drive, backups (admin code; see ADMIN)
+//   POST /league        the daily league file (Bearer LEAGUE_TOKEN; see LEAGUE)
 //
 // Settings (Cloudflare → Worker → Settings → Variables and Secrets):
 //   ADMIN_CODE, CLOUDINARY_CLOUD, CLOUDINARY_KEY, CLOUDINARY_SECRET,
@@ -16,6 +17,7 @@
 //   HELPER_URL, HELPER_TOKEN — the old Apps Script deployment, which still
 //   sends the access mail and reads Drive thumbnails (it runs as the owner).
 //   ALLOW_IMPORT=1 — only while moving from Drive; remove it after.
+//   LEAGUE_TOKEN — the secret the daily league sender holds (24+ characters).
 import { DurableObject } from 'cloudflare:workers';
 import { Buffer } from 'node:buffer';
 import { createHash } from 'node:crypto';
@@ -31,7 +33,8 @@ const CORS = {
 const MAX_BODY = 4 * 1024 * 1024;      // a logo is ~270KB of base64, a season 400K characters
 const MAX_FETCH = 6 * 1024 * 1024;     // a page or an image the bridge reads
 const FETCH_MS = 15000;
-const PROP_KEYS = ['ADMIN_CODE', 'NOTIFY_EMAIL', 'CLOUDINARY_CLOUD', 'CLOUDINARY_KEY', 'CLOUDINARY_SECRET', 'OWNER_EMAIL'];
+const PROP_KEYS = ['ADMIN_CODE', 'NOTIFY_EMAIL', 'CLOUDINARY_CLOUD', 'CLOUDINARY_KEY', 'CLOUDINARY_SECRET', 'OWNER_EMAIL', 'LEAGUE_TOKEN'];
+const MAX_LEAGUE = 200 * 1024;          // the league file is ~10KB
 const MAX_SOCKETS = 300;
 const HELLO_MS = 10000;                 // a socket that has not said who it is by then is closed
 const BYE = ['not_approved', 'bad_code', 'bad_device'];
@@ -156,6 +159,7 @@ export class Team extends DurableObject {
     await this.ready;
     const url = new URL(request.url);
     if (url.pathname === '/live') return this.liveSocket(request);
+    if (url.pathname === '/league') return this.league(request);
     if (request.method === 'GET') return json({ ok: true, result: { service: 'mgivatayim-bridge', server: 'cloudflare' } });
     if (request.method !== 'POST') return fail('שיטה לא נתמכת', 'method', 405);
     const len = Number(request.headers.get('content-length') || 0);
@@ -181,6 +185,34 @@ export class Team extends DurableObject {
       out = JSON.stringify(o);
     }
     return new Response(out, { headers: { 'Content-Type': 'application/json; charset=utf-8', ...CORS } });
+  }
+
+  /* ---------- LEAGUE: the daily file from the sender ----------
+     POST /league, Authorization: Bearer <LEAGUE_TOKEN>, the text as the body.
+     Plain answers the sender acts on: 200 kept, 401 wrong secret, 400 a file
+     that failed the check (the reason in the body), 413 too big. The sender
+     tries again only on anything else, so each code means one thing. The
+     bridge does the work (pushLeague): one parser for the paste and the push. */
+  async league(request) {
+    const plain = (text, status) => new Response(text, { status, headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
+    if (request.method !== 'POST') return plain('POST only', 405);
+    const auth = /^Bearer\s+(\S+)\s*$/i.exec(request.headers.get('authorization') || '');
+    if (!auth) return plain('missing secret', 401);
+    if (Number(request.headers.get('content-length') || 0) > MAX_LEAGUE) return plain('too big', 413);
+    const text = await request.text();
+    if (text.length > MAX_LEAGUE) return plain('too big', 413);
+    let done;
+    try {
+      done = await this.gas.handle(JSON.stringify({ action: 'pushLeague', token: auth[1], text }));
+    } catch (e) {
+      return plain('server error: ' + String((e && e.message) || e), 500);
+    }
+    this.commit(done);
+    let out;
+    try { out = JSON.parse(done.text); } catch { return plain('server error', 500); }
+    if (out.ok) return plain('ok', 200);
+    const status = { bad_token: 401, too_big: 413, bad_league: 400 }[out.code] || 500;
+    return plain(out.error || out.code || 'error', status);
   }
 
   /* ---------- ADMIN: the move from Drive, and backups ----------

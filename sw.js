@@ -3,7 +3,7 @@
    CACHE_VERSION must equal version.json and window._BUNDLE_VERSION in
    index.html. `node tools/bump.mjs` writes all three; tests/pwa.mjs fails if
    they drift apart. */
-const CACHE_VERSION = '1.91.0';
+const CACHE_VERSION = '1.92.0';
 const CACHE_NAME = 'mgivatayim-' + CACHE_VERSION;
 
 /* The app itself: everything it needs to open with no network, kept as one
@@ -17,11 +17,11 @@ const CORE = [
   './assets/fonts/assistant-hebrew.woff2', './assets/fonts/assistant-latin.woff2', './assets/fonts/rubik-hebrew.woff2', './assets/fonts/rubik-latin.woff2',
   './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png', './icons/favicon-32.png',
   './src/app.js', './src/bridge.js', './src/components.js', './src/config.js',
-  './src/fixtures.js', './src/format.js', './src/gallery.js', './src/icons.js', './src/imaging.js', './src/importer.js', './src/install.js', './src/positions.js', './src/trainings.js',
+  './src/fixtures.js', './src/format.js', './src/gallery.js', './src/icons.js', './src/imaging.js', './src/importer.js', './src/install.js', './src/league.js', './src/positions.js', './src/trainings.js',
   './src/lineup-text.js', './src/minutes.js', './src/posters.js', './src/season.js', './src/store.js', './src/updater.js',
   './src/live/model.js', './src/live/sync.js', './src/ui/sheet.js',
   './src/views/admin.js', './src/views/gallery.js', './src/views/gate.js', './src/views/home.js',
-  './src/views/live.js', './src/views/media.js', './src/views/minutes.js', './src/views/stats.js',
+  './src/views/league.js', './src/views/live.js', './src/views/media.js', './src/views/minutes.js', './src/views/stats.js',
 ];
 
 const SHELL = new Set(CORE.map((u) => new URL(u, location.href).href));

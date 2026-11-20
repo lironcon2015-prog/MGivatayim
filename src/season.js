@@ -119,6 +119,11 @@ export function buildSeason(input, now = new Date()) {
     trainingChanges: input.trainingChanges ?? [],
     analysis: { items: [], ...(input.analysis ?? {}) },
     opponentLogos: cleanLogos(input.opponentLogos),
+    // The manager's correction of which league team an opponent is (by the
+    // opponent's name, like the crests): a team's name, or '-' for "not in
+    // the league". Strings only; compared, never printed as HTML.
+    leagueNames: Object.fromEntries(Object.entries(input.leagueNames && typeof input.leagueNames === 'object' ? input.leagueNames : {})
+      .filter(([k, v]) => logoKey(k) && typeof v === 'string' && v.trim() && v.length <= 80).map(([k, v]) => [logoKey(k), v.trim()])),
     // The training ground's entry QR (settings.entryQr): a Drive id in the
     // posters folder, like a crest — it lands in an attribute too.
     entryQr: /^[\w-]{10,100}$/.test(String(input.settings?.entryQr || '')) ? String(input.settings.entryQr) : null,
@@ -299,9 +304,14 @@ export function playerCard(season, me) {
   };
 }
 
+// The leaders: by the board's figure, then goals and assists together (the
+// owner's rule for a tie in goals), then goals, then alphabetically by first
+// name, and by the full name when the first names match.
+const firstName = (p) => String(p.name || '').trim().split(/\s+/)[0] || '';
 export function topBy(players, key, limit = 5) {
   return [...players]
     .filter((p) => p[key] > 0)
-    .sort((a, b) => b[key] - a[key] || b.goals - a.goals || a.name.localeCompare(b.name, 'he'))
+    .sort((a, b) => b[key] - a[key] || b.points - a.points || b.goals - a.goals
+      || firstName(a).localeCompare(firstName(b), 'he') || String(a.name).localeCompare(String(b.name), 'he'))
     .slice(0, limit);
 }

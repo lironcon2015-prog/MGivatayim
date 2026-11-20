@@ -1,4 +1,6 @@
 import { topBy, opponentLogo } from '../season.js';
+import { leagueTeamFor } from '../league.js';
+import { leagueLineHtml } from './league.js';
 import { longDate, clock, pct, dec, esc, safeUrl, splitDuration, pad2, wazeLink, navLink, isGoogleMaps, isShortMapLink, mapsCoords } from '../format.js';
 import { icon } from '../icons.js';
 import { myCardHtml, crestImg, oppLogo, plaque, plaqueTag, roundText, sectionHead, formPill, fixtureRow, leaderRow, tile, splitBar, linkRow, videoCard, sampleNote, skeleton, SCHEDULE_SAMPLE, RESULTS_SAMPLE } from '../components.js';
@@ -53,6 +55,7 @@ function nextMatchCard(s) {
       ${disc(sides[1])}
     </div>
     ${nm.timeTbd || nm.dateTbd ? '' : `<div id="countdown" data-kickoff="${kick.toISOString()}"></div>`}
+    ${leagueLineHtml(s, nm.opponent)}
     <div class="meta-row">${icon('pin')}
       <span><b>${place}</b>${nm.venue?.name && nm.venue?.address ? ` <span class="sub">· ${esc(nm.venue.address)}</span>` : ''}</span>
     </div>
@@ -441,7 +444,7 @@ export function renderHome(s) {
   ${s.upcoming.length ? `<section>
     ${sectionHead('בהמשך', s.upcoming.length > 3 ? '<a href="#/stats" data-jump="stats-schedule">ללוח המלא</a>' : '', 'calendar')}
     ${sampleNote(s, SCHEDULE_SAMPLE)}
-    <div class="card rows">${s.upcoming.slice(0, 3).map((f) => fixtureRow(f, opponentLogo(s, f.opponent))).join('')}</div>
+    <div class="card rows">${s.upcoming.slice(0, 3).map((f) => fixtureRow(f, opponentLogo(s, f.opponent), leagueTeamFor(s, f.opponent))).join('')}</div>
   </section>` : ''}
 
   <section>

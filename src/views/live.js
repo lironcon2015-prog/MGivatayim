@@ -1,6 +1,6 @@
 import * as M from '../live/model.js';
 import { serverNow } from '../live/sync.js';
-import { esc, splitKickoff, shortName, shortDate, byNumber } from '../format.js';
+import { esc, splitKickoff, shortName, shortDate, byNumber, clock as wallClock } from '../format.js';
 import { icon } from '../icons.js';
 import { crestImg, keepImages, keepFocus, oppLogo, roundText, matchRow, sectionHead, COACH_ONLY } from '../components.js';
 import { hydratePosters } from '../posters.js';
@@ -55,9 +55,38 @@ function statusChip(state) {
 // A goal from the spot, beside the scorer's name.
 const PEN_TAG = ' <span class="tl-pen">פנדל</span>';
 
-// `interactive`: true for every editable event, or the list of types that open
-// (the coach's squad buttons correct substitutions, not goals).
-export function timelineHtml(state, { interactive = false, us: usName = '' } = {}) {
+// The real time of a whistle or a correction, for whoever runs the match:
+// a backup for a clock started late, not a figure of the match — so it is
+// small and faint, and only for the controller.
+const wallAt = (ms) => M.ltr(wallClock(new Date(ms)));
+const minutesText = (ms) => {
+  const m = Math.round(Math.abs(ms) / 60000);
+  return m < 1 ? 'פחות מדקה' : `${m} דק׳`;
+};
+const adjustText = (ms) => (ms % 60000 === 0
+  ? `${M.ltr(`${ms > 0 ? '+' : '−'}${Math.abs(ms) / 60000}`)} דק׳`
+  : `${M.ltr(`${ms > 0 ? '+' : '−'}${Math.round(Math.abs(ms) / 1000)}`)} שנ׳`);
+const wallOf = (state, type, period) => state.events.find((e) => e.type === type && e.period === period && e.wall)?.wall ?? null;
+
+// Every period with its real start and end, the breaks between them and
+// each correction of the clock: what tells how much of a period the clock
+// missed. Rows of [label, value]; the value is already safe for HTML.
+export function wallLog(state) {
+  const rows = [];
+  for (let p = 0; p < state.format.length; p++) {
+    const start = wallOf(state, 'period_start', p), end = wallOf(state, 'period_end', p);
+    const prevEnd = p > 0 ? wallOf(state, 'period_end', p - 1) : null;
+    if (start != null && prevEnd != null && start >= prevEnd) rows.push({ kind: 'break', label: 'הפסקה', value: minutesText(start - prevEnd) });
+    if (start == null && end == null) continue;
+    const span = start != null && end != null ? M.ltr(`${wallClock(new Date(start))}–${wallClock(new Date(end))}`)
+      : start != null ? `מ־${wallAt(start)}` : `עד ${wallAt(end)}`;
+    rows.push({ kind: 'period', label: M.periodName(state.format, p), value: span });
+    for (const a of (state.adjusts || []).filter((x) => x.period === p)) rows.push({ kind: 'adj', label: 'תיקון', value: `${adjustText(a.ms)} ב־${wallAt(a.wall)}` });
+  }
+  return rows;
+}
+
+export function timelineHtml(state, { interactive = false, us: usName = '', walls = false } = {}) {
   const chrono = [...state.events].map((e, i) => ({ e, i })).sort((a, b) => a.e.period - b.e.period || a.e.atMs - b.e.atMs || a.i - b.i);
   const after = new Map();
   const atEnd = new Map();
@@ -73,15 +102,19 @@ export function timelineHtml(state, { interactive = false, us: usName = '' } = {
 
   const items = M.timeline(state).map((e) => {
     if (e.type === 'period_start') {
-      return e.period === 0 ? `<li class="ev-kick">${icon('whistle')}<span>שריקת פתיחה</span></li>` : '';
+      return e.period === 0 ? `<li class="ev-kick">${icon('whistle')}<span>שריקת פתיחה</span>${
+        walls && e.wall ? `<small class="ev-wall num">${wallAt(e.wall)}</small>` : ''}</li>` : '';
     }
     if (e.type === 'period_end') {
       const len = (state.format[e.period] ?? state.format.at(-1)) * 60000;
       const extra = Math.floor((e.atMs - len) / 60000);
       const label = e.period >= lastPeriod ? 'סיום' : state.format.length === 2 ? 'מחצית' : `סיום ${M.periodName(state.format, e.period)}`;
       const [a, b] = atEnd.get(e);
+      // A break shows when it began and when the next period kicked off.
+      const next = walls && e.wall ? wallOf(state, 'period_start', e.period + 1) : null;
+      const wall = walls && e.wall ? `<small class="ev-wall num">${next != null ? M.ltr(`${wallClock(new Date(e.wall))}–${wallClock(new Date(next))}`) : wallAt(e.wall)}</small>` : '';
       return `<li class="ev-mark"><span class="mk-pill">${esc(label)}</span><span class="mk-sc num" dir="ltr">${b} - <b>${a}</b></span>${
-        extra >= 1 ? `<small>+${extra} ${extra === 1 ? 'דקת' : 'דקות'} תוספת</small>` : ''}</li>`;
+        extra >= 1 ? `<small>+${extra} ${extra === 1 ? 'דקת' : 'דקות'} תוספת</small>` : ''}${wall}</li>`;
     }
     // The minute column always holds a minute. An interval change is shown
     // at the period's first minute, with "at the start of…" under it.
@@ -861,7 +894,7 @@ export function mountLive(view, ctx) {
           </section>
           ${setup ? '' : `<section class="pane" id="pane-events" role="tabpanel" aria-label="מהלך המשחק"${pane === 'events' ? '' : ' hidden'}>
             ${ctl && evCount ? '<p class="pane-hint">הקישו על אירוע לתיקון</p>' : ''}
-            <div class="card">${timelineHtml(st, { interactive: ctl && (fullCtl() || ['sub']), us: ctx.team.name })}</div>
+            <div class="card">${timelineHtml(st, { interactive: ctl && (fullCtl() || ['sub']), us: ctx.team.name, walls: ctl })}</div>
           </section>`}
         </div>`}
       ${st.status === 'ended' ? endedPanel(st) : ''}
@@ -1625,13 +1658,20 @@ export function mountLive(view, ctx) {
           const run = st.clock.running;
           host.innerHTML = `<p class="sheet-text ck-sub">${esc(M.periodName(st.format, st.period))} מתוך <span class="num">${st.format.length}</span> · <span class="num">${st.format[st.period]}</span> דק׳</p>
             <div class="ck-big num" data-ck-time></div><p class="ck-state">${run ? 'רץ' : 'עצור'}</p>
-            <div class="adj-row">${[['-60000', '−1′'], ['-10000', '−10″'], ['10000', '+10″'], ['60000', '+1′']].map(([ms, l]) =>
-              `<button type="button" class="btn small secondary num" data-adj="${ms}">${M.ltr(l)}</button>`).join('')}</div>
+            <div class="adj-row">${[5, 1, -1, -5].map((m) =>
+              `<button type="button" class="btn small secondary" data-adj="${m * 60000}"><span class="num">${M.ltr(`${m > 0 ? '+' : '−'}${Math.abs(m)}`)}</span> דק׳</button>`).join('')}</div>
+            <div class="ck-manual">
+              <input id="ck-min" class="num" type="number" inputmode="numeric" min="1" max="120" step="1" placeholder="דקות" aria-label="מספר דקות להזזה">
+              <button type="button" class="btn small secondary" data-ck-move="1">קדימה</button>
+              <button type="button" class="btn small secondary" data-ck-move="-1">אחורה</button>
+            </div>
             <div class="ck-actions">
               <button type="button" class="btn secondary" data-ck-run>${icon(run ? 'pause' : 'play')} ${run ? 'עצירה' : 'המשך'}</button>
               <button type="button" class="btn" data-ck-end>${icon('whistle')} סיום ${esc(M.periodName(st.format, st.period))}</button>
             </div>
-            <p class="note">התיקון — לשעון שהופעל באיחור או מוקדם מדי. אחרי <span class="num">${st.format[st.period]}</span> דקות השעון ממשיך: זו תוספת הזמן.</p>`;
+            <p class="note">התיקון — לשעון שהופעל באיחור או מוקדם מדי. אחרי <span class="num">${st.format[st.period]}</span> דקות השעון ממשיך: זו תוספת הזמן.</p>
+            ${(() => { const log = wallLog(st); return log.length ? `<div class="ck-log"><p>שעות בפועל</p><dl>${
+              log.map((r) => `<div class="${r.kind}"><dt>${r.label}</dt><dd>${r.value}</dd></div>`).join('')}</dl></div>` : ''; })()}`;
           const time = () => {
             const s2 = state();
             if (!s2 || s2.status !== 'running') return;
@@ -1640,10 +1680,21 @@ export function mountLive(view, ctx) {
             if (t) t.textContent = M.clockText(ms);
           };
           time();
-          host.querySelectorAll('[data-adj]').forEach((b) => { b.onclick = () => {
-            act({ t: 'adjust', ms: Number(b.dataset.adj), at: now() });
-            toast(`השעון תוקן ${b.textContent}`);
-            time();
+          // Moves the clock by whole minutes and says where it is now: the
+          // ″/′ marks of seconds and minutes read alike in a hurry.
+          const move = (ms) => {
+            act({ t: 'adjust', ms, at: now() });
+            const s2 = state();
+            const m = Math.abs(ms) / 60000;
+            toast(`השעון הוזז ${m === 1 ? 'דקה' : `${m} דק׳`} ${ms > 0 ? 'קדימה' : 'אחורה'} · עכשיו ${M.ltr(M.clockText(M.elapsedMs(s2, now())))}`);
+            paint();
+          };
+          host.querySelectorAll('[data-adj]').forEach((b) => { b.onclick = () => move(Number(b.dataset.adj)); });
+          const field = host.querySelector('#ck-min');
+          host.querySelectorAll('[data-ck-move]').forEach((b) => { b.onclick = () => {
+            const m = Math.round(Number(field.value));
+            if (!(m >= 1 && m <= 120)) { toast('כמה דקות? מספר בין 1 ל־120'); field.focus(); return; }
+            move(m * 60000 * Number(b.dataset.ckMove));
           }; });
           host.querySelector('[data-ck-run]').onclick = () => { act({ t: run ? 'pause' : 'resume', at: now() }); paint(); };
           host.querySelector('[data-ck-end]').onclick = () => { sh.close('done'); act({ t: 'end', period: st.period, at: now() }); };

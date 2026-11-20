@@ -18,6 +18,7 @@ function newEntryCode() {
 import { roundText, oppLogo, keepFocus, skeleton } from '../components.js';
 import { preparePosters, uploadLogo, uploadQr, hydratePosters } from '../posters.js';
 import { logoKey } from '../season.js';
+import { shortTeam, matchTeam, opponentNames } from '../league.js';
 import { thumbUrl } from '../gallery.js';
 import { detectFixtureColumns, rowsToFixtures, applyFixtureImport, upcomingFixtures, fixtureKey, mergeNextMatch, playedTest, FIXTURE_FIELDS, todayInIsrael, gameOrder, firstDay, nextPlayable, offStatus, STATUS, parseGameMessage, gameMessageRow, applyGameMessage } from '../fixtures.js';
 import { DAYS, weekday } from '../trainings.js';
@@ -414,6 +415,9 @@ async function resolveMapLinks(d) {
    something and coming back must not throw away half a week of edits. */
 
 let draft = null;
+// The league file as the bridge last gave it (not in the season: it comes
+// from the league site, and only the name corrections are the manager's).
+let league = null;
 let baseVersion = 0;
 let dirty = false;
 // The draft was read from the bridge as the manager, this session — not the
@@ -523,6 +527,7 @@ const setOpen = (item, open) => Object.defineProperty(item, '__open', { value: o
 // never see it: it is past and has a result), and the manager saw it stay.
 function adopt(payload) {
   draft = clone(payload?.season) || blankSeason();
+  if (payload && 'league' in payload) league = payload.league || null;
   let merged = '';
   if (draft && 'nextMatch' in draft) {
     const r = mergeNextMatch(draft);
@@ -1549,6 +1554,79 @@ export function mountAdmin(view, ctx) {
     </section>`;
   }
 
+  // The league table: when it last came in, a paste by hand (the first time,
+  // or a day the daily file did not arrive), and which league team each of
+  // our opponents is — found by name, corrected here (season.leagueNames).
+  function leagueAdminHtml() {
+    const lg = league;
+    const when = lg?.updatedAt ? new Date(lg.updatedAt) : null;
+    const status = lg
+      ? `<div class="lg-admin-st">${icon(lg.via === 'manual' ? 'clipboard' : 'check')}<span><b>${lg.via === 'manual' ? 'הודבק ידנית' : 'עודכן אוטומטית'} · <span class="num">${esc(shortDate(lg.updatedAt.slice(0, 10)))} ${when ? esc(when.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Jerusalem' })) : ''}</span></b>
+          <small>הדוח ל־<span class="num">${esc(shortDate(lg.reportDate || lg.updatedAt.slice(0, 10)))}</span> · <span class="num">${lg.games.length}</span> משחקים · <span class="num">${lg.table.length}</span> קבוצות</small></span></div>`
+      : '<p class="note">עוד לא הגיע קובץ. אפשר להדביק אותו כאן, והעדכון היומי ימשיך משם.</p>';
+    const teams = lg ? lg.table.map((r) => r.team).filter((t) => t !== lg.team) : [];
+    // A friendly's opponent is often from another league: not asked about.
+    const inLeague = (g) => g && g.friendly !== true;
+    const names = lg ? opponentNames({ schedule: (draft.fixtures || []).filter(inLeague), recent: (draft.matches || []).filter(inLeague) }) : [];
+    const rows = names.map((n) => {
+      const k = logoKey(n);
+      const pick = draft.leagueNames?.[k] || '';
+      const auto = matchTeam(n, teams);
+      const shown = pick === '-' ? null : pick && teams.includes(pick) ? pick : auto;
+      const opt = (v, label, on) => `<option value="${esc(v)}"${on ? ' selected' : ''}>${esc(label)}</option>`;
+      return `<div class="lg-map${shown ? '' : ' miss'}">
+        <b>${esc(n)}</b>
+        <select data-league-name="${esc(k)}" aria-label="${esc(n)} בטבלת הליגה">
+          ${opt('', auto ? `${shortTeam(auto)} (זוהה)` : 'לא זוהה — לבחור', !pick)}
+          ${teams.map((t) => opt(t, shortTeam(t), pick === t)).join('')}
+          ${opt('-', 'לא בטבלת הליגה', pick === '-')}
+        </select>
+      </div>`;
+    }).join('');
+    return `<section id="league-admin">
+      <div class="sec-head">${icon('table')}<h2>טבלת הליגה</h2><span class="aside head-acts"><button type="button" class="chip-tool" data-league-paste>${icon('clipboard')} הדבקה</button></span></div>
+      <div class="card">${status}</div>
+      ${rows ? `<p class="note list-note">איזו קבוצה בטבלה היא כל יריבה. זוהה לפי דמיון שמות; אפשר לתקן, ושומרים.</p><div class="card lg-maps">${rows}</div>` : ''}
+    </section>`;
+  }
+
+  function leaguePasteSheet() {
+    let read;
+    try { read = navigator.clipboard?.readText ? navigator.clipboard.readText() : null; } catch { read = null; }
+    Promise.resolve(read).catch(() => '').then((clip) => {
+      const text = /\[TABLE\]/.test(String(clip || '')) ? String(clip) : '';
+      const sh = openSheet({
+        title: 'הדבקת טבלת הליגה',
+        tall: true,
+        body: `<p class="sheet-text">מדביקים את הקובץ כמו שהוא, מהשורה LEAGUE ועד [END]. קובץ לא שלם לא מחליף את הטבלה הקיימת.</p>
+          <textarea class="paste-box" rows="10" dir="auto" data-lg-text placeholder="LEAGUE|…&#10;TEAM|…&#10;[GAMES]&#10;…&#10;[TABLE]&#10;…&#10;[END]">${esc(text)}</textarea>
+          <p class="form-error" data-lg-err hidden></p>
+          <div class="sheet-actions"><button type="button" class="btn" data-lg-save>שמירת הטבלה</button></div>`,
+        onMount: ({ el }) => {
+          const btn = el.querySelector('[data-lg-save]');
+          const errEl = el.querySelector('[data-lg-err]');
+          btn.onclick = async () => {
+            const t = el.querySelector('[data-lg-text]').value;
+            if (!t.trim()) { errEl.textContent = 'אין כאן טקסט.'; errEl.hidden = false; return; }
+            btn.disabled = true; btn.textContent = 'שומר…'; errEl.hidden = true;
+            try {
+              const r = await call('putLeague', { text: t }, { asAdmin: true });
+              const p = await call('getSeason', {}, { asAdmin: true }).catch(() => null);
+              if (p?.league) league = p.league;
+              sh.close('done');
+              toast(`טבלת הליגה נשמרה · ${r.teams} קבוצות, ${r.games} משחקים`);
+              if (alive) paint();
+              ctx.reload?.();
+            } catch (e) {
+              errEl.textContent = e.message || 'השמירה נכשלה.'; errEl.hidden = false;
+              btn.disabled = false; btn.textContent = 'שמירת הטבלה';
+            }
+          };
+        },
+      });
+    });
+  }
+
   function seasonHtml() {
     const lists = (t) => LISTS.filter((l) => l.tab === t).map(listHtml).join('');
     const list = (path) => listHtml(LISTS.find((l) => l.path === path));
@@ -1556,7 +1634,7 @@ export function mountAdmin(view, ctx) {
       // The schedule first: its top row is the next match, the weekly edit.
       // Crests after the results; trainings last: the routine is set once,
       // and a change is the odd week.
-      games: () => list('fixtures') + list('matches') + crestsHtml() + list('opponentVenues') + oppNames() + list('trainings') + list('trainingChanges'),
+      games: () => list('fixtures') + list('matches') + crestsHtml() + leagueAdminHtml() + list('opponentVenues') + oppNames() + list('trainings') + list('trainingChanges'),
       players: () => lists('players'),
       media: () => `${galleryAdminHtml()}${lists('media')}
         <section>
@@ -1734,6 +1812,15 @@ export function mountAdmin(view, ctx) {
     }
     if (el.dataset.logoFile != null) {
       if (e.type === 'change') onLogoFile(el);
+      return;
+    }
+    if (el.dataset.leagueName != null) {
+      if (e.type !== 'change') return;
+      const names = { ...(draft.leagueNames || {}) };
+      if (el.value) names[el.dataset.leagueName] = el.value; else delete names[el.dataset.leagueName];
+      draft.leagueNames = names;
+      el.closest('.lg-map')?.classList.toggle('miss', el.value === '-' || (!el.value && el.selectedOptions[0]?.text.startsWith('לא זוהה')));
+      touch();
       return;
     }
     if (el.dataset.gLimit) {
@@ -1950,6 +2037,7 @@ export function mountAdmin(view, ctx) {
     if (t.dataset.import === 'fixtures-file') { view.querySelector('[data-import-fixtures]')?.click(); return; }
     if (t.dataset.import === 'fixtures-paste') { pasteSheet('fixtures'); return; }
     if (t.matches('[data-game-msg]')) { gameMessageSheet(); return; }
+    if (t.matches('[data-league-paste]')) { leaguePasteSheet(); return; }
     if (t.dataset.import === 'paste') { pasteSheet(); return; }
     if (t.dataset.add) {
       const list = LISTS.find((l) => l.path === t.dataset.add);

@@ -206,15 +206,17 @@ export function plaqueTag(ref, name, home, cls = '') {
 // its score.
 // A game postponed or cancelled keeps its row, dimmed, with the word where the
 // time goes; a postponed one says its new day is to be set.
-export function fixtureRow(f, logo = null) {
+// With `team` (the league team it is), the row opens that team's sheet.
+export function fixtureRow(f, logo = null, team = null) {
   const off = offStatus(f);
   const sub = [off === 'postponed' && 'מועד חדש ייקבע', roundText(f.round, f.friendly), f.venue?.name].filter(Boolean).map(esc).join(' · ');
-  return `<div class="match fixture-row${off ? ` off ${off}` : ''}">
+  const tag = team ? 'button' : 'div';
+  return `<${tag} class="match fixture-row${off ? ` off ${off}` : ''}"${team ? ` type="button" data-team="${esc(team)}"` : ''}>
     ${whenHtml(f.date)}
     ${plaqueTag(logo, f.opponent, f.home !== false)}
     <span class="who"><b>${esc(f.opponent)}</b>${sub ? `<span>${sub}</span>` : ''}</span>
     ${off ? `<span class="off-tag">${STATUS[off]}</span>` : `<span class="kick num">${f.time ? esc(f.time) : 'טרם נקבע'}</span>`}
-  </div>`;
+  </${tag}>`;
 }
 
 export function leaderRow(player, rank, figures) {

@@ -7,6 +7,7 @@ import { call, bridgeConfigured, goingAround } from './bridge.js';
 import * as store from './store.js';
 import { renderHome, wireHome } from './views/home.js';
 import { renderStats, wireStats, statsJump } from './views/stats.js';
+import { renderLeague, openTeamSheet } from './views/league.js';
 import { renderMedia } from './views/media.js';
 import { wireGallery, warmGallery } from './views/gallery.js';
 import * as gate from './views/gate.js';
@@ -24,6 +25,8 @@ import { todayInIsrael } from './fixtures.js';
 const ROUTES = [
   { hash: '#/',      label: 'בית',    glyph: 'home',      render: renderHome,  wire: (root, s) => wireHome(root, s) },
   { hash: '#/live',  label: 'לייב',   glyph: 'broadcast', live: true },
+  // The league table, once its file has come in (the owner's pick: its own tab).
+  { hash: '#/league', label: 'ליגה',  glyph: 'table',     render: renderLeague, shown: () => !!state.season?.league },
   { hash: '#/stats', label: 'נתונים', glyph: 'chart',     render: renderStats, wire: (root, s) => wireStats(root, s) },
   { hash: '#/media', label: 'מדיה',   glyph: 'film',      render: renderMedia, wire: (root, s) => wireGallery(root, s, { isAdmin }) },
 ];
@@ -72,6 +75,8 @@ const ROOT = new URL('../', import.meta.url);
 function prepare(payload) {
   if (!payload?.season) return null;
   const s = buildSeason(payload.season);
+  // The league's table and games (the league site's daily file), for everyone.
+  s.league = payload.league?.table?.length ? payload.league : null;
   // The day it was worked out on: this week's trainings, "today", the next
   // match — the same data reads differently tomorrow.
   s.day = todayInIsrael();
@@ -119,7 +124,7 @@ function prepare(payload) {
 // A save from the manager's editor answers with the season alone; the
 // role and the coach data it did not touch carry over.
 const withCarried = (payload) => (state.payload && payload && !('role' in payload)
-  ? { ...payload, role: state.payload.role, coach: state.payload.coach, me: state.payload.me, message: state.payload.message } : payload);
+  ? { ...payload, role: state.payload.role, coach: state.payload.coach, me: state.payload.me, message: state.payload.message, league: state.payload.league } : payload);
 
 function accept(payload) {
   payload = withCarried(payload);
@@ -401,7 +406,7 @@ function chrome(team) {
   const tab = (href, glyph, label, extra = '') => `<a href="${href}">${icon(glyph)}<span>${esc(label)}</span>${extra}</a>`;
   const nav = state.access === 'approved' && state.season
     ? `<nav class="nav" id="nav" aria-label="ניווט ראשי">
-        ${ROUTES.map((r) => tab(r.hash, r.glyph, r.label, r.live && liveActive() ? '<i class="live-dot" aria-label="משחק חי"></i>' : '')).join('')}
+        ${ROUTES.filter((r) => !r.shown || r.shown()).map((r) => tab(r.hash, r.glyph, r.label, r.live && liveActive() ? '<i class="live-dot" aria-label="משחק חי"></i>' : '')).join('')}
         ${isAdmin() ? tab(ADMIN_HASH, 'shield', 'ניהול', state.pending || state.galleryWaiting ? pendingDot() : '') : ''}
       </nav>`
     : '';
@@ -678,6 +683,12 @@ session.subscribe(() => {
 
 // "To the minutes list" lands on the live screen's minutes tab.
 document.addEventListener('click', (e) => { if (e.target.closest('[data-mn-go]')) showMinutesTab(); });
+
+// A league team (a table row, the next-match line, a schedule row) opens its sheet.
+document.addEventListener('click', (e) => {
+  const el = e.target.closest('[data-team]');
+  if (el && state.season?.league) openTeamSheet(state.season, el.dataset.team);
+});
 
 // History rows open the match: score, scorers, assists, subs.
 document.addEventListener('click', (e) => {

@@ -1023,6 +1023,58 @@ await test('a result entered by hand credits its scorers and assists; a friendly
   assert.deepEqual(s.recent.find((m) => m.opponent === 'א').goals[1], { og: true, scorer: null, assist: null });
 });
 
+await test('league: opponents found by likeness of names, not guessed when unsure, never two clubs of one town', async () => {
+  const { matchTeam, shortTeam, leagueTeamFor } = await import('../src/league.js');
+  const { readFileSync } = await import('node:fs');
+  const table = readFileSync(new URL('./fixtures/league-sample.txt', import.meta.url), 'utf8').split('[TABLE]')[1]
+    .split('\n').slice(2).filter((l) => l.includes('|')).map((l) => l.split('|')[1]);
+  const teams = table.filter((t) => !t.includes('גבעתיים'));
+  const cases = {
+    'הפועל ניר רמה"ש': 'הפ\' ניר רמת השרון צפון "צו פיוס"', 'ניר רמה״ש': 'הפ\' ניר רמת השרון צפון "צו פיוס"',
+    'ראש העין': 'עירוני ראש העין צפון "צו פיוס"', 'בני יפו אורתודוקסים': 'מ.ס בני יפו אורתודוכסים',
+    'בית"ר ר"ג': 'ביתר רמת גן צפון', 'הפועל מכבי יהודה': 'ה.מ. יהודה צפון', 'קריית אונו': 'מ.כ. קרית אונו "צו פיוס"',
+    'מכבי בת ים': 'מכבי עירוני בת ים 3 "צו פיוס"', 'שמשון תל אביב': 'שמשון ת"א צפון', 'מכבי גני תקוה': 'מ.כ גני תקווה צפון "צו פיוס"',
+    'רמת ישראל': 'הפועל רמת ישראל "צו פיוס"', 'הכח עמידר': 'הכח מכבי עמידר ר"ג צפון',
+  };
+  for (const [ours, theirs] of Object.entries(cases)) assert.equal(matchTeam(ours, teams), theirs, ours);
+  assert.equal(matchTeam('הפועל תל אביב', teams), null, 'another club of the same town');
+  assert.equal(matchTeam('בית"ר ירושלים', teams), null);
+  assert.equal(matchTeam('בת ים', [...teams, 'הפועל בת ים 2']), null, 'two about as alike: the manager picks');
+  assert.equal(shortTeam('מכבי גבעתיים צפון "צו פיוס"'), 'מכבי גבעתיים');
+  assert.equal(shortTeam('הפ\' ניר רמת השרון צפון ״צו פיוס״'), 'הפ\' ניר רמת השרון');
+  const s = { league: { team: table[6], table: table.map((team) => ({ team })) }, leagueNames: { 'בת ים': '-', 'יהודה': teams[0] } };
+  assert.equal(leagueTeamFor(s, 'בת ים'), null, '"not in the league" stays so');
+  assert.equal(leagueTeamFor(s, 'יהודה'), teams[0], 'the manager\'s pick wins');
+  assert.equal(leagueTeamFor(s, 'מכבי גבעתיים'), null, 'never ourselves');
+});
+
+await test('league: a team\'s games from its own side, newest first, and its game with us', async () => {
+  const { teamView, lastRound, resultLetter } = await import('../src/league.js');
+  const us = 'אנחנו', t = 'הם';
+  const lg = { team: us, table: [{ team: t, pos: 1 }, { team: us, pos: 2 }], games: [
+    { round: 1, date: '2026-10-01', home: t, away: 'אחר', hg: 1, ag: 3 },
+    { round: 2, date: '2026-10-08', home: us, away: t, hg: 2, ag: 2 },
+    { round: 3, date: '2026-10-15', home: 'אחר', away: t, hg: 0, ag: 4 },
+    { round: 4, date: '2026-10-22', home: t, away: us, hg: null, ag: null },
+  ] };
+  const v = teamView(lg, t);
+  assert.deepEqual(v.played.map((g) => [g.round, g.gf, g.ga, g.res, g.home]), [[3, 4, 0, 'W', false], [2, 2, 2, 'D', false], [1, 1, 3, 'L', true]]);
+  assert.deepEqual(v.vsUs.map((g) => g.round), [2, 4]);
+  assert.equal(v.ahead[0].round, 4);
+  assert.equal(teamView(lg, us).vsUs.length, 0, 'no "with us" on our own sheet');
+  assert.equal(lastRound(lg), 3);
+  assert.equal(resultLetter('W') + resultLetter('D') + resultLetter('L'), 'נתה');
+});
+
+await test('leaders: goals, then goals and assists together, then first name', async () => {
+  const { topBy } = await import('../src/season.js');
+  const P = (name, goals, assists) => ({ name, goals, assists, points: goals + assists });
+  const rows = [P('יואב כהן', 2, 0), P('אורי לוי', 2, 3), P('דן אבן', 3, 0), P('בן שגיא', 2, 1), P('אבי זך', 2, 1), P('אבי אור', 2, 1)];
+  assert.deepEqual(topBy(rows, 'goals', Infinity).map((p) => p.name),
+    ['דן אבן', 'אורי לוי', 'אבי אור', 'אבי זך', 'בן שגיא', 'יואב כהן']);
+  assert.deepEqual(topBy(rows, 'assists', Infinity).map((p) => p.name), ['אורי לוי', 'אבי אור', 'אבי זך', 'בן שגיא']);
+});
+
 await test('a result has us on the right, home or away, ours gold', async () => {
   const { scoreEl, formPill, scoreSides } = await import('../src/components.js');
   const text = (h) => h.replace(/<[^>]+>/g, '');

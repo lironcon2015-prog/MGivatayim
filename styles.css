@@ -2405,3 +2405,14 @@ section { scroll-margin-top: 12px; }
   background: var(--well); border: 1px solid rgba(255, 255, 255, .11); border-radius: 12px; padding: .5rem .6rem; min-height: 40px;
 }
 .lg-map.miss select { border-color: var(--gold-line); color: var(--gold); }
+
+/* A result of ours the league site has otherwise (the manager's). */
+/* The text takes the row; "checked" goes under it, at the end. */
+.mn-home.lg-alert > div { flex: 1 1 calc(100% - 42px); }
+.mn-home.lg-alert > .btn { margin-inline-start: auto; }
+.lg-alert ul li { display: grid; gap: .2rem; }
+.mn-alert.lg-alert li > span.lg-mm { color: var(--text); font-size: .84rem; }
+.lg-alert .lg-mm .score { display: inline-flex; vertical-align: -1px; font-size: .95rem; margin-inline: .15rem; }
+.mn-alert.lg-alert p.lg-alert-note { margin-top: .5rem; font-size: .78rem; color: var(--muted); }
+.card .lg-alert { margin: .8rem 0 0; }
+#league-admin .card > .note { margin: .7rem 0 0; }

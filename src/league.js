@@ -131,3 +131,57 @@ export function teamView(lg, team) {
 export function lastRound(lg) {
   return lg?.games.reduce((m, g) => (g.hg != null && g.round > m ? g.round : m), 0) || null;
 }
+
+// Our own results in the league, the moment a match is saved (the owner: the
+// table moves at the final whistle, not the next morning). A league game of
+// ours with no score in the file takes it from our season — the same match by
+// opponent (and round when both have one, else the nearest date). The file
+// wins wherever it has a score: it is the league's word; where it differs
+// from ours, that is a mismatch for the manager to look at. Computed on every
+// read, never stored: the next file simply has it.
+export function withOurResults(lg, s) {
+  if (!lg) return { league: null, added: [], mismatches: [] };
+  const ours = (s.recent || []).filter((m) => !m.friendly && m.gf != null && m.ga != null && m.opponent);
+  const games = lg.games.map((g) => ({ ...g }));
+  const added = [], mismatches = [];
+  const taken = new Set();
+  for (const m of ours) {
+    const team = leagueTeamFor({ ...s, league: lg }, m.opponent);
+    if (!team) continue;
+    const cands = games.map((g, i) => ({ g, i })).filter(({ g, i }) => !taken.has(i)
+      && ((g.home === lg.team && g.away === team) || (g.away === lg.team && g.home === team)));
+    if (!cands.length) continue;
+    const byRound = m.round != null ? cands.find(({ g }) => g.round === Number(m.round)) : null;
+    const days = (d) => Math.abs(Date.parse(d) - Date.parse(m.date));
+    const pick = byRound || [...cands].sort((a, b) => days(a.g.date) - days(b.g.date))[0];
+    taken.add(pick.i);
+    const g = pick.g;
+    const usHome = g.home === lg.team;
+    const [hg, ag] = usHome ? [m.gf, m.ga] : [m.ga, m.gf];
+    if (g.hg == null || g.ag == null) {
+      Object.assign(games[pick.i], { hg, ag, ours: true });
+      added.push({ ...games[pick.i], date: m.date });
+    } else if (g.hg !== hg || g.ag !== ag) {
+      mismatches.push({ round: g.round, date: m.date, opponent: m.opponent, team, usHome, ours: { gf: m.gf, ga: m.ga },
+        theirs: { gf: usHome ? g.hg : g.ag, ga: usHome ? g.ag : g.hg } });
+    }
+  }
+  if (!added.length) return { league: lg, added, mismatches };
+  // The table moved by those games: both rows, then the order — points, goal
+  // difference, goals for, and the file's order where all three tie.
+  const rows = lg.table.map((r) => ({ ...r }));
+  const row = (t) => rows.find((r) => r.team === t);
+  for (const g of added) {
+    for (const [t, f, a] of [[g.home, g.hg, g.ag], [g.away, g.ag, g.hg]]) {
+      const r = row(t);
+      if (!r) continue;
+      r.p++; r.gf += f; r.ga += a; r.gd = r.gf - r.ga;
+      if (f > a) { r.w++; r.pts += 3; } else if (f === a) { r.d++; r.pts += 1; } else r.l++;
+    }
+  }
+  rows.sort((a, b) => b.pts - a.pts || b.gd - a.gd || b.gf - a.gf || a.pos - b.pos).forEach((r, i) => { r.pos = i + 1; });
+  return { league: { ...lg, games, table: rows }, added, mismatches };
+}
+
+// A key per mismatch, for "checked" on the manager's phone.
+export const mismatchKey = (x) => `${x.round ?? ''}|${x.team}|${x.ours.gf}-${x.ours.ga}|${x.theirs.gf}-${x.theirs.ga}`;

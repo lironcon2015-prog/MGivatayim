@@ -7,7 +7,8 @@ import { call, bridgeConfigured, goingAround } from './bridge.js';
 import * as store from './store.js';
 import { renderHome, wireHome } from './views/home.js';
 import { renderStats, wireStats, statsJump } from './views/stats.js';
-import { renderLeague, openTeamSheet } from './views/league.js';
+import { renderLeague, openTeamSheet, leagueAlertHtml } from './views/league.js';
+import { withOurResults, mismatchKey } from './league.js';
 import { renderMedia } from './views/media.js';
 import { wireGallery, warmGallery } from './views/gallery.js';
 import * as gate from './views/gate.js';
@@ -76,7 +77,12 @@ function prepare(payload) {
   if (!payload?.season) return null;
   const s = buildSeason(payload.season);
   // The league's table and games (the league site's daily file), for everyone.
-  s.league = payload.league?.table?.length ? payload.league : null;
+  // With our own results saved since the file came in (the table moves at the
+  // final whistle), and what the file has otherwise (for the manager).
+  const lg = withOurResults(payload.league?.table?.length ? payload.league : null, s);
+  s.league = lg.league;
+  s.leagueAdded = lg.added;
+  s.leagueMismatches = lg.mismatches;
   // The day it was worked out on: this week's trainings, "today", the next
   // match — the same data reads differently tomorrow.
   s.day = todayInIsrael();
@@ -154,7 +160,7 @@ function setPending(n) {
   state.pending = Number(n) || 0;
   document.querySelectorAll(`#nav a[href="${ADMIN_HASH}"]`).forEach((a) => {
     a.querySelector('.nav-dot')?.remove();
-    if (state.pending || state.galleryWaiting) a.insertAdjacentHTML('beforeend', pendingDot());
+    if (state.pending || state.galleryWaiting || leagueWarn()) a.insertAdjacentHTML('beforeend', pendingDot());
   });
 }
 function setGalleryWaiting(n) {
@@ -164,6 +170,7 @@ function setGalleryWaiting(n) {
 const pendingDot = () => `<i class="nav-dot" aria-label="${[
   state.pending && (state.pending === 1 ? 'בקשת גישה ממתינה' : `${state.pending} בקשות גישה ממתינות`),
   state.galleryWaiting && (state.galleryWaiting === 1 ? 'פריט בגלריה מחכה לטיפול' : `${state.galleryWaiting} פריטים בגלריה מחכים לטיפול`),
+  leagueWarn() && 'תוצאה שונה באתר הליגה',
 ].filter(Boolean).join(', ')}"></i>`;
 setInterval(() => { if (document.visibilityState === 'visible') checkPending(); }, PENDING_EVERY_MS);
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkPending(); });
@@ -407,7 +414,7 @@ function chrome(team) {
   const nav = state.access === 'approved' && state.season
     ? `<nav class="nav" id="nav" aria-label="ניווט ראשי">
         ${ROUTES.filter((r) => !r.shown || r.shown()).map((r) => tab(r.hash, r.glyph, r.label, r.live && liveActive() ? '<i class="live-dot" aria-label="משחק חי"></i>' : '')).join('')}
-        ${isAdmin() ? tab(ADMIN_HASH, 'shield', 'ניהול', state.pending || state.galleryWaiting ? pendingDot() : '') : ''}
+        ${isAdmin() ? tab(ADMIN_HASH, 'shield', 'ניהול', state.pending || state.galleryWaiting || leagueWarn() ? pendingDot() : '') : ''}
       </nav>`
     : '';
   document.body.classList.toggle('with-nav', !!nav);
@@ -600,7 +607,7 @@ function draw() {
     return;
   }
   drawnLiveKey = liveKey();
-  view.innerHTML = (route.hash === '#/' ? liveBanner() + minutesAlert() : '') + route.render(s)
+  view.innerHTML = (route.hash === '#/' ? liveBanner() + minutesAlert() + (isAdmin() ? leagueAlertHtml(s, store.getLeagueAck()) : '') : '') + route.render(s)
     + (state.stale ? '<p class="note stale">מוצגים הנתונים האחרונים שנשמרו במכשיר — אין כרגע חיבור לשרת.</p>' : '')
     + `<p class="foot">${esc(s.team.name)} · ${esc(seasonLabel(s.team))}${isAdmin() ? '' : ' · <a href="#/admin">כניסת מנהל</a>'}</p>`;
   restoreImages();
@@ -679,6 +686,14 @@ session.subscribe(() => {
     a.querySelector('.live-dot')?.remove();
     if (liveActive()) a.insertAdjacentHTML('beforeend', '<i class="live-dot" aria-label="משחק חי"></i>');
   });
+});
+
+// A result the league site has otherwise than ours: the manager's, until checked.
+const leagueWarn = () => isAdmin() && (state.season?.leagueMismatches || []).some((x) => !store.getLeagueAck().includes(mismatchKey(x)));
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('[data-lg-ack]') || !state.season) return;
+  store.setLeagueAck([...store.getLeagueAck(), ...(state.season.leagueMismatches || []).map(mismatchKey)]);
+  render();
 });
 
 // "To the minutes list" lands on the live screen's minutes tab.

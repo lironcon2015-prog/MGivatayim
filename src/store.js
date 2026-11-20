@@ -95,6 +95,9 @@ export function setCachedSeason(payload) {
 export const getAlerted = () => get('alerted') || '';
 export const setAlerted = (k) => set('alerted', k);
 // The alert the coach folded with "got it" (same key): it stays one line.
+// Mismatches with the league site the manager marked as checked (keys).
+export const getLeagueAck = () => { try { return JSON.parse(get('lgAck') || '[]'); } catch { return []; } };
+export const setLeagueAck = (keys) => set('lgAck', keys && keys.length ? JSON.stringify(keys.slice(-50)) : null);
 export const getFolded = () => get('folded') || '';
 export const setFolded = (k) => set('folded', k || null);
 // The coach's live screen: the squad's buttons, or all of them by choice.

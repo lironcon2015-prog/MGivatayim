@@ -1066,6 +1066,37 @@ await test('league: a team\'s games from its own side, newest first, and its gam
   assert.equal(resultLetter('W') + resultLetter('D') + resultLetter('L'), 'נתה');
 });
 
+await test('league: our result moves the table at once; the file wins, and a different result is a mismatch', async () => {
+  const { withOurResults, mismatchKey } = await import('../src/league.js');
+  const us = 'אנחנו צפון', a = 'הפועל אלפא', b = 'ביתר בטא', c = 'שמשון גמא';
+  const row = (pos, team, w, d, l, gf, ga) => ({ pos, team, p: w + d + l, w, d, l, gf, ga, gd: gf - ga, pts: w * 3 + d });
+  const lg = { team: us, table: [row(1, a, 2, 0, 0, 6, 1), row(2, b, 1, 0, 1, 3, 3), row(3, us, 1, 0, 1, 2, 4), row(4, c, 0, 0, 2, 1, 4)], games: [
+    { round: 1, date: '2026-10-01', home: us, away: c, hg: 2, ag: 1 },
+    { round: 2, date: '2026-10-08', home: a, away: us, hg: 3, ag: 0 },
+    { round: 3, date: '2026-10-15', home: b, away: us, hg: null, ag: null },
+  ] };
+  const s = (recent) => ({ recent, leagueNames: {} });
+  // A win away at בטא, saved in the app: in the table before the file has it.
+  const r = withOurResults(lg, s([{ date: '2026-10-16', opponent: 'ביתר בטא', home: false, round: 3, gf: 4, ga: 1 }]));
+  assert.equal(r.added.length, 1);
+  const g = r.league.games.find((x) => x.round === 3);
+  assert.deepEqual([g.hg, g.ag], [1, 4], 'home first: they are home');
+  const t = Object.fromEntries(r.league.table.map((x) => [x.team, x]));
+  assert.deepEqual([t[us].p, t[us].w, t[us].gf, t[us].ga, t[us].pts, t[us].pos], [3, 2, 6, 5, 6, 2]);
+  assert.deepEqual([t[b].p, t[b].l, t[b].pts, t[b].pos], [3, 2, 3, 3]);
+  assert.equal(lg.table[2].pts, 3, 'the file itself is not touched');
+  // The same result in the file: nothing added, nothing to say.
+  assert.deepEqual(withOurResults(lg, s([{ date: '2026-10-08', opponent: 'הפועל אלפא', home: false, round: 2, gf: 0, ga: 3 }])), { league: lg, added: [], mismatches: [] });
+  // Another result in the file: the file stays, the manager is told.
+  const m = withOurResults(lg, s([{ date: '2026-10-08', opponent: 'הפועל אלפא', home: false, round: 2, gf: 1, ga: 3 }]));
+  assert.equal(m.league, lg);
+  assert.deepEqual(m.mismatches.map((x) => [x.ours.gf, x.ours.ga, x.theirs.gf, x.theirs.ga]), [[1, 3, 0, 3]]);
+  assert.ok(mismatchKey(m.mismatches[0]).includes('1-3'));
+  // A friendly, a team not in the league, a result with no score: none of these.
+  const none = withOurResults(lg, s([{ date: '2026-10-16', opponent: 'ביתר בטא', friendly: true, gf: 9, ga: 0 }, { date: '2026-10-16', opponent: 'מכבי אחר', gf: 1, ga: 0 }, { date: '2026-10-16', opponent: 'ביתר בטא', gf: null, ga: null }]));
+  assert.deepEqual([none.added.length, none.mismatches.length], [0, 0]);
+});
+
 await test('leaders: goals, then goals and assists together, then first name', async () => {
   const { topBy } = await import('../src/season.js');
   const P = (name, goals, assists) => ({ name, goals, assists, points: goals + assists });

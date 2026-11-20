@@ -2951,16 +2951,34 @@ await step('the league: its own tab, a sheet for any team, the line on the next 
   const evil = '<img src=x onerror="window.__lg=1">';
   const text = readFileSync(new URL('./fixtures/league-sample.txt', import.meta.url), 'utf8').replaceAll('שמשון ת"א צפון', evil);
   expect(bridge.post({ action: 'putLeague', adminCode: ADMIN, text }).ok, 'the paste was refused');
-  // Every opponent of ours is קרית אונו in the league, for the line on the next match.
+  // Who is who in the league: an opponent still ahead is קרית אונו (for the
+  // line on the next match); one we have a result against is ראש העין, and
+  // that result is not the site's 0-6 — a mismatch for the manager; every
+  // other one is not in the league, so nothing else moves the table.
   const cur = JSON.parse(bridge.driveFile('season.json'));
-  const names = Object.fromEntries([...(cur.season.fixtures || []), ...(cur.season.matches || [])].map((g) => [String(g.opponent).replace(/\s+/g, ' ').trim(), 'מ.כ. קרית אונו "צו פיוס"']));
+  const key = (n) => String(n).replace(/\s+/g, ' ').trim();
+  const played = (cur.season.matches || []).filter((m) => !m.friendly && m.gf != null).sort((a, b) => b.date.localeCompare(a.date));
+  const odd = played.find((m) => !(Number(m.gf) === 0 && Number(m.ga) === 6) && played.find((x) => key(x.opponent) === key(m.opponent)) === m);
+  const names = {};
+  for (const m of cur.season.matches || []) names[key(m.opponent)] = '-';
+  for (const f of cur.season.fixtures || []) if (!(key(f.opponent) in names)) names[key(f.opponent)] = 'מ.כ. קרית אונו "צו פיוס"';
+  if (odd) names[key(odd.opponent)] = 'עירוני ראש העין צפון "צו פיוס"';
+  const aheadOnly = Object.keys(names).filter((k) => names[k].startsWith('מ.כ.'));
   bridge.post({ action: 'putSeason', adminCode: ADMIN, baseVersion: cur.version, season: { ...cur.season, leagueNames: names } });
   try {
     // The parent of the steps before is revoked by now: the manager's phone sees as anyone does.
     await admin.goto(APP + '#/');
     await admin.reload();
     await admin.locator('#nav a[href="#/league"]').waitFor({ timeout: 8000 });
-    if (await admin.locator('.hero .fixture').count()) {
+    expect(odd, 'no result of ours to make a mismatch with');
+    // The manager is told, on the home screen and by the dot on "ניהול", until "checked".
+    await admin.locator('.lg-alert', { hasText: 'תוצאה שונה באתר הליגה' }).waitFor();
+    expect(await admin.locator('#nav a[href="#/admin"] .nav-dot').count() === 1, 'no dot on the manager tab for a mismatch');
+    await admin.click('[data-lg-ack]');
+    await admin.locator('.lg-alert').waitFor({ state: 'detached' });
+    expect(await admin.locator('#nav a[href="#/admin"] .nav-dot').count() === 0, 'the dot stayed after "checked"');
+    const nextName = await admin.locator('.hero .side:not(.us) strong').innerText().catch(() => '');
+    if (aheadOnly.includes(key(nextName))) {
       await admin.locator('.hero .lg-next', { hasText: 'מקום 6' }).waitFor();
       expect(await admin.locator('.hero .lg-pills i').count() === 3, 'not the last three results on the next match');
     }
@@ -2977,21 +2995,21 @@ await step('the league: its own tab, a sheet for any team, the line on the next 
     await admin.click('.lg-row.us');
     await admin.locator('.sheet .lg-tiles').waitFor();
     expect(await admin.locator('.sheet .lg-game:visible').count() === 3, 'not three results first');
-    expect((await admin.locator('.sheet .lg-game .lg-ha').allInnerTexts()).join() === 'חוץ,בית,חוץ,חוץ', 'home/away of our games: ' + (await admin.locator('.sheet .lg-game .lg-ha').allInnerTexts()));
     await admin.click('.sheet [data-fold-btn]');
     expect(await admin.locator('.sheet .lg-games .lg-game:visible').count() === 4, 'the rest did not open');
     await admin.click('.sheet-x');
-    await sheetGone(parent);
-    // Another team: its game with us, from our side.
+    await sheetGone(admin);
+    // Another team: its game with us, from our side, home or away on each game.
     await admin.click('.lg-row:has-text("ניר רמת השרון")');
     await admin.locator('.sheet .lg-vs.played', { hasText: 'מחזור 1' }).waitFor();
+    expect((await admin.locator('.sheet .lg-games .lg-ha').allInnerTexts()).join() === 'בית,חוץ,בית', 'home/away of ניר: ' + (await admin.locator('.sheet .lg-games .lg-ha').allInnerTexts()));
     const vs = await admin.evaluate(() => {
       const r = (s) => document.querySelector('.sheet .lg-vs ' + s).getBoundingClientRect().x;
       return { us: document.querySelector('.sheet .lg-vs .me').textContent, right: r('.me') > r('span.op') };
     });
     expect(vs.us.includes('מכבי גבעתיים') && vs.right, 'our game with them is not from our side: ' + JSON.stringify(vs));
     await admin.click('.sheet-x');
-    await sheetGone(parent);
+    await sheetGone(admin);
     // The manager: when it came in, a refused paste says why, and the names.
     await admin.goto(APP + '#/admin');
     await adminTab(admin, 'games');

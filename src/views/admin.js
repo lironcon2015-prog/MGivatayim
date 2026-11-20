@@ -18,7 +18,8 @@ function newEntryCode() {
 import { roundText, oppLogo, keepFocus, skeleton } from '../components.js';
 import { preparePosters, uploadLogo, uploadQr, hydratePosters } from '../posters.js';
 import { logoKey } from '../season.js';
-import { shortTeam, matchTeam, opponentNames } from '../league.js';
+import { shortTeam, matchTeam, opponentNames, withOurResults } from '../league.js';
+import { mismatchRows } from './league.js';
 import { thumbUrl } from '../gallery.js';
 import { detectFixtureColumns, rowsToFixtures, applyFixtureImport, upcomingFixtures, fixtureKey, mergeNextMatch, playedTest, FIXTURE_FIELDS, todayInIsrael, gameOrder, firstDay, nextPlayable, offStatus, STATUS, parseGameMessage, gameMessageRow, applyGameMessage } from '../fixtures.js';
 import { DAYS, weekday } from '../trainings.js';
@@ -1583,9 +1584,15 @@ export function mountAdmin(view, ctx) {
         </select>
       </div>`;
     }).join('');
+    // Our results against the file: what the table adds from our season, and
+    // where the site has a result of ours otherwise.
+    const ours = lg ? withOurResults(lg, { recent: draft.matches || [], leagueNames: draft.leagueNames }) : { added: [], mismatches: [] };
+    const extra = (ours.added.length ? `<p class="note">בטבלה גם ${ours.added.length === 1 ? 'משחק אחד שלנו' : `<span class="num">${ours.added.length}</span> משחקים שלנו`} שעוד לא באתר הליגה — מהתוצאות שנשמרו כאן.</p>` : '')
+      + (ours.mismatches.length ? `<div class="mn-alert lg-alert"><span class="mn-alert-ic">${icon('table')}</span><div><p><b>${ours.mismatches.length === 1 ? 'תוצאה שונה באתר הליגה' : `${ours.mismatches.length} תוצאות שונות באתר הליגה`}</b></p>
+          <ul>${mismatchRows(null, ours.mismatches)}</ul><p class="lg-alert-note">הטבלה מציגה את התוצאה שבאתר.</p></div></div>` : '');
     return `<section id="league-admin">
       <div class="sec-head">${icon('table')}<h2>טבלת הליגה</h2><span class="aside head-acts"><button type="button" class="chip-tool" data-league-paste>${icon('clipboard')} הדבקה</button></span></div>
-      <div class="card">${status}</div>
+      <div class="card">${status}${extra}</div>
       ${rows ? `<p class="note list-note">איזו קבוצה בטבלה היא כל יריבה. זוהה לפי דמיון שמות; אפשר לתקן, ושומרים.</p><div class="card lg-maps">${rows}</div>` : ''}
     </section>`;
   }

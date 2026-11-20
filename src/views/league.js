@@ -2,10 +2,11 @@
 // line on the next-match card. The data is the league site's daily file
 // (s.league, src/league.js); names are text from outside — every one escaped.
 import { esc, shortDate } from '../format.js';
-import { sectionHead, foldRows, oppLogo, crestImg } from '../components.js';
+import { sectionHead, foldRows, oppLogo, crestImg, scoreEl } from '../components.js';
+import { icon } from '../icons.js';
 import { openSheet } from '../ui/sheet.js';
 import { opponentLogo } from '../season.js';
-import { shortTeam, teamView, leagueTeamFor, opponentNames, resultLetter, lastRound } from '../league.js';
+import { shortTeam, teamView, leagueTeamFor, opponentNames, resultLetter, lastRound, mismatchKey } from '../league.js';
 import { todayInIsrael } from '../fixtures.js';
 
 // Our opponent's name for a league team (to find its crest), or null.
@@ -27,11 +28,34 @@ function crest(s, team, cls = '') {
 const nextTeam = (s) => (s.nextMatch?.opponent ? leagueTeamFor(s, s.nextMatch.opponent) : null);
 
 // A date a few days old reads as stale: the sender missed a day or two.
-function updatedHtml(lg) {
+function updatedHtml(lg, added = []) {
   const d = lg.reportDate || String(lg.updatedAt || '').slice(0, 10);
   if (!d) return '';
   const days = Math.round((Date.parse(todayInIsrael()) - Date.parse(d)) / 864e5);
-  return `<p class="lg-upd${days > 2 ? ' old' : ''}">מעודכן ל־<span class="num">${esc(shortDate(d))}</span> · מאתר הליגה</p>`;
+  // Our results saved since the file: in the table already, said so quietly.
+  const ours = added.length ? ` · כולל ${added.length === 1 ? 'המשחק שלנו' : `<span class="num">${added.length}</span> משחקים שלנו`} מ־${added.map((g) => `<span class="num">${esc(shortDate(g.date).slice(0, 5))}</span>`).join(', ')}` : '';
+  return `<p class="lg-upd${days > 2 ? ' old' : ''}">מעודכן ל־<span class="num">${esc(shortDate(d))}</span> · מאתר הליגה${ours}</p>`;
+}
+
+// A result of ours the league site has otherwise: ours and theirs, each in
+// the app's own way (us on the right, gold).
+export function mismatchRows(s, list) {
+  return list.map((x) => `<li><span>${x.round != null ? `מחזור <span class="num">${x.round}</span> · ` : ''}${esc(x.opponent)} · <span class="num">${esc(shortDate(x.date))}</span></span>
+    <span class="lg-mm">אצלנו ${scoreEl(x.ours)} · באתר הליגה ${scoreEl(x.theirs)}</span></li>`).join('');
+}
+
+// On the manager's home screen until checked: the site's table counts the
+// site's result, and one of the two is wrong.
+export function leagueAlertHtml(s, acked) {
+  const open = (s.leagueMismatches || []).filter((x) => !acked.includes(mismatchKey(x)));
+  if (!open.length) return '';
+  return `<section><div class="mn-alert mn-home lg-alert">
+      <span class="mn-alert-ic">${icon('table')}</span>
+      <div><p><b>${open.length === 1 ? 'תוצאה שונה באתר הליגה' : `${open.length} תוצאות שונות באתר הליגה`}</b></p>
+        <ul>${mismatchRows(s, open)}</ul>
+        <p class="lg-alert-note">הטבלה מציגה את התוצאה שבאתר. אם אצלנו נכון — כדאי לפנות לליגה; אם לא — לתקן את התוצאה בניהול ← משחקים.</p></div>
+      <button type="button" class="btn small secondary" data-lg-ack>בדקתי</button>
+    </div></section>`;
 }
 
 export function renderLeague(s) {
@@ -54,7 +78,7 @@ export function renderLeague(s) {
   }).join('');
   return `<section>
     ${sectionHead(lg.league?.name || 'טבלת הליגה', round ? `אחרי מחזור <span class="num">${round}</span>` : '', 'table')}
-    <div class="card hero lg-card">${head}${rows}${updatedHtml(lg)}</div>
+    <div class="card hero lg-card">${head}${rows}${updatedHtml(lg, s.leagueAdded)}</div>
     <p class="note lg-hint">לחיצה על קבוצה — המאזן שלה, כל המשחקים שלה, ומתי היא מולנו.</p>
   </section>`;
 }

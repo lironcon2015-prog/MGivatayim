@@ -1097,6 +1097,18 @@ await test('league: our result moves the table at once; the file wins, and a dif
   assert.deepEqual([none.added.length, none.mismatches.length], [0, 0]);
 });
 
+await test('a crest\'s shape from its pixels: a disc is round; a shield, a square and an oval box are not', async () => {
+  const { shapeOfPixels } = await import('../src/components.js');
+  const n = 48;
+  const mask = (f) => { const a = new Uint8Array(n * n); for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) a[y * n + x] = f(x + 0.5, y + 0.5) ? 255 : 0; return a; };
+  assert.equal(shapeOfPixels(mask((x, y) => Math.hypot(x - 24, y - 24) < 22), n), 'round');
+  assert.equal(shapeOfPixels(mask((x, y) => Math.hypot(x - 20, y - 26) < 14), n), 'round', 'off centre, smaller');
+  assert.equal(shapeOfPixels(mask((x, y) => x > 4 && x < 44 && y > 4 && y < 44), n), 'other', 'square');
+  assert.equal(shapeOfPixels(mask((x, y) => x > 8 && x < 40 && (y < 28 ? y > 4 : y - 28 < 20 - Math.abs(x - 24) * 1.2)), n), 'other', 'shield');
+  assert.equal(shapeOfPixels(mask((x, y) => x > 10 && x < 30 && y > 2 && y < 46), n), 'other', 'tall box');
+  assert.equal(shapeOfPixels(mask(() => false), n), 'other', 'empty');
+});
+
 await test('leaders: goals, then goals and assists together, then first name', async () => {
   const { topBy } = await import('../src/season.js');
   const P = (name, goals, assists) => ({ name, goals, assists, points: goals + assists });

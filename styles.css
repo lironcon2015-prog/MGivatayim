@@ -656,6 +656,9 @@ button.form-pill:focus-visible { outline: 2px solid var(--gold); outline-offset:
 }
 .opp-plq .opp-logo { position: absolute; inset: 0; width: 100%; height: 100%; padding: 13%; object-fit: contain; }
 .opp-plq:has(.opp-logo[src]) { color: transparent; }
+/* A round crest fills its plaque like ours (shapeOfPixels in components.js);
+   a shield or a square keeps the margin that saves its corners. */
+.disc .opp-logo.round, .sc-disc .opp-logo.round, .opp-plq .opp-logo.round { padding: 5%; }
 .opp-tag em {
   position: absolute; inset-inline: -6px; bottom: -7px; margin: auto; width: fit-content; padding: 0 5px; border-radius: var(--r-pill);
   font-style: normal; font-size: .58rem; font-weight: 700; line-height: 1.45; white-space: nowrap;

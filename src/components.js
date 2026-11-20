@@ -24,7 +24,65 @@ const whenHtml = (iso) => {
 export function oppLogo(ref, name) {
   if (!ref) return '';
   const src = cachedPosterUrl(ref);
-  return `<img class="opp-logo" data-poster="${esc(ref)}"${src ? ` src="${esc(src)}"` : ''} alt="סמל ${esc(name)}" decoding="async" onerror="this.remove()" />`;
+  return `<img class="opp-logo${crestShape(ref) === 'round' ? ' round' : ''}" data-poster="${esc(ref)}"${src ? ` src="${esc(src)}"` : ''} alt="סמל ${esc(name)}" decoding="async" onerror="this.remove()" />`;
+}
+
+// A round crest fills its plaque, as ours does (the owner: קרית אונו's crest,
+// round like ours, sat small inside a dark ring). Any other shape — a shield,
+// a square — keeps the margin that stops its corners from being cut by the
+// circle. The shape is read once from the picture itself (its opaque pixels:
+// a disc fills the inner circle and leaves the corners of its box empty), and
+// kept on the phone by the crest's id, so the next draw has it at once.
+const SHAPE_KEY = 'mg:crestShape';
+let shapes = null;
+function crestShape(ref) {
+  if (!shapes) { try { shapes = JSON.parse(localStorage.getItem(SHAPE_KEY) || '{}'); } catch { shapes = {}; } }
+  return shapes[ref] || '';
+}
+function keepShape(ref, shape) {
+  crestShape(ref);
+  if (shapes[ref] === shape) return;
+  shapes[ref] = shape;
+  const keys = Object.keys(shapes);
+  if (keys.length > 200) delete shapes[keys[0]];
+  try { localStorage.setItem(SHAPE_KEY, JSON.stringify(shapes)); } catch { /* read again next time */ }
+}
+export function shapeOfPixels(alpha, n) {
+  let minX = n, minY = n, maxX = -1, maxY = -1;
+  for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
+    if (alpha[y * n + x] > 40) { minX = Math.min(minX, x); maxX = Math.max(maxX, x); minY = Math.min(minY, y); maxY = Math.max(maxY, y); }
+  }
+  if (maxX < 0) return 'other';
+  const w = maxX - minX + 1, h = maxY - minY + 1;
+  if (Math.abs(w - h) > 0.12 * Math.max(w, h)) return 'other';
+  const cx = minX + w / 2, cy = minY + h / 2, r = (w + h) / 4;
+  let inside = 0, filled = 0, outside = 0, spill = 0;
+  for (let y = minY; y <= maxY; y++) for (let x = minX; x <= maxX; x++) {
+    const d = Math.hypot(x + 0.5 - cx, y + 0.5 - cy) / r;
+    const on = alpha[y * n + x] > 40;
+    if (d < 0.88) { inside++; if (on) filled++; } else if (d > 1.1) { outside++; if (on) spill++; }
+  }
+  return inside && filled / inside > 0.9 && outside && spill / outside < 0.15 ? 'round' : 'other';
+}
+if (typeof document !== 'undefined') {
+  document.addEventListener('load', (e) => {
+    const img = e.target;
+    if (!(img instanceof HTMLImageElement) || !img.classList.contains('opp-logo') || !img.dataset.poster) return;
+    let shape = 'other';
+    try {
+      const n = 48;
+      const c = document.createElement('canvas');
+      c.width = c.height = n;
+      const g = c.getContext('2d', { willReadFrequently: true });
+      g.drawImage(img, 0, 0, n, n);
+      const d = g.getImageData(0, 0, n, n).data;
+      const alpha = new Uint8Array(n * n);
+      for (let i = 0; i < n * n; i++) alpha[i] = d[i * 4 + 3];
+      shape = shapeOfPixels(alpha, n);
+    } catch { /* a picture the page may not read: keep the margin */ }
+    img.classList.toggle('round', shape === 'round');
+    keepShape(img.dataset.poster, shape);
+  }, true);
 }
 
 // A screen redrawn with innerHTML makes every <img> anew, and a new element

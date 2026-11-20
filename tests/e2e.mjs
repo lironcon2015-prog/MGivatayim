@@ -246,6 +246,13 @@ await step('manager fills a season and saves it', async () => {
   await admin.waitForFunction((w) => { const i = document.querySelector('.logo-row .opp-logo[src]'); return i && i.dataset.poster !== w; }, was, { timeout: 8000 });
   const keyed = await admin.locator('.logo-row .opp-logo[src]').evaluate(async (i) => { await i.decode(); return `${i.naturalWidth}x${i.naturalHeight}`; });
   expect(keyed === '12x30', 'green background not removed: ' + keyed);
+  // A shield keeps its margin in the round plaque; a round crest fills it, as ours does.
+  expect(!(await admin.locator('.logo-row .opp-logo[src]').evaluate((i) => i.classList.contains('round'))), 'a shield read as round');
+  const was2 = await admin.locator('.logo-row .opp-logo[src]').getAttribute('data-poster');
+  await admin.setInputFiles('.logo-row [data-logo-file="הפועל כוכבים"]', { name: 'crest.png', mimeType: 'image/png', buffer: rgbaPng(40, 40, (x, y) => Math.hypot(x - 19.5, y - 19.5) < 16) });
+  await admin.waitForFunction((w) => { const i = document.querySelector('.logo-row .opp-logo[src]'); return i && i.dataset.poster !== w; }, was2, { timeout: 8000 });
+  await admin.waitForFunction(() => document.querySelector('.logo-row .opp-logo[src]').classList.contains('round'), null, { timeout: 5000 })
+    .catch(() => { throw new Error('a round crest was not read as round'); });
   await admin.click('#save');
   await waitSaved(admin);
   // Saved, the row folds, marked as the next match, with its crest.

@@ -2956,37 +2956,38 @@ await step('the league: its own tab, a sheet for any team, the line on the next 
   const names = Object.fromEntries([...(cur.season.fixtures || []), ...(cur.season.matches || [])].map((g) => [String(g.opponent).replace(/\s+/g, ' ').trim(), 'מ.כ. קרית אונו "צו פיוס"']));
   bridge.post({ action: 'putSeason', adminCode: ADMIN, baseVersion: cur.version, season: { ...cur.season, leagueNames: names } });
   try {
-    await parent.goto(APP + '#/');
-    await parent.reload();
-    await parent.locator('#nav a[href="#/league"]').waitFor({ timeout: 8000 });
-    if (await parent.locator('.hero .fixture').count()) {
-      await parent.locator('.hero .lg-next', { hasText: 'מקום 6' }).waitFor();
-      expect(await parent.locator('.hero .lg-pills i').count() === 3, 'not the last three results on the next match');
+    // The parent of the steps before is revoked by now: the manager's phone sees as anyone does.
+    await admin.goto(APP + '#/');
+    await admin.reload();
+    await admin.locator('#nav a[href="#/league"]').waitFor({ timeout: 8000 });
+    if (await admin.locator('.hero .fixture').count()) {
+      await admin.locator('.hero .lg-next', { hasText: 'מקום 6' }).waitFor();
+      expect(await admin.locator('.hero .lg-pills i').count() === 3, 'not the last three results on the next match');
     }
-    await parent.click('#nav a[href="#/league"]');
-    await parent.locator('.lg-row[data-team]').first().waitFor();
-    expect(await parent.locator('.lg-row[data-team]').count() === 12, 'not 12 teams in the table');
-    expect((await parent.locator('.lg-row.us .t').innerText()).includes('מכבי גבעתיים'), 'our row is not ours');
-    expect(await parent.evaluate(() => window.__lg) === undefined, 'a team name from the file ran as HTML');
-    expect(await parent.locator('.lg-row', { hasText: '<img' }).count() === 1, 'the name with HTML is not shown as text');
-    expect(await parent.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'the table pushes the page sideways');
+    await admin.click('#nav a[href="#/league"]');
+    await admin.locator('.lg-row[data-team]').first().waitFor();
+    expect(await admin.locator('.lg-row[data-team]').count() === 12, 'not 12 teams in the table');
+    expect((await admin.locator('.lg-row.us .t').innerText()).includes('מכבי גבעתיים'), 'our row is not ours');
+    expect(await admin.evaluate(() => window.__lg) === undefined, 'a team name from the file ran as HTML');
+    expect(await admin.locator('.lg-row', { hasText: '<img' }).count() === 1, 'the name with HTML is not shown as text');
+    expect(await admin.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'the table pushes the page sideways');
     // Ours: four results, three shown, the rest one tap away.
-    await parent.click('.lg-row.us');
-    await parent.locator('.sheet .lg-tiles').waitFor();
-    expect(await parent.locator('.sheet .lg-game:visible').count() === 3, 'not three results first');
-    await parent.click('.sheet [data-fold-btn]');
-    expect(await parent.locator('.sheet .lg-games .lg-game:visible').count() === 4, 'the rest did not open');
-    await parent.click('.sheet-x');
+    await admin.click('.lg-row.us');
+    await admin.locator('.sheet .lg-tiles').waitFor();
+    expect(await admin.locator('.sheet .lg-game:visible').count() === 3, 'not three results first');
+    await admin.click('.sheet [data-fold-btn]');
+    expect(await admin.locator('.sheet .lg-games .lg-game:visible').count() === 4, 'the rest did not open');
+    await admin.click('.sheet-x');
     await sheetGone(parent);
     // Another team: its game with us, from our side.
-    await parent.click('.lg-row:has-text("ניר רמת השרון")');
-    await parent.locator('.sheet .lg-vs.played', { hasText: 'מחזור 1' }).waitFor();
-    const vs = await parent.evaluate(() => {
+    await admin.click('.lg-row:has-text("ניר רמת השרון")');
+    await admin.locator('.sheet .lg-vs.played', { hasText: 'מחזור 1' }).waitFor();
+    const vs = await admin.evaluate(() => {
       const r = (s) => document.querySelector('.sheet .lg-vs ' + s).getBoundingClientRect().x;
       return { us: document.querySelector('.sheet .lg-vs .me').textContent, right: r('.me') > r('span.op') };
     });
     expect(vs.us.includes('מכבי גבעתיים') && vs.right, 'our game with them is not from our side: ' + JSON.stringify(vs));
-    await parent.click('.sheet-x');
+    await admin.click('.sheet-x');
     await sheetGone(parent);
     // The manager: when it came in, a refused paste says why, and the names.
     await admin.goto(APP + '#/admin');
